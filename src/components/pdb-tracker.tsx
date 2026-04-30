@@ -25,7 +25,6 @@ import {
   Loader2,
   Info,
   Menu,
-  Dna,
   ArrowLeft,
   Moon,
   Sun,
@@ -38,6 +37,13 @@ import {
   BookmarkCheck,
   Star,
   Columns3,
+  SlidersHorizontal,
+  RotateCcw,
+  Clock,
+  Printer,
+  Globe,
+  Dna,
+  Activity,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,10 +74,63 @@ import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Slider } from '@/components/ui/slider';
+import { Checkbox } from '@/components/ui/checkbox';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
 import dynamic from 'next/dynamic';
 
 const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
+
+// ─── useCountUp Hook ─────────────────────────────────────────────────────────
+
+function useCountUp(target: number, duration: number = 400): number {
+  const [current, setCurrent] = useState(target);
+  const prevTargetRef = useRef(target);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (prevTargetRef.current === target) return;
+    const start = prevTargetRef.current;
+    const diff = target - start;
+    const startTime = performance.now();
+
+    function tick(now: number) {
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setCurrent(Math.round(start + diff * eased));
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(tick);
+      } else {
+        prevTargetRef.current = target;
+        setCurrent(target);
+      }
+    }
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [target, duration]);
+
+  // Sync on first render
+  useEffect(() => {
+    prevTargetRef.current = target;
+  }, []);
+
+  return current;
+}
+
+// ─── Animated Number Component ───────────────────────────────────────────────
+
+function AnimatedNumber({ value, decimals = 0, suffix = '' }: { value: number; decimals?: number; suffix?: string }) {
+  const animated = useCountUp(Math.round(value * Math.pow(10, decimals)), 400);
+  const display = (animated / Math.pow(10, decimals)).toFixed(decimals);
+  return <span className="tabular-nums">{display}{suffix}</span>;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -504,7 +563,7 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
                 <X className="h-4 w-4" />
               </Button>
             </div>
-            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar preview-scroll">
               <div className="markdown-content">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               </div>
@@ -559,7 +618,7 @@ function Pagination({
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="pagination-btn inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] disabled:opacity-40 disabled:cursor-not-allowed claude-focus-ring"
         >
           <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
           Prev
@@ -571,9 +630,9 @@ function Pagination({
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium transition-colors duration-150 ${
+              className={`pagination-btn inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium claude-focus-ring ${
                 page === p
-                  ? 'bg-claude-accent text-white shadow-sm'
+                  ? 'bg-claude-accent text-white shadow-sm pagination-active'
                   : 'border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
               }`}
             >
@@ -584,7 +643,7 @@ function Pagination({
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="pagination-btn inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] disabled:opacity-40 disabled:cursor-not-allowed claude-focus-ring"
         >
           Next
           <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
@@ -658,6 +717,9 @@ export default function PdbTracker() {
   const [selectedEntry, setSelectedEntry] = useState<PdbEntry | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
 
+  // ── Timeline Highlight ──
+  const [highlightedEntry, setHighlightedEntry] = useState<string | null>(null);
+
   // ── Bookmarks ──
   const [bookmarks, setBookmarks] = useState<Set<string>>(() => {
     try {
@@ -693,6 +755,63 @@ export default function PdbTracker() {
       return next;
     });
   }, []);
+
+  // ── Advanced Filters ──
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [resolutionRange, setResolutionRange] = useState<[number, number]>([0, 5]);
+  const [ifRange, setIfRange] = useState<[number, number]>([0, 50]);
+  const [selectedOrganisms, setSelectedOrganisms] = useState<Set<string>>(new Set());
+  const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
+
+  // Organism list from current week's entries
+  const organismOptions = useMemo(() => {
+    const counts: Record<string, number> = {};
+    entries.forEach(e => {
+      if (e.organisms) {
+        e.organisms.split('|').forEach(o => {
+          const trimmed = o.trim();
+          if (trimmed) counts[trimmed] = (counts[trimmed] || 0) + 1;
+        });
+      }
+    });
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, count]) => ({ name, count }));
+  }, [entries]);
+
+  // Active advanced filter count
+  const activeAdvancedFilterCount = useMemo(() => {
+    let count = 0;
+    if (resolutionRange[0] !== 0 || resolutionRange[1] !== 5) count++;
+    if (ifRange[0] !== 0 || ifRange[1] !== 50) count++;
+    if (selectedOrganisms.size > 0) count++;
+    if (dateRange.from || dateRange.to) count++;
+    return count;
+  }, [resolutionRange, ifRange, selectedOrganisms, dateRange]);
+
+  const clearAdvancedFilters = useCallback(() => {
+    setResolutionRange([0, 5]);
+    setIfRange([0, 50]);
+    setSelectedOrganisms(new Set());
+    setDateRange({ from: '', to: '' });
+  }, []);
+
+  const toggleOrganism = useCallback((organism: string) => {
+    setSelectedOrganisms(prev => {
+      const next = new Set(prev);
+      if (next.has(organism)) next.delete(organism);
+      else next.add(organism);
+      return next;
+    });
+  }, []);
+
+  const toggleAllOrganisms = useCallback(() => {
+    if (selectedOrganisms.size === organismOptions.length) {
+      setSelectedOrganisms(new Set());
+    } else {
+      setSelectedOrganisms(new Set(organismOptions.map(o => o.name)));
+    }
+  }, [selectedOrganisms.size, organismOptions]);
 
   // Persist bookmarks to localStorage
   useEffect(() => {
@@ -769,7 +888,7 @@ export default function PdbTracker() {
   }, [searchQuery]);
 
   // ── Reset page on filter/sort change ──
-  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId]);
+  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange]);
 
   // ── Debounced Search ──
   useEffect(() => {
@@ -913,6 +1032,32 @@ export default function PdbTracker() {
     if (showBookmarksOnly) {
       source = entries.filter(e => bookmarks.has(e.pdbId));
     }
+    // Apply advanced filters
+    if (resolutionRange[0] !== 0 || resolutionRange[1] !== 5) {
+      source = source.filter(e => {
+        if (e.resolution === null || e.resolution === undefined) return false;
+        return e.resolution >= resolutionRange[0] && e.resolution <= resolutionRange[1];
+      });
+    }
+    if (ifRange[0] !== 0 || ifRange[1] !== 50) {
+      source = source.filter(e => {
+        if (e.journalIf === null || e.journalIf === undefined) return false;
+        return e.journalIf >= ifRange[0] && e.journalIf <= ifRange[1];
+      });
+    }
+    if (selectedOrganisms.size > 0) {
+      source = source.filter(e => {
+        if (!e.organisms) return false;
+        const entryOrganisms = e.organisms.split('|').map(o => o.trim());
+        return entryOrganisms.some(o => selectedOrganisms.has(o));
+      });
+    }
+    if (dateRange.from) {
+      source = source.filter(e => e.releaseDate >= dateRange.from);
+    }
+    if (dateRange.to) {
+      source = source.filter(e => e.releaseDate <= dateRange.to);
+    }
     if (!source.length) return [];
     const sorted = [...source].sort((a, b) => {
       let aVal: any, bVal: any;
@@ -932,7 +1077,7 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks]);
+  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
@@ -1076,7 +1221,7 @@ export default function PdbTracker() {
       <div className="flex flex-col h-full w-full overflow-hidden">
 
         {/* ═══════════ HEADER BAR ═══════════ */}
-        <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20">
+        <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20 no-print">
           {/* Gradient border at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-claude-cryoem via-claude-accent to-claude-xray bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
           <div className="flex items-center gap-3">
@@ -1084,7 +1229,7 @@ export default function PdbTracker() {
               <Dna className="h-4.5 w-4.5 text-claude-accent" />
             </div>
             <div>
-              <h1 className="text-sm font-semibold text-claude-text leading-tight">PDB Structure Tracker</h1>
+              <h1 className="text-base font-semibold text-claude-text leading-tight header-title" style={{ letterSpacing: '-0.02em' }}>PDB Structure Tracker</h1>
               <p className="text-[10px] text-claude-text-muted leading-tight">Protein Data Bank Weekly Tracking & Evaluation System</p>
             </div>
           </div>
@@ -1093,7 +1238,7 @@ export default function PdbTracker() {
           <Popover>
             <PopoverTrigger asChild>
               <button
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
                 aria-label="Keyboard shortcuts"
               >
                 <Keyboard className="h-4 w-4 text-claude-text-secondary" />
@@ -1133,7 +1278,7 @@ export default function PdbTracker() {
           {/* Dark mode toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
             aria-label="Toggle dark mode"
           >
             {mounted && theme === 'dark' ? (
@@ -1146,7 +1291,7 @@ export default function PdbTracker() {
           {/* Mobile hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
           >
             <Menu className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -1154,7 +1299,7 @@ export default function PdbTracker() {
           {/* Mobile preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
           >
             <BarChart3 className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -1164,7 +1309,7 @@ export default function PdbTracker() {
 
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar */}
-          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col">
+          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print">
             {renderSidebar()}
           </aside>
 
@@ -1185,7 +1330,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: -280 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] bg-white dark:bg-[#242220] border-r border-claude-border flex flex-col md:hidden"
+                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] bg-white dark:bg-[#242220] border-r border-claude-border flex flex-col md:hidden no-print"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border">
                     <span className="text-xs font-semibold text-claude-text">Navigation</span>
@@ -1202,7 +1347,7 @@ export default function PdbTracker() {
           {/* ═══════════ MAIN AREA ═══════════ */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             {/* Toolbar */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-claude-border bg-white/80 dark:bg-[#242220]/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-claude-border bg-white/80 dark:bg-[#242220]/80 backdrop-blur-sm no-print">
               {mode === 'weekly' ? (
                 <>
                   {/* Week Select */}
@@ -1243,7 +1388,7 @@ export default function PdbTracker() {
                       placeholder="Search PDB ID, title, journal..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
+                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 claude-focus-ring"
                     />
                     {searchQuery && (
                       <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -1253,7 +1398,7 @@ export default function PdbTracker() {
                   </div>
 
                   {/* Active Filter Chips */}
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  <div className="flex items-center gap-1.5 flex-wrap no-print">
                     {/* Bookmark Filter Button */}
                     <button
                       onClick={() => {
@@ -1305,7 +1450,7 @@ export default function PdbTracker() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
                       >
                         <Columns3 className="h-3 w-3" />
                         Columns
@@ -1345,10 +1490,21 @@ export default function PdbTracker() {
                   {sortedEntries.length > 0 && (
                     <button
                       onClick={handleExportCsv}
-                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
                     >
                       <Download className="h-3 w-3" />
                       Export
+                    </button>
+                  )}
+
+                  {/* Print Button */}
+                  {sortedEntries.length > 0 && (
+                    <button
+                      onClick={() => window.print()}
+                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring no-print"
+                    >
+                      <Printer className="h-3 w-3" />
+                      Print
                     </button>
                   )}
 
@@ -1358,7 +1514,7 @@ export default function PdbTracker() {
                       if (compareMode) { setCompareMode(false); setCompareWeekId(null); }
                       else setCompareMode(true);
                     }}
-                    className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 ${
+                    className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
                       compareMode
                         ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
                         : 'border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
@@ -1366,6 +1522,24 @@ export default function PdbTracker() {
                   >
                     <GitCompareArrows className="h-3 w-3" />
                     Compare
+                  </button>
+
+                  {/* Advanced Filters Button */}
+                  <button
+                    onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)}
+                    className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 relative claude-focus-ring ${
+                      advancedFiltersOpen || activeAdvancedFilterCount > 0
+                        ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                        : 'border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                    }`}
+                  >
+                    <SlidersHorizontal className="h-3 w-3" />
+                    Filters
+                    {activeAdvancedFilterCount > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full text-[8px] font-bold bg-claude-accent text-white leading-none">
+                        {activeAdvancedFilterCount}
+                      </span>
+                    )}
                   </button>
 
                   {/* Compare Week Selector */}
@@ -1415,13 +1589,216 @@ export default function PdbTracker() {
               </Button>
             </div>
 
+            {/* Advanced Filter Panel */}
+            {mode === 'weekly' && (
+              <AnimatePresence initial={false}>
+                {advancedFiltersOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden no-print"
+                  >
+                    <div className="bg-white dark:bg-[#242220] border-b border-claude-border p-4">
+                      {/* Panel Header - Active Filter Chips + Clear All */}
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-semibold text-claude-text-secondary">Active Filters</span>
+                          {/* Active filter chips */}
+                          {(resolutionRange[0] !== 0 || resolutionRange[1] !== 5) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                              {resolutionRange[0].toFixed(1)}Å — {resolutionRange[1].toFixed(1)}Å
+                              <button onClick={() => setResolutionRange([0, 5])} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
+                          {(ifRange[0] !== 0 || ifRange[1] !== 50) && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                              IF: {ifRange[0].toFixed(1)} — {ifRange[1].toFixed(1)}
+                              <button onClick={() => setIfRange([0, 50])} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
+                          {selectedOrganisms.size > 0 && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                              {selectedOrganisms.size} organism{selectedOrganisms.size > 1 ? 's' : ''}
+                              <button onClick={() => setSelectedOrganisms(new Set())} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
+                          {dateRange.from && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                              From: {dateRange.from}
+                              <button onClick={() => setDateRange(prev => ({ ...prev, from: '' }))} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
+                          {dateRange.to && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                              To: {dateRange.to}
+                              <button onClick={() => setDateRange(prev => ({ ...prev, to: '' }))} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
+                          {activeAdvancedFilterCount === 0 && (
+                            <span className="text-[10px] text-claude-text-muted">No filters active</span>
+                          )}
+                        </div>
+                        {activeAdvancedFilterCount > 0 && (
+                          <button
+                            onClick={clearAdvancedFilters}
+                            className="inline-flex items-center gap-1 text-[10px] font-medium text-claude-accent hover:text-claude-accent/80 transition-colors"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Clear All
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Filter Groups */}
+                      <div className="flex flex-wrap gap-6">
+                        {/* Resolution Range */}
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <label className="text-xs font-semibold text-claude-text-secondary">
+                            Resolution Range
+                            <span className="ml-2 text-[10px] font-mono text-claude-accent">
+                              {resolutionRange[0].toFixed(1)}Å — {resolutionRange[1].toFixed(1)}Å
+                            </span>
+                          </label>
+                          <Slider
+                            min={0}
+                            max={5}
+                            step={0.1}
+                            value={resolutionRange}
+                            onValueChange={(val) => setResolutionRange([val[0], val[1]])}
+                            className="w-full [&_[data-slot=slider-range]]:bg-[#c96442] [&_[data-slot=slider-thumb]]:border-[#c96442] [&_[data-slot=slider-thumb]]:hover:ring-[#c96442]/20 [&_[data-slot=slider-thumb]]:focus-visible:ring-[#c96442]/20"
+                          />
+                          <div className="flex justify-between text-[9px] text-claude-text-muted">
+                            <span>0Å</span>
+                            <span>5Å</span>
+                          </div>
+                        </div>
+
+                        {/* Impact Factor Range */}
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <label className="text-xs font-semibold text-claude-text-secondary">
+                            Impact Factor Range
+                            <span className="ml-2 text-[10px] font-mono text-claude-accent">
+                              IF: {ifRange[0].toFixed(1)} — {ifRange[1].toFixed(1)}
+                            </span>
+                          </label>
+                          <Slider
+                            min={0}
+                            max={50}
+                            step={0.1}
+                            value={ifRange}
+                            onValueChange={(val) => setIfRange([val[0], val[1]])}
+                            className="w-full [&_[data-slot=slider-range]]:bg-[#c96442] [&_[data-slot=slider-thumb]]:border-[#c96442] [&_[data-slot=slider-thumb]]:hover:ring-[#c96442]/20 [&_[data-slot=slider-thumb]]:focus-visible:ring-[#c96442]/20"
+                          />
+                          <div className="flex justify-between text-[9px] text-claude-text-muted">
+                            <span>0</span>
+                            <span>50</span>
+                          </div>
+                        </div>
+
+                        {/* Organism Multi-Select */}
+                        <div className="flex flex-col gap-2 min-w-[200px] max-w-[300px]">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-semibold text-claude-text-secondary">
+                              Organisms
+                              {selectedOrganisms.size > 0 && (
+                                <span className="ml-1.5 inline-flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full text-[8px] font-bold bg-claude-accent text-white leading-none">
+                                  {selectedOrganisms.size}
+                                </span>
+                              )}
+                            </label>
+                            <button
+                              onClick={toggleAllOrganisms}
+                              className="text-[9px] font-medium text-claude-accent hover:text-claude-accent/80 transition-colors"
+                            >
+                              {selectedOrganisms.size === organismOptions.length ? 'Clear' : 'Select All'}
+                            </button>
+                          </div>
+                          <div className="max-h-32 overflow-y-auto custom-scrollbar sidebar-scroll space-y-1 pr-1">
+                            {organismOptions.length > 0 ? organismOptions.map(opt => (
+                              <label
+                                key={opt.name}
+                                className="flex items-center gap-2 text-xs text-claude-text-secondary hover:text-claude-text cursor-pointer py-0.5"
+                              >
+                                <Checkbox
+                                  checked={selectedOrganisms.has(opt.name)}
+                                  onCheckedChange={() => toggleOrganism(opt.name)}
+                                  className="h-3.5 w-3.5 data-[state=checked]:bg-[#c96442] data-[state=checked]:border-[#c96442]"
+                                />
+                                <span className="truncate flex-1">{opt.name}</span>
+                                <span className="text-[9px] text-claude-text-muted flex-shrink-0">({opt.count})</span>
+                              </label>
+                            )) : (
+                              <span className="text-[10px] text-claude-text-muted italic">No organisms in current data</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Date Range */}
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <label className="text-xs font-semibold text-claude-text-secondary">Date Range</label>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              value={dateRange.from}
+                              onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                              className="flex-1 px-2 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 [color-scheme:light] dark:[color-scheme:dark]"
+                              placeholder="From"
+                            />
+                            <span className="text-[10px] text-claude-text-muted">—</span>
+                            <input
+                              type="date"
+                              value={dateRange.to}
+                              onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                              className="flex-1 px-2 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 [color-scheme:light] dark:[color-scheme:dark]"
+                              placeholder="To"
+                            />
+                          </div>
+                          {(dateRange.from || dateRange.to) && (
+                            <span className="text-[9px] text-claude-text-muted">
+                              {dateRange.from || '...'} → {dateRange.to || '...'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+
             {/* Weekly Stat Cards */}
             {mode === 'weekly' && entries.length > 0 && !loadingEntries && (
               <WeeklyStatCards entries={entries} snapshots={snapshots} selectedSnapshot={selectedSnapshot} />
             )}
 
+            {/* Print-only header */}
+            <div className="hidden print:block print-header">
+              <h1>PDB Structure Tracker</h1>
+              <p>
+                {mode === 'weekly' && selectedSnapshot
+                  ? `Week: ${selectedSnapshot.weekId} (${formatDate(selectedSnapshot.weekStart)} — ${formatDate(selectedSnapshot.weekEnd)}) • ${sortedEntries.length} structures`
+                  : mode === 'evaluation' && selectedEval
+                  ? `${selectedEval.proteinName || selectedEval.uniprotId} (${selectedEval.uniprotId})`
+                  : 'PDB Structure Report'
+                }
+                {' • '}Report generated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+
             {/* Data Table */}
-            <div className="flex-1 overflow-auto custom-scrollbar">
+            <div className="flex-1 overflow-auto custom-scrollbar preview-scroll">
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={`${mode}-${selectedWeekId || 'no-week'}-${selectedEvalId || 'no-eval'}`}
@@ -1504,7 +1881,7 @@ export default function PdbTracker() {
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
-                            className={`table-row-hover ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group`}
+                            className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''}`}
                             onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
                           >
                             <td className="px-1.5 py-2 w-[32px]">
@@ -1543,9 +1920,9 @@ export default function PdbTracker() {
                             </td>
                             {!hiddenColumns.has('method') && (
                             <td className="px-3 py-2">
-                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text}`}>
-                                {getMethodLabel(entry.method)}
-                              </span>
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text} method-badge ${entry.method?.toUpperCase().includes('CRYO') || entry.method?.toUpperCase().includes('ELECTRON MICROSCOPY') ? 'method-badge-cryoem' : entry.method?.toUpperCase().includes('X-RAY') || entry.method?.toUpperCase().includes('XRAY') ? 'method-badge-xray' : entry.method?.toUpperCase().includes('NMR') ? 'method-badge-nmr' : 'method-badge-other'}`}>
+                              {getMethodLabel(entry.method)}
+                            </span>
                             </td>
                             )}
                             {!hiddenColumns.has('resolution') && (
@@ -1710,7 +2087,7 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover border-b border-claude-border-light ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30' : ''}`}>
+                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover-enhanced border-b border-claude-border-light ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30' : ''}`}>
                             <td className="px-3 py-2">
                               {row.pdbId ? (
                                 <Tooltip>
@@ -1760,7 +2137,7 @@ export default function PdbTracker() {
                             {!hiddenColumns.has('method') && (
                             <td className="px-3 py-2">
                               {row.method ? (
-                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text}`}>
+                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text} method-badge ${row.method?.toUpperCase().includes('CRYO') || row.method?.toUpperCase().includes('ELECTRON MICROSCOPY') ? 'method-badge-cryoem' : row.method?.toUpperCase().includes('X-RAY') || row.method?.toUpperCase().includes('XRAY') ? 'method-badge-xray' : row.method?.toUpperCase().includes('NMR') ? 'method-badge-nmr' : 'method-badge-other'}`}>
                                   {getMethodLabel(row.method)}
                                 </span>
                               ) : <span className="text-claude-text-muted">—</span>}
@@ -1807,22 +2184,26 @@ export default function PdbTracker() {
 
             {/* Pagination */}
             {mode === 'weekly' && sortedEntries.length > PAGE_SIZE && (
-              <Pagination
-                page={currentPage}
-                totalPages={totalPages}
-                totalItems={sortedEntries.length}
-                pageSize={PAGE_SIZE}
-                onPageChange={setCurrentPage}
-              />
+              <div className="no-print">
+                <Pagination
+                  page={currentPage}
+                  totalPages={totalPages}
+                  totalItems={sortedEntries.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
             )}
             {mode === 'evaluation' && selectedEval && sortedEvalRows.length > PAGE_SIZE && (
-              <Pagination
-                page={currentPage}
-                totalPages={totalEvalPages}
-                totalItems={sortedEvalRows.length}
-                pageSize={PAGE_SIZE}
-                onPageChange={setCurrentPage}
-              />
+              <div className="no-print">
+                <Pagination
+                  page={currentPage}
+                  totalPages={totalEvalPages}
+                  totalItems={sortedEvalRows.length}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPage}
+                />
+              </div>
             )}
           </div>
 
@@ -1834,7 +2215,7 @@ export default function PdbTracker() {
                 animate={{ width: 380, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="hidden md:flex flex-shrink-0 border-l border-claude-border bg-white dark:bg-[#242220] overflow-hidden"
+                className="hidden md:flex flex-shrink-0 border-l border-claude-border bg-white dark:bg-[#242220] overflow-hidden no-print"
               >
                 {renderPreviewPanel()}
               </motion.aside>
@@ -1858,7 +2239,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: 380 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col md:hidden"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col md:hidden no-print"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border">
                     <span className="text-xs font-semibold text-claude-text">Details</span>
@@ -1874,9 +2255,9 @@ export default function PdbTracker() {
         </div>
 
         {/* ═══════════ FOOTER ═══════════ */}
-        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted relative">
+        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted relative no-print">
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-claude-accent/30 to-transparent" />
-          <span>{snapshots.length} structures</span>
+          <span>{entries.length} structures</span>
           <span>·</span>
           <span>{snapshots.length} weeks</span>
           <span>·</span>
@@ -1900,12 +2281,14 @@ export default function PdbTracker() {
       </div>
 
       {/* Report Modal */}
-      <ReportModal
-        isOpen={reportModal.isOpen}
-        onClose={() => setReportModal(prev => ({ ...prev, isOpen: false }))}
-        title={reportModal.title}
-        content={reportModal.content}
-      />
+      <div className="no-print">
+        <ReportModal
+          isOpen={reportModal.isOpen}
+          onClose={() => setReportModal(prev => ({ ...prev, isOpen: false }))}
+          title={reportModal.title}
+          content={reportModal.content}
+        />
+      </div>
 
       {/* ═══════════ ROW DETAIL SLIDE-OVER PANEL ═══════════ */}
       <AnimatePresence>
@@ -1924,7 +2307,7 @@ export default function PdbTracker() {
               animate={{ x: 0 }}
               exit={{ x: 420 }}
               transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col shadow-2xl"
+              className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col shadow-2xl no-print"
             >
               {/* Detail Header */}
               <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-claude-border">
@@ -1940,7 +2323,7 @@ export default function PdbTracker() {
               </div>
 
               {/* Detail Content */}
-              <ScrollArea className="flex-1">
+              <ScrollArea className="flex-1 preview-scroll">
                 <div className="p-4 space-y-5">
                   {/* 3D Structure Viewer */}
                   <div>
@@ -2145,7 +2528,7 @@ export default function PdbTracker() {
         </div>
 
         {/* Sidebar Content */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 sidebar-scroll">
           {mode === 'weekly' ? (
             <div className="p-3 space-y-2">
               {/* Back button */}
@@ -2171,7 +2554,7 @@ export default function PdbTracker() {
                     <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${bookmarksExpanded ? 'rotate-0' : '-rotate-90'}`} />
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5 mt-1 mb-1">
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar sidebar-scroll space-y-0.5 mt-1 mb-1">
                       {[...bookmarks].map(pdbId => {
                         const matchedEntry = entries.find(e => e.pdbId === pdbId);
                         return (
@@ -2236,8 +2619,8 @@ export default function PdbTracker() {
                       onClick={() => setSelectedWeekId(snap.weekId)}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
                         isSelected
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent'
-                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card'
+                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
@@ -2334,7 +2717,7 @@ export default function PdbTracker() {
                   placeholder="Search proteins..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 claude-focus-ring"
                 />
               </div>
 
@@ -2364,8 +2747,8 @@ export default function PdbTracker() {
                       onClick={() => setSelectedEvalId(ev.uniprotId)}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
                         selectedEvalId === ev.uniprotId
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent'
-                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card'
+                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
@@ -2407,18 +2790,22 @@ export default function PdbTracker() {
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col">
         <div className="px-4 pt-3 border-b border-claude-border">
           <TabsList className="w-full h-8 bg-claude-border-light p-0.5">
-            <TabsTrigger value="summary" className="flex-1 text-xs h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+            <TabsTrigger value="summary" className="flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <BarChart3 className="h-3 w-3 mr-1" />
               Summary
             </TabsTrigger>
-            <TabsTrigger value="report" className="flex-1 text-xs h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+            <TabsTrigger value="timeline" className="flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+              <Clock className="h-3 w-3 mr-1" />
+              Timeline
+            </TabsTrigger>
+            <TabsTrigger value="report" className="flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <FileText className="h-3 w-3 mr-1" />
               Full Report
             </TabsTrigger>
           </TabsList>
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 preview-scroll">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={previewTab}
@@ -2446,6 +2833,22 @@ export default function PdbTracker() {
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
                 <Info className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-xs">Select an item to view summary</p>
+              </div>
+            )
+          ) : previewTab === 'timeline' ? (
+            /* Timeline Tab */
+            mode === 'weekly' && selectedSnapshot && entries.length > 0 ? (
+              <WeeklyTimeline
+                entries={entries}
+                snapshot={selectedSnapshot}
+                onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
+                onHighlightEntry={setHighlightedEntry}
+                highlightedEntry={highlightedEntry}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+                <Clock className="h-8 w-8 mb-2 opacity-30" />
+                <p className="text-xs">Select a week to view timeline</p>
               </div>
             )
           ) : (
@@ -2768,27 +3171,27 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="p-3 rounded-lg bg-claude-border-light/50">
-          <div className="text-lg font-semibold text-claude-text">{snapshot.totalStructures}</div>
+        <div className="p-3 rounded-lg bg-claude-border-light/50 claude-card-shadow">
+          <div className="text-lg font-semibold text-claude-text"><AnimatedNumber value={snapshot.totalStructures} /></div>
           <div className="text-[10px] text-claude-text-muted">Total Structures</div>
         </div>
-        <div className="p-3 rounded-lg bg-claude-cryoem-bg/50">
-          <div className="text-lg font-semibold text-claude-cryoem">{snapshot.cryoemCount}</div>
+        <div className="p-3 rounded-lg bg-claude-cryoem-bg/50 claude-card-shadow">
+          <div className="text-lg font-semibold text-claude-cryoem"><AnimatedNumber value={snapshot.cryoemCount} /></div>
           <div className="text-[10px] text-claude-cryoem/70">Cryo-EM</div>
         </div>
-        <div className="p-3 rounded-lg bg-claude-xray-bg/50">
-          <div className="text-lg font-semibold text-claude-xray">{snapshot.xrayCount}</div>
+        <div className="p-3 rounded-lg bg-claude-xray-bg/50 claude-card-shadow">
+          <div className="text-lg font-semibold text-claude-xray"><AnimatedNumber value={snapshot.xrayCount} /></div>
           <div className="text-[10px] text-claude-xray/70">X-ray</div>
         </div>
-        <div className="p-3 rounded-lg bg-claude-nmr-bg/50">
-          <div className="text-lg font-semibold text-claude-nmr">{snapshot.nmrCount}</div>
+        <div className="p-3 rounded-lg bg-claude-nmr-bg/50 claude-card-shadow">
+          <div className="text-lg font-semibold text-claude-nmr"><AnimatedNumber value={snapshot.nmrCount} /></div>
           <div className="text-[10px] text-claude-nmr/70">NMR</div>
         </div>
       </div>
 
       {/* ─── Chart 1: Method Distribution Donut Chart ─── */}
       {methodPieData.length > 0 && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Method Distribution</h4>
           <div className="flex items-center gap-3">
             <div className="w-[120px] h-[120px] flex-shrink-0">
@@ -2834,7 +3237,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 2: Resolution Distribution Bar Chart ─── */}
       {resolutionBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution Distribution</h4>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={resolutionBarData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
@@ -2869,7 +3272,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 5: Organism Distribution Horizontal Bar Chart ─── */}
       {organismBarData.length > 0 && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Top Organisms</h4>
           <ResponsiveContainer width="100%" height={130}>
             <BarChart data={organismBarData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
@@ -2901,7 +3304,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 3: Impact Factor Tier Distribution ─── */}
       {ifTierBarData.length > 0 && ifTierBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Impact Factor Tiers</h4>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={ifTierBarData} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
@@ -2921,7 +3324,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 4: Weekly Trends Mini Area Chart ─── */}
       {weeklyTrendData.length > 1 && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Weekly Trends</h4>
           <ResponsiveContainer width="100%" height={100}>
             <AreaChart data={weeklyTrendData} margin={{ top: 2, right: 10, bottom: 0, left: 0 }}>
@@ -3171,6 +3574,436 @@ function DeltaIndicator({ value, suffix = '', invertColor = false }: { value: nu
 
 // ─── Weekly Statistics Summary Cards ──────────────────────────────────────────
 
+// ─── Weekly Timeline Sub-Component ────────────────────────────────────────────
+
+function WeeklyTimeline({
+  entries,
+  snapshot,
+  onSelectEntry,
+  onHighlightEntry,
+  highlightedEntry,
+}: {
+  entries: PdbEntry[];
+  snapshot: WeeklySnapshot;
+  onSelectEntry: (entry: PdbEntry) => void;
+  onHighlightEntry: (pdbId: string | null) => void;
+  highlightedEntry: string | null;
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(350);
+  const [tooltipData, setTooltipData] = useState<{
+    entry: PdbEntry;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // Responsive container width
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Parse week date range
+  const weekStart = new Date(snapshot.weekStart);
+  const weekEnd = new Date(snapshot.weekEnd);
+  const totalDays = Math.max(1, Math.round((weekEnd.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+  // Generate day labels
+  const dayLabels = useMemo(() => {
+    const days: { date: Date; dayName: string; dateLabel: string }[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      days.push({
+        date: d,
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      });
+    }
+    return days;
+  }, [snapshot]);
+
+  // Group entries by day
+  const entriesByDay = useMemo(() => {
+    const groups: Record<string, PdbEntry[]> = {};
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      groups[key] = [];
+    }
+    entries.forEach(entry => {
+      const entryDate = entry.releaseDate.split('T')[0];
+      if (groups[entryDate]) {
+        groups[entryDate].push(entry);
+      } else {
+        // Find closest day
+        const closest = Object.keys(groups).reduce((prev, curr) =>
+          Math.abs(new Date(curr).getTime() - new Date(entryDate).getTime()) <
+          Math.abs(new Date(prev).getTime() - new Date(entryDate).getTime()) ? curr : prev
+        );
+        groups[closest].push(entry);
+      }
+    });
+    return groups;
+  }, [entries, weekStart, totalDays]);
+
+  // Timeline stats
+  const timelineStats = useMemo(() => {
+    const dayCounts = Object.values(entriesByDay).map(e => e.length);
+    const maxCount = Math.max(...dayCounts, 0);
+    const peakDayIdx = dayCounts.indexOf(maxCount);
+    const peakDay = peakDayIdx >= 0 ? dayLabels[peakDayIdx] : null;
+    const avgPerDay = entries.length > 0 ? (entries.length / totalDays).toFixed(1) : '0';
+
+    // Method distribution
+    const emCount = entries.filter(e => e.isCryoem === 1).length;
+    const xrCount = entries.filter(e => e.isXray === 1).length;
+    const nmrCount = entries.filter(e => e.method?.toUpperCase().includes('NMR')).length;
+    const otherCount = entries.length - emCount - xrCount - nmrCount;
+
+    return { maxCount, peakDay, avgPerDay, emCount, xrCount, nmrCount, otherCount };
+  }, [entriesByDay, dayLabels, entries, totalDays]);
+
+  // SVG dimensions
+  const svgHeight = 280;
+  const marginLeft = 8;
+  const marginRight = 8;
+  const marginTop = 24;
+  const timelineY = 60;
+  const axisY = timelineY + 30;
+  const dayLabelY = axisY + 14;
+  const dateLabelY = dayLabelY + 12;
+  const usableWidth = containerWidth - marginLeft - marginRight;
+  const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
+
+  // Get dot color by method
+  const getDotColor = (entry: PdbEntry): string => {
+    const m = entry.method?.toUpperCase() || '';
+    if (m.includes('CRYO') || m.includes('ELECTRON MICROSCOPY')) return METHOD_COLORS['Cryo-EM'];
+    if (m.includes('X-RAY') || m.includes('XRAY')) return METHOD_COLORS['X-ray'];
+    if (m.includes('NMR')) return METHOD_COLORS['NMR'];
+    return METHOD_COLORS['Other'];
+  };
+
+  // Get dot size by IF
+  const getDotSize = (entry: PdbEntry): number => {
+    const if_ = entry.journalIf ?? 0;
+    return Math.min(16, Math.max(6, (if_ / 50) * 10 + 6));
+  };
+
+  // Calculate dot positions
+  const dotPositions = useMemo(() => {
+    const positions: { entry: PdbEntry; cx: number; cy: number; size: number; color: string; dayIndex: number }[] = [];
+    const dayKeys = Object.keys(entriesByDay).sort();
+
+    dayKeys.forEach((dayKey, dayIdx) => {
+      const dayEntries = entriesByDay[dayKey];
+      const cx = marginLeft + dayIdx * dayWidth + dayWidth / 2;
+
+      dayEntries.forEach((entry, stackIdx) => {
+        const size = getDotSize(entry);
+        const offset = stackIdx * (size + 2);
+        const cy = timelineY - 10 - offset;
+        positions.push({
+          entry,
+          cx,
+          cy,
+          size,
+          color: getDotColor(entry),
+          dayIndex: dayIdx,
+        });
+      });
+    });
+
+    return positions;
+  }, [entriesByDay, dayWidth, marginLeft, timelineY]);
+
+  // Method distribution bar segments
+  const methodBarSegments = [
+    { label: 'EM', count: timelineStats.emCount, color: METHOD_COLORS['Cryo-EM'] },
+    { label: 'XR', count: timelineStats.xrCount, color: METHOD_COLORS['X-ray'] },
+    { label: 'NMR', count: timelineStats.nmrCount, color: METHOD_COLORS['NMR'] },
+    { label: 'Other', count: timelineStats.otherCount, color: METHOD_COLORS['Other'] },
+  ].filter(s => s.count > 0);
+
+  const methodBarTotal = methodBarSegments.reduce((s, seg) => s + seg.count, 0);
+
+  const axisStroke = isDark ? '#4a4540' : '#e8e4dd';
+  const textColor = isDark ? '#9b9590' : '#7c756e';
+  const mutedTextColor = isDark ? '#6b6560' : '#9b9590';
+
+  return (
+    <div className="p-4 space-y-4" ref={containerRef}>
+      {/* Timeline Stats */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd]">
+            Release Timeline
+          </h4>
+          <span className="text-[10px] text-claude-text-muted dark:text-[#6b6560]">
+            {formatDate(snapshot.weekStart)} — {formatDate(snapshot.weekEnd)}
+          </span>
+        </div>
+
+        {/* Quick stats row */}
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="text-claude-text-secondary dark:text-[#9b9590]">
+            Peak day: <span className="font-semibold text-claude-text dark:text-[#e8e4dd]">{timelineStats.peakDay?.dayName || '—'}</span>
+            <span className="text-claude-text-muted dark:text-[#6b6560]"> ({timelineStats.maxCount} structures)</span>
+          </span>
+          <span className="text-claude-text-muted">·</span>
+          <span className="text-claude-text-secondary dark:text-[#9b9590]">
+            Avg/day: <span className="font-semibold text-claude-text dark:text-[#e8e4dd]">{timelineStats.avgPerDay}</span>
+          </span>
+        </div>
+
+        {/* Method distribution mini bar */}
+        {methodBarTotal > 0 && (
+          <div className="space-y-1">
+            <div className="flex h-2 rounded-full overflow-hidden bg-claude-border-light dark:bg-[#1a1917]">
+              {methodBarSegments.map((seg, i) => (
+                <div
+                  key={`mbar-${i}`}
+                  className="transition-all duration-500"
+                  style={{
+                    width: `${(seg.count / methodBarTotal) * 100}%`,
+                    backgroundColor: seg.color,
+                  }}
+                />
+              ))}
+            </div>
+            <div className="flex items-center gap-3">
+              {methodBarSegments.map((seg, i) => (
+                <span key={`mleg-${i}`} className="flex items-center gap-1 text-[9px]">
+                  <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
+                  <span className="text-claude-text-muted dark:text-[#6b6560]">{seg.label}</span>
+                  <span className="font-mono text-claude-text-secondary dark:text-[#9b9590]">{seg.count}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Method Legend */}
+      <div className="flex items-center gap-3 flex-wrap">
+        {[
+          { label: 'Cryo-EM', color: METHOD_COLORS['Cryo-EM'] },
+          { label: 'X-ray', color: METHOD_COLORS['X-ray'] },
+          { label: 'NMR', color: METHOD_COLORS['NMR'] },
+          { label: 'Other', color: METHOD_COLORS['Other'] },
+        ].map(item => (
+          <span key={item.label} className="flex items-center gap-1 text-[9px]">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+            <span className="text-claude-text-muted dark:text-[#6b6560]">{item.label}</span>
+          </span>
+        ))}
+        <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] ml-auto">
+          Dot size ∝ Impact Factor
+        </span>
+      </div>
+
+      {/* SVG Timeline */}
+      <div className="rounded-[10px] border border-claude-border p-3 bg-claude-bg/30 dark:bg-[#1a1917]/30">
+        <svg
+          width={containerWidth - 24}
+          height={svgHeight}
+          viewBox={`0 0 ${containerWidth - 24} ${svgHeight}`}
+          className="w-full"
+          style={{ overflow: 'visible' }}
+        >
+          {/* Vertical grid lines for each day */}
+          {dayLabels.map((day, i) => {
+            const x = marginLeft + i * dayWidth + dayWidth / 2;
+            return (
+              <line
+                key={`grid-${i}`}
+                x1={x}
+                y1={marginTop}
+                x2={x}
+                y2={axisY}
+                stroke={axisStroke}
+                strokeWidth={0.5}
+                strokeDasharray="3,3"
+              />
+            );
+          })}
+
+          {/* Horizontal axis line */}
+          <line
+            x1={marginLeft}
+            y1={axisY}
+            x2={containerWidth - marginRight - 24}
+            y2={axisY}
+            stroke={axisStroke}
+            strokeWidth={1}
+          />
+
+          {/* Day labels */}
+          {dayLabels.map((day, i) => {
+            const x = marginLeft + i * dayWidth + dayWidth / 2;
+            return (
+              <g key={`day-${i}`}>
+                <text
+                  x={x}
+                  y={dayLabelY}
+                  textAnchor="middle"
+                  fontSize={10}
+                  fill={textColor}
+                  fontFamily="system-ui, -apple-system, sans-serif"
+                >
+                  {day.dayName}
+                </text>
+                <text
+                  x={x}
+                  y={dateLabelY}
+                  textAnchor="middle"
+                  fontSize={9}
+                  fill={mutedTextColor}
+                  fontFamily="system-ui, -apple-system, sans-serif"
+                >
+                  {day.dateLabel}
+                </text>
+                {/* Tick mark */}
+                <line
+                  x1={x}
+                  y1={axisY}
+                  x2={x}
+                  y2={axisY + 4}
+                  stroke={axisStroke}
+                  strokeWidth={1}
+                />
+              </g>
+            );
+          })}
+
+          {/* Entry dots with animations */}
+          {dotPositions.map((dp, idx) => {
+            const isHighlighted = highlightedEntry === dp.entry.pdbId;
+            return (
+              <motion.circle
+                key={`dot-${dp.entry.pdbId}-${idx}`}
+                cx={dp.cx}
+                cy={dp.cy}
+                r={dp.size / 2}
+                fill={dp.color}
+                opacity={0.85}
+                stroke={isHighlighted ? '#ffffff' : 'none'}
+                strokeWidth={isHighlighted ? 2 : 0}
+                initial={{ r: 0, opacity: 0 }}
+                animate={{
+                  r: isHighlighted ? dp.size / 2 + 2 : dp.size / 2,
+                  opacity: isHighlighted ? 1 : 0.85,
+                }}
+                transition={{
+                  duration: 0.3,
+                  delay: Math.min(idx, 20) * 0.03,
+                  r: { duration: 0.15 },
+                }}
+                style={{ cursor: 'pointer' }}
+                onMouseEnter={(e) => {
+                  onHighlightEntry(dp.entry.pdbId);
+                  const svgRect = (e.currentTarget.closest('svg') as SVGSVGElement)?.getBoundingClientRect();
+                  if (svgRect) {
+                    setTooltipData({
+                      entry: dp.entry,
+                      x: dp.cx + 12,
+                      y: dp.cy - 10,
+                    });
+                  }
+                }}
+                onMouseLeave={() => {
+                  onHighlightEntry(null);
+                  setTooltipData(null);
+                }}
+                onClick={() => onSelectEntry(dp.entry)}
+              />
+            );
+          })}
+
+          {/* Tooltip */}
+          {tooltipData && (
+            <foreignObject
+              x={Math.min(tooltipData.x, containerWidth - 24 - 200)}
+              y={Math.max(0, tooltipData.y - 60)}
+              width={200}
+              height={80}
+              style={{ overflow: 'visible', pointerEvents: 'none' }}
+            >
+              <div
+                className={`rounded-lg px-2.5 py-2 text-[10px] shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`font-mono font-semibold text-[11px] ${isDark ? 'text-[#d4784f]' : 'text-claude-accent'}`}>
+                    {tooltipData.entry.pdbId}
+                  </span>
+                  <span
+                    className="inline-flex px-1 py-0.5 rounded text-[8px] font-medium"
+                    style={{
+                      backgroundColor: getDotColor(tooltipData.entry) + '20',
+                      color: getDotColor(tooltipData.entry),
+                    }}
+                  >
+                    {getMethodLabel(tooltipData.entry.method)}
+                  </span>
+                </div>
+                <div className={`${isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'} truncate max-w-[180px]`}>
+                  {tooltipData.entry.title}
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  {tooltipData.entry.resolution != null && (
+                    <span className={isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}>
+                      {tooltipData.entry.resolution}Å
+                    </span>
+                  )}
+                  {tooltipData.entry.journalIf != null && (
+                    <span className={isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}>
+                      IF: {tooltipData.entry.journalIf.toFixed(1)}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </foreignObject>
+          )}
+        </svg>
+
+        {/* Day count indicators below SVG */}
+        <div className="flex mt-1" style={{ paddingLeft: marginLeft, paddingRight: marginRight }}>
+          {dayLabels.map((day, i) => {
+            const dayKey = new Date(weekStart);
+            dayKey.setDate(dayKey.getDate() + i);
+            const key = dayKey.toISOString().split('T')[0];
+            const count = entriesByDay[key]?.length || 0;
+            return (
+              <div
+                key={`count-${i}`}
+                className="flex-1 text-center"
+              >
+                <span className={`text-[9px] font-mono ${count > 0 ? 'text-claude-accent dark:text-[#d4784f]' : isDark ? 'text-[#4a4540]' : 'text-claude-border'}`}>
+                  {count > 0 ? count : ''}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Weekly Statistics Summary Cards (actual) ─────────────────────────────────
+
 function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: PdbEntry[]; snapshots: WeeklySnapshot[]; selectedSnapshot: WeeklySnapshot | null }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -3217,11 +4050,11 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
     <div className="px-4 py-2">
       <div className="flex gap-3">
         {/* Total Structures Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Total Structures</div>
-              <div className="text-lg font-semibold text-claude-text mt-0.5">{stats.total}</div>
+              <div className="text-lg font-semibold text-claude-text mt-0.5"><AnimatedNumber value={stats.total} /></div>
             </div>
             <Database className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
           </div>
@@ -3247,12 +4080,12 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </div>
 
         {/* Avg Resolution Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Resolution</div>
               <div className={`text-lg font-semibold mt-0.5 ${resColor || 'text-claude-text'}`}>
-                {stats.avgRes != null ? `${stats.avgRes.toFixed(2)}Å` : '—'}
+                {stats.avgRes != null ? <><AnimatedNumber value={stats.avgRes} decimals={2} suffix="Å" /></> : '—'}
               </div>
             </div>
             <Eye className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
@@ -3265,11 +4098,11 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </div>
 
         {/* Cryo-EM % Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Cryo-EM %</div>
-              <div className="text-lg font-semibold text-claude-text mt-0.5">{stats.cryoemPct.toFixed(0)}%</div>
+              <div className="text-lg font-semibold text-claude-text mt-0.5"><AnimatedNumber value={stats.cryoemPct} decimals={0} suffix="%" /></div>
             </div>
             <FlaskConical className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
           </div>
@@ -3286,12 +4119,12 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </div>
 
         {/* Top IF Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Top IF</div>
               <div className="text-lg font-semibold text-claude-text mt-0.5">
-                {stats.topIf?.journalIf != null ? stats.topIf.journalIf.toFixed(1) : '—'}
+                {stats.topIf?.journalIf != null ? <AnimatedNumber value={stats.topIf.journalIf} decimals={1} /> : '—'}
               </div>
             </div>
             <Star className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
@@ -3432,7 +4265,7 @@ function WeekComparisonView({
       </div>
 
       {/* Side-by-Side Method Donut Charts */}
-      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
         <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Method Distribution</h4>
         <div className="flex items-center gap-1">
           {/* Week A Donut */}
@@ -3476,7 +4309,7 @@ function WeekComparisonView({
 
       {/* Grouped Bar Chart: Resolution Distribution */}
       {resDataB.some(d => d.weekA > 0 || d.weekB > 0) && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution Comparison</h4>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={resDataB} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
@@ -3512,12 +4345,25 @@ function WeekComparisonView({
 // ─── Evaluation Summary Sub-Component ────────────────────────────────────────
 
 function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openReport: (id: number, title: string) => void }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
   const scores = useMemo(() => {
     try { return evalData.scores ? JSON.parse(evalData.scores) : {}; }
     catch { return {}; }
   }, [evalData.scores]);
 
+  const overallScore = useMemo(() => {
+    const vals = Object.values(scores) as number[];
+    if (!vals.length) return null;
+    return vals.reduce((a, b) => a + b, 0) / vals.length;
+  }, [scores]);
+
   const [evalReport, setEvalReport] = useState<{ id: number; title: string | null } | null>(null);
+
+  // BLAST table sort state
+  const [blastSortField, setBlastSortField] = useState<string>('identity');
+  const [blastSortDir, setBlastSortDir] = useState<'asc' | 'desc'>('desc');
 
   useEffect(() => {
     async function load() {
@@ -3534,105 +4380,301 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
   const blastResults = evalData.blastResults || [];
   const pdbStructures = evalData.pdbStructures || [];
 
+  // Sort BLAST results
+  const sortedBlastResults = useMemo(() => {
+    if (!blastResults.length) return [];
+    const sorted = [...blastResults].sort((a, b) => {
+      let aVal: number | string = 0;
+      let bVal: number | string = 0;
+      switch (blastSortField) {
+        case 'accession': aVal = a.uniprotRef || a.pdbId || ''; bVal = b.uniprotRef || b.pdbId || ''; break;
+        case 'organism': aVal = a.description || ''; bVal = b.description || ''; break;
+        case 'identity': aVal = a.identity ?? -1; bVal = b.identity ?? -1; break;
+        case 'evalue': aVal = a.evalue ?? 999; bVal = b.evalue ?? 999; break;
+        case 'score': aVal = a.queryCoverage ?? -1; bVal = b.queryCoverage ?? -1; break;
+        default: aVal = a.identity ?? -1; bVal = b.identity ?? -1;
+      }
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return blastSortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return blastSortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+    return sorted;
+  }, [blastResults, blastSortField, blastSortDir]);
+
+  const handleBlastSort = useCallback((field: string) => {
+    if (blastSortField === field) {
+      setBlastSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setBlastSortField(field);
+      setBlastSortDir('desc');
+    }
+  }, [blastSortField]);
+
+  // Coverage circular progress SVG
+  const coveragePct = evalData.coverage ?? 0;
+  const coverageColor = coveragePct >= 80 ? '#2d8f8f' : coveragePct >= 50 ? '#c9872e' : coveragePct >= 25 ? '#ea580c' : '#dc2626';
+  const coverageLabel = coveragePct >= 80 ? 'Excellent' : coveragePct >= 50 ? 'Moderate' : coveragePct >= 25 ? 'Limited' : 'Very Limited';
+
+  // Animated circular progress
+  const circumference = 2 * Math.PI * 40;
+  const offset = circumference - (Math.min(coveragePct, 100) / 100) * circumference;
+
   return (
-    <div className="p-4 space-y-4">
-      {/* Protein Info */}
-      <div>
-        <h3 className="text-sm font-semibold text-claude-text leading-snug">{evalData.proteinName || evalData.uniprotId}</h3>
-        <div className="mt-1 space-y-0.5">
-          <div className="text-[10px] text-claude-text-muted">
-            <span className="font-mono text-claude-accent">{evalData.uniprotId}</span>
-            {evalData.entryName && <span className="ml-1.5">({evalData.entryName})</span>}
+    <div className="p-3 space-y-3">
+      {/* ── Evaluation Overview Hero Card ── */}
+      <div className="rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] p-3 space-y-3">
+        <div className="flex items-start gap-3">
+          {/* Circular Coverage Indicator */}
+          <div className="flex-shrink-0 relative">
+            <svg width="88" height="88" viewBox="0 0 88 88">
+              {/* Background circle */}
+              <circle
+                cx="44" cy="44" r="40"
+                fill="none"
+                stroke={isDark ? '#3d3832' : '#f0ece5'}
+                strokeWidth="6"
+              />
+              {/* Progress circle */}
+              <circle
+                cx="44" cy="44" r="40"
+                fill="none"
+                stroke={coverageColor}
+                strokeWidth="6"
+                strokeLinecap="round"
+                strokeDasharray={circumference}
+                strokeDashoffset={offset}
+                transform="rotate(-90 44 44)"
+                style={{ transition: 'stroke-dashoffset 0.8s ease-out, stroke 0.3s ease' }}
+              />
+              {/* Center text */}
+              <text x="44" y="38" textAnchor="middle" className="fill-claude-text dark:fill-[#e8e4dd]" style={{ fontSize: '16px', fontWeight: 700, fontFamily: 'var(--font-geist-mono), monospace' }}>
+                {coveragePct.toFixed(0)}%
+              </text>
+              <text x="44" y="52" textAnchor="middle" className={isDark ? 'fill-[#9b9590]' : 'fill-[#9b9590]'} style={{ fontSize: '8px', fontWeight: 500 }}>
+                coverage
+              </text>
+            </svg>
           </div>
-          {evalData.geneNames && (
-            <div className="text-[10px] text-claude-text-muted">
-              Gene: <span className="text-claude-text-secondary">{evalData.geneNames}</span>
+
+          {/* Protein Info */}
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-claude-text leading-snug line-clamp-2">{evalData.proteinName || evalData.uniprotId}</h3>
+            <div className="mt-1 space-y-0.5">
+              <div className="flex items-center gap-1.5 text-[10px]">
+                <Dna className="h-3 w-3 text-claude-accent flex-shrink-0" />
+                <span className="font-mono font-semibold text-claude-accent">{evalData.uniprotId}</span>
+                {evalData.entryName && (
+                  <span className="text-claude-text-muted truncate">({evalData.entryName})</span>
+                )}
+              </div>
+              {evalData.geneNames && (
+                <div className="flex items-center gap-1.5 text-[10px]">
+                  <Activity className="h-3 w-3 text-claude-text-muted flex-shrink-0" />
+                  <span className="text-claude-text-secondary truncate">{evalData.geneNames}</span>
+                </div>
+              )}
+              {evalData.organism && (
+                <div className="flex items-center gap-1.5 text-[10px]">
+                  <Globe className="h-3 w-3 text-claude-text-muted flex-shrink-0" />
+                  <span className="text-claude-text-secondary truncate">{evalData.organism}</span>
+                </div>
+              )}
             </div>
-          )}
-          {evalData.organism && (
-            <div className="text-[10px] text-claude-text-muted">
-              Organism: <span className="text-claude-text-secondary">{evalData.organism}</span>
-            </div>
-          )}
+          </div>
+        </div>
+
+        {/* Bottom badges row */}
+        <div className="flex items-center gap-2 flex-wrap">
           {evalData.sequenceLength && (
-            <div className="text-[10px] text-claude-text-muted">
-              Length: <span className="font-mono text-claude-text-secondary">{evalData.sequenceLength} aa</span>
-            </div>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-border-light/60 dark:bg-[#2b2926] text-claude-text-secondary border border-claude-border/50">
+              <span className="font-mono">{evalData.sequenceLength}</span> aa
+            </span>
           )}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border" style={{ backgroundColor: coverageColor + '15', color: coverageColor, borderColor: coverageColor + '30' }}>
+            {coverageLabel} coverage
+          </span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-border-light/60 dark:bg-[#2b2926] text-claude-text-muted border border-claude-border/50">
+            <Clock className="h-2.5 w-2.5" />
+            {formatDate(evalData.updatedAt)}
+          </span>
         </div>
       </div>
 
-      <Separator />
-
-      {/* Coverage */}
-      {evalData.coverage != null && (
-        <div>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-medium text-claude-text">Structure Coverage</span>
-            <span className="text-xs font-mono font-semibold text-claude-accent">{evalData.coverage.toFixed(1)}%</span>
+      {/* ── Score Breakdown Panel ── */}
+      {Object.keys(scores).length > 0 && (
+        <div className="rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-claude-text">Score Breakdown</h4>
+            {overallScore !== null && (
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-claude-text-muted">Overall</span>
+                <span className="text-sm font-mono font-bold" style={{ color: getScoreColor(overallScore) }}>
+                  {overallScore.toFixed(1)}
+                </span>
+                <span className="text-[10px] text-claude-text-muted">/10</span>
+              </div>
+            )}
           </div>
-          <div className="h-2.5 bg-claude-border-light rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all duration-500 bg-claude-accent"
-              style={{ width: `${Math.min(evalData.coverage, 100)}%` }}
-            />
+          <div className="space-y-2">
+            {Object.entries(scores).map(([key, value]) => {
+              const score = value as number;
+              const pct = Math.min((score / 10) * 100, 100);
+              const color = score >= 8 ? '#2d8f8f' : score >= 5 ? '#c9872e' : '#dc2626';
+              const textColor = score >= 8 ? 'text-[#2d8f8f] dark:text-[#3db5b5]' : score >= 5 ? 'text-[#c9872e] dark:text-[#d9a24e]' : 'text-[#dc2626] dark:text-[#ef6b6b]';
+              return (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-claude-text-secondary">{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}</span>
+                    <span className={`text-[11px] font-mono font-semibold ${textColor}`}>{score.toFixed(1)}</span>
+                  </div>
+                  <div className="h-1.5 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut' }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: color }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <p className="text-[10px] text-claude-text-muted mt-1">
-            {evalData.coverage >= 80 ? 'Excellent structural coverage' :
-             evalData.coverage >= 50 ? 'Moderate structural coverage' :
-             evalData.coverage >= 25 ? 'Limited structural coverage' :
-             'Very limited structural coverage'}
-          </p>
+          {/* Overall score bar */}
+          {overallScore !== null && (
+            <div className="pt-1 mt-1 border-t border-claude-border/50">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-medium text-claude-text">Overall Score</span>
+                <span className="text-xs font-mono font-bold" style={{ color: getScoreColor(overallScore) }}>{overallScore.toFixed(1)}/10</span>
+              </div>
+              <div className="h-2 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden mt-1">
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${Math.min((overallScore / 10) * 100, 100)}%` }}
+                  transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: getScoreColor(overallScore) }}
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Feasibility Scores */}
-      <div>
-        <h4 className="text-xs font-semibold text-claude-text mb-2">Feasibility Scores</h4>
-        <div className="space-y-2.5">
-          {Object.entries(scores).map(([key, value]) => (
-            <ScoreBar key={key} label={key.charAt(0).toUpperCase() + key.slice(1)} score={value as number} />
-          ))}
+      {/* ── PDB Structures Grid ── */}
+      {pdbStructures.length > 0 && (
+        <div className="rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-claude-text">
+            PDB Structures <span className="text-claude-text-muted font-normal">({pdbStructures.length})</span>
+          </h4>
+          <div className="grid grid-cols-2 gap-1.5">
+            {pdbStructures.map((s) => {
+              const methodColors = s.method ? getMethodColor(s.method) : null;
+              const methodLabel = s.method ? getMethodLabel(s.method) : '—';
+              return (
+                <a
+                  key={`${s.uniprotId}-${s.pdbId}`}
+                  href={`https://www.rcsb.org/structure/${s.pdbId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block p-2 rounded-lg border border-claude-border/60 bg-claude-border-light/20 dark:bg-[#1a1917]/40 hover:bg-claude-border-light/50 dark:hover:bg-[#2b2926] transition-all duration-150 group"
+                >
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="font-mono text-[11px] font-bold text-claude-accent group-hover:text-claude-accent-hover transition-colors">{s.pdbId}</span>
+                    {methodColors && (
+                      <span className={`text-[8px] px-1 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text} leading-none`}>
+                        {methodLabel}
+                      </span>
+                    )}
+                  </div>
+                  {s.resolution != null && (
+                    <div className="text-[10px] text-claude-text-muted">
+                      <span className={`font-mono font-medium ${getResolutionColor(s.resolution)}`}>{s.resolution}Å</span>
+                    </div>
+                  )}
+                  {s.title && (
+                    <div className="text-[9px] text-claude-text-muted line-clamp-1 mt-0.5">{s.title}</div>
+                  )}
+                </a>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
-      <Separator />
-
-      {/* BLAST Stats */}
+      {/* ── BLAST Results Table ── */}
       {blastResults.length > 0 && (
-        <div>
-          <h4 className="text-xs font-semibold text-claude-text mb-2">BLAST Homologs</h4>
-          <div className="space-y-1.5">
-            {blastResults.slice(0, 5).map((br, i) => (
-              <div key={i} className="flex items-center gap-2 p-2 rounded-md bg-claude-border-light/30">
-                {br.pdbId && <span className="font-mono text-[10px] font-semibold text-claude-accent">{br.pdbId}</span>}
-                <div className="flex-1 flex items-center gap-2 text-[10px]">
-                  {br.identity != null && (
-                    <span className={`${getIdentityColor(br.identity)} font-mono font-medium`}>{br.identity}%</span>
-                  )}
-                  {br.evalue != null && (
-                    <span className="text-claude-text-muted font-mono">E:{formatEvalue(br.evalue)}</span>
-                  )}
-                  {br.queryCoverage != null && (
-                    <span className="text-claude-text-muted font-mono">Q:{br.queryCoverage}%</span>
-                  )}
-                </div>
-              </div>
-            ))}
-            {blastResults.length > 5 && (
-              <div className="text-[10px] text-claude-text-muted text-center">
-                + {blastResults.length - 5} more homologs
+        <div className="rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-claude-text">
+            BLAST Homologs <span className="text-claude-text-muted font-normal">({blastResults.length})</span>
+          </h4>
+          <div className="overflow-x-auto -mx-1">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="border-b border-claude-border">
+                  {[
+                    { field: 'accession', label: 'Accession' },
+                    { field: 'organism', label: 'Organism' },
+                    { field: 'identity', label: 'Identity %' },
+                    { field: 'evalue', label: 'E-value' },
+                    { field: 'score', label: 'Score' },
+                  ].map(col => (
+                    <th
+                      key={col.field}
+                      onClick={() => handleBlastSort(col.field)}
+                      className={`table-header-cell px-2 py-1.5 text-left font-semibold text-claude-text-secondary cursor-pointer hover:text-claude-text transition-colors whitespace-nowrap ${blastSortField === col.field ? 'sort-active' : ''}`}
+                    >
+                      <span className="inline-flex items-center gap-0.5">
+                        {col.label}
+                        {blastSortField === col.field && (
+                          blastSortDir === 'asc' ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />
+                        )}
+                      </span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedBlastResults.slice(0, 10).map((br, i) => (
+                  <tr key={br.id || i} className={`border-b border-claude-border-light/50 ${i % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`}>
+                    <td className="px-2 py-1.5">
+                      <span className="font-mono font-semibold text-claude-accent">{br.uniprotRef || br.pdbId || '—'}</span>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <span className="text-claude-text-secondary line-clamp-1 max-w-[100px]">{br.description || '—'}</span>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      {br.identity != null ? (
+                        <span className={`font-mono font-medium ${br.identity > 90 ? 'text-green-600' : br.identity >= 70 ? 'text-amber-600' : 'text-red-500'}`}>
+                          {br.identity}%
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <span className="font-mono text-claude-text-secondary">{formatEvalue(br.evalue)}</span>
+                    </td>
+                    <td className="px-2 py-1.5">
+                      <span className="font-mono text-claude-text-secondary">{br.queryCoverage ?? '—'}{br.queryCoverage != null ? '%' : ''}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {blastResults.length > 10 && (
+              <div className="text-[10px] text-claude-text-muted text-center pt-1">
+                + {blastResults.length - 10} more homologs
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Recommendations */}
+      {/* ── Recommendations ── */}
       {evalData.report && (
-        <div>
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Recommendations</h4>
-          <div className="p-3 rounded-lg bg-claude-border-light/30 text-[11px] text-claude-text-secondary leading-relaxed line-clamp-4">
+        <div className="rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] p-3 space-y-1.5">
+          <h4 className="text-xs font-semibold text-claude-text">Recommendations</h4>
+          <div className="p-2.5 rounded-lg bg-claude-border-light/30 text-[11px] text-claude-text-secondary leading-relaxed line-clamp-4">
             {evalData.report
               .replace(/[#*_]/g, '')
               .split('\n')
@@ -3643,7 +4685,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
         </div>
       )}
 
-      {/* View Report Button */}
+      {/* ── View Report Button ── */}
       {evalReport && (
         <Button
           onClick={() => openReport(evalReport.id, evalReport.title || 'Evaluation Report')}

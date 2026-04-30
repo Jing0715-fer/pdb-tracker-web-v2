@@ -493,3 +493,403 @@
 .animate-float {
   animation: float 2.5s ease-in-out infinite;
 }
+
+/* ─── Enhanced Scrollbar Styles ─────────────────────────────────────────── */
+
+/* Sidebar scrollbar */
+.sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #c9b8a8;
+  border-radius: 3px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8a898;
+}
+
+.dark .sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #5a5450;
+}
+
+.dark .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b6560;
+}
+
+/* Preview panel scrollbar */
+.preview-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.preview-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.preview-scroll::-webkit-scrollbar-thumb {
+  background: #c9b8a8;
+  border-radius: 3px;
+}
+
+.preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: #b8a898;
+}
+
+.dark .preview-scroll::-webkit-scrollbar-thumb {
+  background: #5a5450;
+}
+
+.dark .preview-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6b6560;
+}
+
+/* ─── Focus Ring Utility ────────────────────────────────────────────────── */
+
+.claude-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(201, 100, 66, 0.4), 0 0 0 4px rgba(201, 100, 66, 0.1);
+  border-radius: inherit;
+}
+
+.dark .claude-focus-ring:focus-visible {
+  box-shadow: 0 0 0 2px rgba(212, 120, 79, 0.4), 0 0 0 4px rgba(212, 120, 79, 0.1);
+}
+
+/* ─── Card Shadow System ────────────────────────────────────────────────── */
+
+.claude-card-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  transition: box-shadow 0.2s ease;
+}
+
+.claude-card-shadow:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.dark .claude-card-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.dark .claude-card-shadow:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Table Row Hover Enhancement ───────────────────────────────────────── */
+
+.table-row-hover-enhanced {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease, border-left-color 0.2s ease;
+  border-left: 2px solid transparent;
+}
+
+.table-row-hover-enhanced:hover {
+  background-color: #fdf0eb;
+  border-left-color: #c96442;
+  box-shadow: 0 1px 4px rgba(201, 100, 66, 0.08);
+}
+
+.dark .table-row-hover-enhanced:hover {
+  background-color: #2b2926;
+  border-left-color: #d4784f;
+  box-shadow: 0 1px 4px rgba(212, 120, 79, 0.1);
+}
+
+/* ─── Method Badge Enhancement ──────────────────────────────────────────── */
+
+.method-badge {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.method-badge:hover {
+  transform: scale(1.02);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.dark .method-badge {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.dark .method-badge:hover {
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.method-badge-cryoem {
+  border-left: 3px solid #2d8f8f;
+}
+
+.dark .method-badge-cryoem {
+  border-left-color: #3db5b5;
+}
+
+.method-badge-xray {
+  border-left: 2px solid #7c5cbf;
+}
+
+.dark .method-badge-xray {
+  border-left-color: #9b7ed8;
+}
+
+.method-badge-nmr {
+  border-left: 2px solid #c9872e;
+}
+
+.dark .method-badge-nmr {
+  border-left-color: #d9a24e;
+}
+
+.method-badge-other {
+  border-left: 2px solid #6b7280;
+}
+
+.dark .method-badge-other {
+  border-left-color: #9b9590;
+}
+
+/* ─── Sidebar Active Card ───────────────────────────────────────────────── */
+
+.sidebar-active-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-active-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(201, 100, 66, 0.05) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.dark .sidebar-active-card::before {
+  background: linear-gradient(135deg, rgba(212, 120, 79, 0.08) 0%, transparent 60%);
+}
+
+/* ─── Pagination Enhancement ────────────────────────────────────────────── */
+
+.pagination-active {
+  box-shadow: 0 0 8px rgba(201, 100, 66, 0.25);
+  transition: all 0.2s ease;
+}
+
+.dark .pagination-active {
+  box-shadow: 0 0 8px rgba(212, 120, 79, 0.3);
+}
+
+.pagination-btn {
+  transition: all 0.15s ease;
+}
+
+.pagination-btn:hover {
+  transform: scale(1.05);
+}
+
+/* ─── Header Gradient Border ────────────────────────────────────────────── */
+
+.header-gradient-border {
+  position: relative;
+}
+
+.header-gradient-border::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #e8e4dd 20%, #c96442 50%, #e8e4dd 80%, transparent);
+}
+
+.dark .header-gradient-border::after {
+  background: linear-gradient(90deg, transparent, #3d3832 20%, #d4784f 50%, #3d3832 80%, transparent);
+}
+
+/* ─── Animated Number Counter ───────────────────────────────────────────── */
+
+@keyframes count-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.count-animate {
+  animation: count-pulse 0.15s ease;
+}
+
+/* ─── Dark Mode Header Text Shadow ─────────────────────────────────────── */
+
+.dark .header-title {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* ─── Print Styles ──────────────────────────────────────────────────────── */
+
+@media print {
+  /* Force light mode for print */
+  body {
+    background: white !important;
+    color: #1a1a1a !important;
+    font-size: 11px !important;
+  }
+
+  /* Hide non-essential UI elements */
+  .no-print,
+  [data-sidebar],
+  button,
+  .pagination-active,
+  .pagination-btn,
+  nav,
+  aside,
+  [data-preview-panel],
+  [role="dialog"],
+  .fixed,
+  [class*="AnimatePresence"],
+  [class*="toast"],
+  [data-radix-popper-content-wrapper],
+  input[type="text"],
+  select,
+  [class*="DropdownMenu"],
+  [class*="Popover"],
+  [class*="Collapsible"],
+  [class*="TabsList"],
+  [class*="scrollbar"],
+  .shimmer-skeleton,
+  .animate-float,
+  [class*="animate-"] {
+    display: none !important;
+  }
+
+  /* Show the main data table at full width */
+  main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Print header */
+  .print-header {
+    display: block !important;
+    text-align: center;
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #c96442;
+  }
+
+  .print-header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0;
+  }
+
+  .print-header p {
+    font-size: 11px;
+    color: #6b6560;
+    margin: 4px 0 0;
+  }
+
+  /* Table styling for print */
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10px !important;
+  }
+
+  th {
+    background: #f5f0ea !important;
+    color: #1a1a1a !important;
+    font-weight: 600 !important;
+    padding: 4px 8px !important;
+    border-bottom: 2px solid #e8e4dd !important;
+    text-align: left !important;
+  }
+
+  td {
+    padding: 3px 8px !important;
+    border-bottom: 1px solid #f0ece5 !important;
+    color: #3d3832 !important;
+  }
+
+  tr {
+    background: transparent !important;
+    break-inside: avoid;
+  }
+
+  /* Remove shadows and borders */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Remove background colors */
+  [class*="bg-"] {
+    background-color: transparent !important;
+  }
+
+  th {
+    background-color: #f5f0ea !important;
+  }
+
+  /* Page break rules */
+  tr {
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  /* Show all rows (no pagination) */
+  tbody tr {
+    display: table-row !important;
+  }
+
+  /* Ensure links show URL in print */
+  a[href]:after {
+    content: " (" attr(href) ")";
+    font-size: 9px;
+    color: #9b9590;
+  }
+
+  a[href^="#"]:after,
+  a[href^="javascript"]:after {
+    content: "";
+  }
+
+  /* Stat cards for print */
+  [class*="WeeklyStatCards"] {
+    display: flex !important;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  [class*="WeeklyStatCards"] > div {
+    border: 1px solid #e8e4dd !important;
+    border-radius: 6px !important;
+    padding: 8px !important;
+  }
+
+  /* Page margins */
+  @page {
+    margin: 0.75in 0.5in;
+  }
+
+  /* Footer on each page */
+  .print-footer {
+    display: block !important;
+    text-align: center;
+    font-size: 9px;
+    color: #9b9590;
+    border-top: 1px solid #e8e4dd;
+    padding-top: 4px;
+    margin-top: 8px;
+  }
+}
