@@ -64,6 +64,7 @@ import {
   Compass,
   EyeOff,
   PanelRightOpen,
+  PanelRightClose,
   Layers,
   FileDiff,
   StickyNote,
@@ -1856,6 +1857,63 @@ export default function PdbTracker() {
     setEntryCompareModalOpen(false);
   }, []);
 
+  // ── Complex Evaluation Mode ──
+  const [complexGroups, setComplexGroups] = useState<{ id: string; name: string; uniprotIds: string[]; createdAt: number }[]>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-complex-groups');
+      if (saved) return JSON.parse(saved);
+    } catch { /* ignore */ }
+    return [];
+  });
+  const [showComplexDialog, setShowComplexDialog] = useState(false);
+  const [complexName, setComplexName] = useState('');
+  const [complexInput, setComplexInput] = useState('');
+  const [selectedComplexId, setSelectedComplexId] = useState<string | null>(null);
+  const [expandedComplexId, setExpandedComplexId] = useState<string | null>(null);
+
+  // Persist complex groups
+  useEffect(() => {
+    try { localStorage.setItem('pdb-complex-groups', JSON.stringify(complexGroups)); } catch { /* ignore */ }
+  }, [complexGroups]);
+
+  const addComplexGroup = useCallback(() => {
+    const ids = complexInput.split(/[\s,;]+/).filter(id => id.trim().length > 0).map(id => id.trim().toUpperCase());
+    if (ids.length < 2) { toast('At least 2 UniProt IDs required'); return; }
+    const newGroup = {
+      id: `complex-${Date.now()}`,
+      name: complexName.trim() || ids.join(' + '),
+      uniprotIds: ids,
+      createdAt: Date.now(),
+    };
+    setComplexGroups(prev => [...prev, newGroup]);
+    setComplexName('');
+    setComplexInput('');
+    setShowComplexDialog(false);
+    toast(`Created complex group: ${newGroup.name}`, { description: `${ids.length} UniProt IDs` });
+  }, [complexName, complexInput]);
+
+  const removeComplexGroup = useCallback((id: string) => {
+    setComplexGroups(prev => prev.filter(g => g.id !== id));
+    if (selectedComplexId === id) setSelectedComplexId(null);
+    if (expandedComplexId === id) setExpandedComplexId(null);
+  }, [selectedComplexId, expandedComplexId]);
+
+  // Complex evaluation data - merge data from multiple evaluations
+  const complexEvalData = useMemo(() => {
+    if (!selectedComplexId) return null;
+    const group = complexGroups.find(g => g.id === selectedComplexId);
+    if (!group) return null;
+    const subEvals = group.uniprotIds.map(uid => evaluations.find(e => e.uniprotId === uid)).filter(Boolean) as Evaluation[];
+    // Merge all PDB structures and BLAST results
+    const allStructures: (EvalPdbStructure & { _type: 'structure'; _sourceUniport: string })[] = [];
+    const allBlasts: (EvalBlastResult & { _type: 'blast'; _sourceUniport: string })[] = [];
+    subEvals.forEach(ev => {
+      (ev.pdbStructures || []).forEach(s => allStructures.push({ ...s, _type: 'structure', _sourceUniport: ev.uniprotId }));
+      (ev.blastResults || []).forEach(b => allBlasts.push({ ...b, _type: 'blast', _sourceUniport: ev.uniprotId }));
+    });
+    return { group, subEvals, allStructures, allBlasts };
+  }, [selectedComplexId, complexGroups, evaluations]);
+
   // ── Mobile State ──
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
@@ -2015,6 +2073,22 @@ export default function PdbTracker() {
       localStorage.setItem('pdb-compact-mode', String(compactMode));
     } catch { /* ignore */ }
   }, [compactMode]);
+
+  // ── Sidebar Compact Mode ──
+  const [sidebarCompact, setSidebarCompact] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-sidebar-compact');
+      if (saved !== null) return saved === 'true';
+    } catch { /* ignore */ }
+    return false;
+  });
+
+  // Persist sidebar compact mode to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('pdb-sidebar-compact', String(sidebarCompact));
+    } catch { /* ignore */ }
+  }, [sidebarCompact]);
 
   // ── Command Palette ──
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
@@ -2836,6 +2910,33 @@ export default function PdbTracker() {
 
   // ── Sorted Evaluation Data ──
   const sortedEvalRows = useMemo(() => {
+    // If a complex group is selected, show merged data
+    if (selectedComplexId && complexEvalData) {
+      const all = [...complexEvalData.allStructures, ...complexEvalData.allBlasts];
+      return all.sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
+          case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
+          case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
+          case 'journalIf':
+            aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
+            bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
+            break;
+          case 'title':
+            aVal = a.title || ('description' in a ? a.description : '') || '';
+            bVal = b.title || ('description' in b ? b.description : '') || '';
+            break;
+          case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
+          default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
+        }
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+
     if (!selectedEval) return [];
     const structures: (EvalPdbStructure & { _type: 'structure' })[] =
       (selectedEval.pdbStructures || []).map(s => ({ ...s, _type: 'structure' as const }));
@@ -2865,7 +2966,7 @@ export default function PdbTracker() {
       }
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
-  }, [selectedEval, sortField, sortDir]);
+  }, [selectedEval, selectedComplexId, complexEvalData, sortField, sortDir]);
 
   // ── Paginated Eval Rows ──
   const paginatedEvalRows = useMemo(() => {
@@ -3519,7 +3620,7 @@ export default function PdbTracker() {
 
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar */}
-          <aside className={`hidden md:flex flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
+          <aside className={`hidden md:flex flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarCompact ? 56 : sidebarWidth }}>
             {/* Sidebar gradient mesh overlay */}
             <div className="sidebar-mesh-overlay" />
             {renderSidebar()}
@@ -4217,14 +4318,26 @@ export default function PdbTracker() {
               )}
 
               {/* Preview Toggle (desktop) */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setPreviewOpen(!previewOpen)}
-                className="hidden md:inline-flex h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text"
-              >
-                {previewOpen ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setPreviewOpen(!previewOpen)}
+                    className={`hidden md:inline-flex h-7 px-2 text-[10px] gap-1 transition-colors duration-150 ${
+                      previewOpen
+                        ? 'text-claude-text-muted border-claude-border hover:bg-claude-border-light hover:text-claude-text'
+                        : 'text-claude-accent border-claude-accent/30 bg-claude-accent-light hover:bg-claude-accent-light/80'
+                    }`}
+                  >
+                    {previewOpen ? <PanelRightClose className="h-3 w-3" /> : <PanelRightOpen className="h-3 w-3" />}
+                    <span className="hidden lg:inline">{previewOpen ? 'Hide' : 'Show'}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  {previewOpen ? 'Hide preview panel (⌘\\)' : 'Show preview panel (⌘\\)'}
+                </TooltipContent>
+              </Tooltip>
             </div>
 
             {/* Advanced Filter Panel */}
@@ -4961,7 +5074,7 @@ export default function PdbTracker() {
                 )
               ) : (
                 /* Evaluation Table */
-                !selectedEval ? (
+                !selectedEval && !selectedComplexId ? (
                   <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted relative">
                     <div className="absolute inset-0 empty-state-pattern opacity-40" />
                     <div className="relative z-10 flex flex-col items-center">
@@ -4972,7 +5085,7 @@ export default function PdbTracker() {
                       <p className="text-xs mt-1 text-claude-text-muted max-w-[220px] text-center">Choose from the sidebar to view structures and BLAST results</p>
                     </div>
                   </div>
-                ) : loadingEvalDetail ? (
+                ) : loadingEvalDetail && !selectedComplexId ? (
                   <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
@@ -4984,6 +5097,7 @@ export default function PdbTracker() {
                           { h: 'IF', field: 'journalIf' },
                           { h: 'Title / Description', field: 'title' },
                           { h: 'Date', field: 'releaseDate' },
+                          { h: 'Ligands', field: '_ligands' },
                         ].filter(c => !hiddenColumns.has(c.field)).map(c => (
                           <th key={c.h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
                             {c.h}
@@ -4993,7 +5107,7 @@ export default function PdbTracker() {
                     </thead>
                     <tbody>
                       <TableSkeleton rows={5} cols={[
-                        'pdbId','_type','method','resolution','journalIf','title','releaseDate'
+                        'pdbId','_type','method','resolution','journalIf','title','releaseDate','_ligands'
                       ].filter(f => !hiddenColumns.has(f)).length} />
                     </tbody>
                   </table>
@@ -5004,11 +5118,13 @@ export default function PdbTracker() {
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: '_type', label: 'Type', w: 'w-[70px]' },
+                          ...(selectedComplexId ? [{ field: '_source', label: 'Source', w: 'w-[80px]' }] : []),
                           { field: 'method', label: 'Method', w: 'w-[90px]' },
                           { field: 'resolution', label: 'Resolution', w: 'w-[80px]' },
                           { field: 'journalIf', label: 'IF', w: 'w-[55px]' },
                           { field: 'title', label: 'Title / Description', w: '' },
                           { field: 'releaseDate', label: 'Date', w: 'w-[95px]' },
+                          { field: '_ligands', label: 'Ligands', w: 'w-[120px]' },
                         ].filter(col => !hiddenColumns.has(col.field)).map(col => (
                           <th
                             key={col.field}
@@ -5079,6 +5195,13 @@ export default function PdbTracker() {
                               )}
                             </td>
                             )}
+                            {selectedComplexId && '_sourceUniport' in row && (
+                            <td className="px-3 py-2">
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">
+                                {row._sourceUniport}
+                              </span>
+                            </td>
+                            )}
                             {!hiddenColumns.has('method') && (
                             <td className="px-3 py-2">
                               {row.method ? (
@@ -5116,6 +5239,54 @@ export default function PdbTracker() {
                             {!hiddenColumns.has('releaseDate') && (
                             <td className="px-3 py-2 text-claude-text-muted whitespace-nowrap">{formatDate(row.releaseDate)}</td>
                             )}
+                            {!hiddenColumns.has('_ligands') && (
+                            <td className="px-3 py-2">
+                              <div className="flex flex-wrap gap-1">
+                                {(() => {
+                                  const evalLigands = parseLigands('ligand' in row ? row.ligand : null);
+                                  if (evalLigands.length === 0) return <span className="text-claude-text-muted">—</span>;
+                                  return (<>
+                                    {evalLigands.slice(0, 3).map((lig, li) => (
+                                      <Popover key={`eval-lig-pop-${li}-${lig}`}>
+                                        <PopoverTrigger asChild>
+                                          <span
+                                            className="ligand-chip"
+                                            onMouseEnter={() => fetchLigandInfo(lig)}
+                                          >
+                                            {lig}
+                                          </span>
+                                        </PopoverTrigger>
+                                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
+                                          {ligandCache[lig] ? (
+                                            <LigandTooltipContent ligand={ligandCache[lig]} />
+                                          ) : (
+                                            <div className="p-3 flex items-center gap-2">
+                                              <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
+                                              <span className="text-xs text-claude-text-muted">Loading...</span>
+                                            </div>
+                                          )}
+                                        </PopoverContent>
+                                      </Popover>
+                                    ))}
+                                    {evalLigands.length > 3 && (
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <span className="ligand-chip cursor-default">+{evalLigands.length - 3}</span>
+                                        </TooltipTrigger>
+                                        <TooltipContent side="top">
+                                          <div className="flex flex-wrap gap-1 max-w-48">
+                                            {evalLigands.map((l, li) => (
+                                              <span key={`eval-lig-tt-${li}-${l}`} className="ligand-chip">{l}</span>
+                                            ))}
+                                          </div>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    )}
+                                  </>);
+                                })()}
+                              </div>
+                            </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -5139,7 +5310,7 @@ export default function PdbTracker() {
                 />
               </div>
             )}
-            {mode === 'evaluation' && selectedEval && sortedEvalRows.length > PAGE_SIZE && (
+            {mode === 'evaluation' && (selectedEval || selectedComplexId) && sortedEvalRows.length > PAGE_SIZE && (
               <div className="no-print">
                 <Pagination
                   page={currentPage}
@@ -5304,6 +5475,87 @@ export default function PdbTracker() {
         entryA={entryComparison.entryA}
         entryB={entryComparison.entryB}
       />
+
+      {/* Complex Evaluation Dialog */}
+      <AnimatePresence>
+        {showComplexDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center no-print"
+            onClick={() => setShowComplexDialog(false)}
+          >
+            <div className="absolute inset-0 bg-black/30 backdrop-blur-sm" />
+            <motion.div
+              initial={{ scale: 0.95, y: 10 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 10 }}
+              transition={{ duration: 0.15 }}
+              className="relative bg-white dark:bg-[#242220] border border-claude-border rounded-xl shadow-2xl w-[420px] max-w-[90vw] p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-claude-text flex items-center gap-2">
+                  <Layers className="h-4 w-4 text-claude-accent" />
+                  Create Complex Evaluation Group
+                </h3>
+                <button
+                  onClick={() => setShowComplexDialog(false)}
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-claude-border-light transition-colors"
+                >
+                  <X className="h-4 w-4 text-claude-text-muted" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-medium text-claude-text-secondary mb-1 block">Group Name (optional)</label>
+                  <input
+                    type="text"
+                    value={complexName}
+                    onChange={e => setComplexName(e.target.value)}
+                    placeholder="e.g. EGFR Complex"
+                    className="w-full px-3 py-2 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-medium text-claude-text-secondary mb-1 block">UniProt IDs <span className="text-claude-text-muted">(space, comma, or semicolon separated)</span></label>
+                  <textarea
+                    value={complexInput}
+                    onChange={e => setComplexInput(e.target.value)}
+                    placeholder="e.g. P00533 P04637 Q9Y6K9"
+                    rows={3}
+                    className="w-full px-3 py-2 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none font-mono"
+                  />
+                  {complexInput && (
+                    <div className="mt-1 text-[10px] text-claude-text-muted">
+                      {complexInput.split(/[\s,;]+/).filter(id => id.trim().length > 0).length} IDs detected
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 pt-2">
+                  <Button
+                    onClick={addComplexGroup}
+                    disabled={complexInput.split(/[\s,;]+/).filter(id => id.trim().length > 0).length < 2}
+                    className="flex-1 h-8 text-xs bg-claude-accent hover:bg-claude-accent/90 text-white"
+                  >
+                    <Layers className="h-3 w-3 mr-1" />
+                    Create Group
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowComplexDialog(false)}
+                    className="h-8 text-xs"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ═══════════ BATCH ACTION BAR ═══════════ */}
       <AnimatePresence>
@@ -6016,33 +6268,189 @@ export default function PdbTracker() {
 
   // ── Sidebar Render Function ──
   function renderSidebar() {
+    // ── Compact Sidebar Mode ──
+    if (sidebarCompact) {
+      return (
+        <div className="flex flex-col h-full">
+          {/* Compact Mode Switcher - Icons Only */}
+          <div className="p-2 border-b border-claude-border flex flex-col items-center gap-1">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
+                    mode === 'weekly'
+                      ? 'bg-claude-accent-light text-claude-accent shadow-sm'
+                      : 'text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary'
+                  }`}
+                >
+                  <Calendar className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Weekly Mode</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
+                    mode === 'evaluation'
+                      ? 'bg-claude-accent-light text-claude-accent shadow-sm'
+                      : 'text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary'
+                  }`}
+                >
+                  <Microscope className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Evaluation Mode</TooltipContent>
+            </Tooltip>
+          </div>
+
+          {/* Compact Content */}
+          <ScrollArea className="flex-1 sidebar-scroll">
+            <div className="p-2 flex flex-col items-center gap-1">
+              {mode === 'weekly' ? (
+                <>
+                  {loadingSnapshots ? (
+                    [1,2,3,4].map(i => (
+                      <div key={i} className="w-10 h-10 rounded-lg shimmer-skeleton" />
+                    ))
+                  ) : (
+                    snapshots.map(snap => (
+                      <Tooltip key={snap.weekId}>
+                        <TooltipTrigger asChild>
+                          <button
+                            onClick={() => setSelectedWeekId(snap.weekId)}
+                            className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all duration-150 text-[9px] font-mono ${
+                              selectedWeekId === snap.weekId
+                                ? 'bg-claude-accent-light text-claude-accent shadow-sm'
+                                : 'bg-white dark:bg-[#2b2926] border border-claude-border text-claude-text-muted hover:border-claude-accent/30 hover:text-claude-text-secondary'
+                            }`}
+                          >
+                            <span className="font-semibold leading-none">W{snap.weekId.replace(/.*-W/, '')}</span>
+                            <span className="text-[8px] mt-0.5 opacity-70">{snap.totalStructures}</span>
+                          </button>
+                        </TooltipTrigger>
+                        <TooltipContent side="right" className="text-xs">
+                          <div className="font-semibold">{snap.weekId}</div>
+                          <div className="text-[10px] text-claude-text-muted">{snap.totalStructures} structures</div>
+                          <div className="text-[10px] text-claude-text-muted">{formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}</div>
+                          <div className="flex gap-1 mt-1">
+                            {snap.cryoemCount > 0 && <span className="text-[#2d8f8f] text-[10px]">EM:{snap.cryoemCount}</span>}
+                            {snap.xrayCount > 0 && <span className="text-[#7c5cbf] text-[10px]">XR:{snap.xrayCount}</span>}
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    ))
+                  )}
+                </>
+              ) : (
+                <>
+                  {loadingEvals ? (
+                    [1,2,3,4].map(i => (
+                      <div key={i} className="w-10 h-10 rounded-lg shimmer-skeleton" />
+                    ))
+                  ) : (
+                    filteredEvals.map(ev => {
+                      const avgScore = getAvgScore(ev.scores);
+                      const scoreColor = getScoreColor(avgScore);
+                      return (
+                        <Tooltip key={ev.uniprotId}>
+                          <TooltipTrigger asChild>
+                            <button
+                              onClick={() => setSelectedEvalId(ev.uniprotId)}
+                              className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all duration-150 text-[8px] font-mono ${
+                                selectedEvalId === ev.uniprotId
+                                  ? 'bg-claude-accent-light text-claude-accent shadow-sm'
+                                  : 'bg-white dark:bg-[#2b2926] border border-claude-border text-claude-text-muted hover:border-claude-accent/30 hover:text-claude-text-secondary'
+                              }`}
+                            >
+                              <span className="font-semibold leading-none text-[9px]">{ev.uniprotId.slice(0, 3)}</span>
+                              <span
+                                className="text-[8px] font-bold mt-0.5"
+                                style={{ color: scoreColor }}
+                              >
+                                {avgScore.toFixed(0)}
+                              </span>
+                            </button>
+                          </TooltipTrigger>
+                          <TooltipContent side="right" className="text-xs">
+                            <div className="font-semibold">{ev.uniprotId}</div>
+                            <div className="text-[10px] text-claude-text-secondary">{ev.proteinName || ev.entryName}</div>
+                            {ev._count && (
+                              <div className="text-[10px] text-claude-text-muted mt-0.5">
+                                {ev._count.pdbStructures} PDB · {ev._count.blastResults} BLAST
+                              </div>
+                            )}
+                          </TooltipContent>
+                        </Tooltip>
+                      );
+                    })
+                  )}
+                </>
+              )}
+            </div>
+          </ScrollArea>
+
+          {/* Compact Mode Toggle */}
+          <div className="p-2 border-t border-claude-border">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setSidebarCompact(false)}
+                  className="w-10 h-8 rounded-lg flex items-center justify-center text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary transition-colors duration-150"
+                >
+                  <PanelRightOpen className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Expand sidebar</TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Full Sidebar Mode ──
     return (
       <>
         {/* Mode Switcher */}
         <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border">
-          <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light p-0.5">
-            <button
-              onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
-                mode === 'weekly'
-                  ? 'bg-white dark:bg-[#2b2926] text-claude-text shadow-sm'
-                  : 'text-claude-text-muted hover:text-claude-text-secondary'
-              }`}
-            >
-              <Calendar className="h-3.5 w-3.5" />
-              Weekly
-            </button>
-            <button
-              onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
-                mode === 'evaluation'
-                  ? 'bg-white dark:bg-[#2b2926] text-claude-text shadow-sm'
-                  : 'text-claude-text-muted hover:text-claude-text-secondary'
-              }`}
-            >
-              <Microscope className="h-3.5 w-3.5" />
-              Evaluation
-            </button>
+          <div className="flex items-center justify-between mb-2">
+            <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light p-0.5 flex-1">
+              <button
+                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
+                  mode === 'weekly'
+                    ? 'bg-white dark:bg-[#2b2926] text-claude-text shadow-sm'
+                    : 'text-claude-text-muted hover:text-claude-text-secondary'
+                }`}
+              >
+                <Calendar className="h-3.5 w-3.5" />
+                Weekly
+              </button>
+              <button
+                onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
+                className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
+                  mode === 'evaluation'
+                    ? 'bg-white dark:bg-[#2b2926] text-claude-text shadow-sm'
+                    : 'text-claude-text-muted hover:text-claude-text-secondary'
+                }`}
+              >
+                <Microscope className="h-3.5 w-3.5" />
+                Evaluation
+              </button>
+            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => setSidebarCompact(true)}
+                  className="ml-2 h-7 w-7 flex items-center justify-center rounded-md text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary transition-colors duration-150"
+                >
+                  <PanelRightClose className="h-3.5 w-3.5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs">Compact sidebar</TooltipContent>
+            </Tooltip>
           </div>
         </div>
 
@@ -6389,6 +6797,133 @@ export default function PdbTracker() {
                   onClearHistory={clearSearchHistory}
                 />
               </div>
+
+              {/* Complex Evaluation Groups */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Complex Evaluation</span>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setShowComplexDialog(true)}
+                        className="h-5 w-5 flex items-center justify-center rounded text-claude-accent hover:bg-claude-accent-light transition-colors duration-150"
+                      >
+                        <Layers className="h-3 w-3" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="text-xs">Create complex group</TooltipContent>
+                  </Tooltip>
+                </div>
+                {complexGroups.length > 0 ? (
+                  complexGroups.map(group => {
+                    const isExpanded = expandedComplexId === group.id;
+                    const isSelected = selectedComplexId === group.id;
+                    const totalPdbs = group.uniprotIds.reduce((sum, uid) => {
+                      const ev = evaluations.find(e => e.uniprotId === uid);
+                      return sum + (ev?._count?.pdbStructures || 0);
+                    }, 0);
+                    const totalBlasts = group.uniprotIds.reduce((sum, uid) => {
+                      const ev = evaluations.find(e => e.uniprotId === uid);
+                      return sum + (ev?._count?.blastResults || 0);
+                    }, 0);
+                    return (
+                      <div key={group.id}>
+                        <div
+                          className={`rounded-[10px] border transition-all duration-200 overflow-hidden ${
+                            isSelected
+                              ? 'bg-claude-accent-light/50 border-claude-accent/30 shadow-sm'
+                              : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                          }`}
+                        >
+                          <button
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedComplexId(null);
+                              } else {
+                                setSelectedComplexId(group.id);
+                                setSelectedEvalId(null);
+                                setSelectedEval(null);
+                              }
+                            }}
+                            className="w-full text-left p-2.5"
+                          >
+                            <div className="flex items-start justify-between gap-1">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1">
+                                  <Layers className="h-3 w-3 text-claude-accent flex-shrink-0" />
+                                  <span className="text-[11px] font-semibold text-claude-text truncate">{group.name}</span>
+                                </div>
+                                <div className="text-[10px] text-claude-text-muted mt-0.5">
+                                  {group.uniprotIds.length} UniProt IDs · {totalPdbs} PDB · {totalBlasts} BLAST
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setExpandedComplexId(isExpanded ? null : group.id); }}
+                                  className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light transition-colors duration-150"
+                                >
+                                  <ChevronDown className={`h-3 w-3 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); removeComplexGroup(group.id); }}
+                                  className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+                                >
+                                  <X className="h-3 w-3 text-claude-text-muted hover:text-red-500" />
+                                </button>
+                              </div>
+                            </div>
+                          </button>
+                          {/* Expanded sub-entries */}
+                          {isExpanded && (
+                            <div className="px-2 pb-2 space-y-1 border-t border-claude-border/50">
+                              {group.uniprotIds.map(uid => {
+                                const subEv = evaluations.find(e => e.uniprotId === uid);
+                                const subScore = subEv ? getAvgScore(subEv.scores) : null;
+                                const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
+                                return (
+                                  <button
+                                    key={uid}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedEvalId(uid);
+                                      setSelectedComplexId(group.id);
+                                    }}
+                                    className="w-full text-left p-1.5 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 flex items-center gap-1.5"
+                                  >
+                                    <span className="font-mono text-[10px] font-semibold text-claude-accent">{uid}</span>
+                                    {subEv && (
+                                      <>
+                                        <span className="text-[9px] text-claude-text-muted truncate flex-1">{subEv.proteinName || subEv.entryName}</span>
+                                        {subScore !== null && (
+                                          <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
+                                            {subScore.toFixed(1)}
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                    {!subEv && (
+                                      <span className="text-[9px] text-claude-text-muted/50 italic">Not found</span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="text-[10px] text-claude-text-muted/60 text-center py-1.5">
+                    Click + to create a complex group
+                  </div>
+                )}
+              </div>
+
+              <Separator className="my-2" />
+
+              {/* Individual Evaluations */}
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1">Individual Evaluations</div>
 
               {loadingEvals ? (
                 <div className="space-y-2">

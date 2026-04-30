@@ -2104,3 +2104,87 @@ Stage Summary:
 4. Add configurable drag-and-drop dashboard layout
 5. Add protein sequence alignment view
 6. Add collaborative annotations/comments on PDB entries
+
+---
+Task ID: 1
+Agent: Main Agent (Round 10)
+Task: Fix evaluation mode bugs and add new features: ligand column, complex evaluation, sidebar compact mode, preview panel toggle
+
+Work Log:
+- Read worklog.md to understand project state (9 rounds of development, 8759 lines component)
+- Analyzed user's specific requests: 5 features/fixes needed
+- **Bug Fix 1: Added Ligand Column to Evaluation Table**
+  - Added `_ligands` column definition to evaluation table header (w-[120px])
+  - Added ligand td cells with Popover hover support (using `fetchLigandInfo` + `LigandTooltipContent`)
+  - Shows up to 3 ligand chips with popover, "+N" tooltip for overflow
+  - Updated loading skeleton to include `_ligands` column count
+- **Feature 1: Complex Evaluation Mode**
+  - Added state variables: `complexGroups`, `showComplexDialog`, `complexName`, `complexInput`, `selectedComplexId`, `expandedComplexId`
+  - Complex groups persisted to localStorage
+  - Added `addComplexGroup` and `removeComplexGroup` callbacks
+  - Added `complexEvalData` useMemo that merges PDB structures and BLAST results from multiple UniProt IDs
+  - Added `_sourceUniport` field to merged rows for source tracking
+  - Updated `sortedEvalRows` to support complex mode (merged data when selectedComplexId is set)
+  - Added "Complex Evaluation" section in evaluation sidebar with:
+    - "+" button to create complex group
+    - Group cards showing name, ID count, PDB/BLAST totals
+    - Expandable sub-entries showing each UniProt ID with protein name and score
+    - Delete button for each group
+  - Added creation dialog with name input, UniProt IDs textarea, ID count indicator
+  - Added "Source" column in evaluation table (shown only when complex group is selected)
+  - Updated evaluation table empty state condition to show table for complex mode
+  - Updated pagination condition to support complex mode
+- **Feature 2: Preview Panel Toggle Button**
+  - Replaced ghost button with styled outline button showing "Hide" / "Show" text
+  - Uses PanelRightClose/PanelRightOpen icons
+  - Active state shows accent color when panel is hidden
+  - Added Tooltip with keyboard shortcut hint
+- **Feature 3: Sidebar Compact Mode**
+  - Added `sidebarCompact` state with localStorage persistence
+  - Updated sidebar width: 56px when compact, `sidebarWidth` when normal
+  - Created compact sidebar rendering mode:
+    - Icon-only mode switcher buttons with tooltips
+    - Compact week/eval buttons showing abbreviated IDs and counts
+    - Tooltips with detailed info on hover
+    - Expand button at bottom
+  - Added compact toggle button in full sidebar mode (PanelRightClose icon)
+  - Added `PanelRightClose` icon import from lucide-react
+- **QA Testing**: All features verified working with agent-browser
+- **Lint Check**: Passes cleanly with no errors
+
+Stage Summary:
+- Evaluation table now shows ligands with hover popovers (matching weekly table functionality)
+- Complex evaluation mode allows merging multiple UniProt IDs into one view
+- Preview panel has a clear Hide/Show toggle button
+- Sidebar compact mode reduces width to 56px, showing only icons
+- All features working in both light and dark modes
+- No lint errors, no runtime errors
+
+## Project Current State (Round 10)
+
+**Status: Feature-Rich & Production-Ready**
+
+### New Features This Round:
+- **Evaluation Table Ligand Column**: Shows ligand chips with Popover hover tooltips (matching weekly table)
+- **Complex Evaluation Mode**: Create groups of multiple UniProt IDs, merge data into single view, expand sub-entries, Source column shows origin
+- **Preview Panel Toggle**: Clear Hide/Show button with icon and text
+- **Sidebar Compact Mode**: 56px narrow sidebar with icon-only navigation, localStorage persisted
+
+### Technical Details:
+- Complex groups stored in localStorage as `pdb-complex-groups`
+- Sidebar compact mode stored in localStorage as `pdb-sidebar-compact`
+- `_sourceUniport` field tracks origin UniProt ID in complex mode rows
+- `complexEvalData` useMemo efficiently merges data from multiple evaluations
+
+### Unresolved Issues / Risks:
+- Component file is now ~8900+ lines - refactoring strongly recommended
+- Complex evaluation mode shows "Source" column only in complex view
+- Sidebar compact mode doesn't show complex evaluation groups (only individual entries)
+
+### Recommended Next Steps:
+1. Refactor pdb-tracker.tsx into smaller components (file is ~8900 lines)
+2. Add complex evaluation summary view in preview panel
+3. Improve compact sidebar to show complex group icons
+4. Add virtual scrolling for large datasets
+5. Add keyboard shortcut for sidebar compact toggle
+6. Add data import/sync from live RCSB PDB API
