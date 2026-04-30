@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -44,6 +44,16 @@ import {
   Globe,
   Dna,
   Activity,
+  HelpCircle,
+  BookmarkPlus,
+  BookmarkMinus,
+  Copy,
+  Check,
+  Minus,
+  Hash,
+  BookOpen,
+  AlignJustify,
+  AlignVerticalSpaceAround,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,10 +84,13 @@ import { useTheme } from 'next-themes';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
 import dynamic from 'next/dynamic';
+import { createPortal } from 'react-dom';
 
 const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
 
@@ -673,6 +686,387 @@ function TableSkeleton({ rows = 10, cols = 8 }: { rows?: number; cols?: number }
   );
 }
 
+// ─── Search Dropdown Component ──────────────────────────────────────────────
+
+interface SearchSuggestionItem {
+  type: 'pdbId' | 'title' | 'organism' | 'journal';
+  text: string;
+  subtitle?: string;
+}
+
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+  const q = query.trim();
+  const idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, idx)}
+      <span className="text-claude-accent font-semibold">{text.slice(idx, idx + q.length)}</span>
+      {text.slice(idx + q.length)}
+    </>
+  );
+}
+
+function SearchDropdown({
+  isOpen,
+  searchQuery,
+  suggestions,
+  searchHistory,
+  highlightIndex,
+  onSelectSuggestion,
+  onSelectHistory,
+  onClearHistory,
+}: {
+  isOpen: boolean;
+  searchQuery: string;
+  suggestions: SearchSuggestionItem[];
+  searchHistory: string[];
+  highlightIndex: number;
+  onSelectSuggestion: (suggestion: SearchSuggestionItem) => void;
+  onSelectHistory: (term: string) => void;
+  onClearHistory: () => void;
+}) {
+  const hasQuery = searchQuery.trim().length > 0;
+
+  // Group suggestions by type
+  const groupedSuggestions = useMemo(() => {
+    const groups: { type: SearchSuggestionItem['type']; items: SearchSuggestionItem[] }[] = [];
+    const types: SearchSuggestionItem['type'][] = ['pdbId', 'title', 'organism', 'journal'];
+    for (const key of types) {
+      const items = suggestions.filter(s => s.type === key);
+      if (items.length > 0) {
+        groups.push({ type: key, items });
+      }
+    }
+    return groups;
+  }, [suggestions]);
+
+  const getIcon = (type: SearchSuggestionItem['type']) => {
+    switch (type) {
+      case 'pdbId': return <Hash className="h-3 w-3 text-claude-text-muted mr-2 flex-shrink-0" />;
+      case 'title': return <FileText className="h-3 w-3 text-claude-text-muted mr-2 flex-shrink-0" />;
+      case 'organism': return <Globe className="h-3 w-3 text-claude-text-muted mr-2 flex-shrink-0" />;
+      case 'journal': return <BookOpen className="h-3 w-3 text-claude-text-muted mr-2 flex-shrink-0" />;
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (hasQuery ? suggestions.length > 0 : searchHistory.length > 0) && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: -4 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: -4 }}
+          transition={{ duration: 0.12 }}
+          className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-[#2b2926] border border-claude-border rounded-lg shadow-xl p-1 max-h-64 overflow-y-auto custom-scrollbar"
+        >
+          {hasQuery ? (
+            <>
+              {(() => {
+                let runningIdx = 0;
+                return groupedSuggestions.map((group) => {
+                  const startIdx = runningIdx;
+                  const items = group.items.map((item, ii) => {
+                    const flatIdx = startIdx + ii;
+                    const isHighlighted = flatIdx === highlightIndex;
+                    runningIdx++;
+                    return (
+                      <div
+                        key={`${item.type}-${item.text}-${ii}`}
+                        className={`flex items-center px-2 py-1.5 rounded-md cursor-pointer text-xs ${
+                          isHighlighted
+                            ? 'bg-claude-accent-light/50 dark:bg-[#d4784f]/10'
+                            : 'hover:bg-claude-bg/50 dark:hover:bg-[#3d3832]'
+                        }`}
+                        onClick={() => onSelectSuggestion(item)}
+                      >
+                        {getIcon(item.type)}
+                        <span className="truncate flex-1 min-w-0">
+                          <HighlightMatch text={item.text} query={searchQuery} />
+                        </span>
+                        {item.subtitle && (
+                          <span className="text-[10px] text-claude-text-muted ml-2 flex-shrink-0 font-mono">{item.subtitle}</span>
+                        )}
+                      </div>
+                    );
+                  });
+                  return (
+                    <div key={group.type}>
+                      <div className="text-[9px] font-semibold uppercase text-claude-text-muted px-2 py-1">
+                        {group.type === 'pdbId' ? 'PDB IDs' : group.type === 'title' ? 'Titles' : group.type === 'organism' ? 'Organisms' : 'Journals'}
+                      </div>
+                      {items}
+                    </div>
+                  );
+                });
+              })()}
+            </>
+          ) : (
+            <>
+              <div className="text-[9px] font-semibold uppercase text-claude-text-muted px-2 py-1">
+                Recent Searches
+              </div>
+              {searchHistory.map((term, ii) => {
+                const isHighlighted = ii === highlightIndex;
+                return (
+                  <div
+                    key={`hist-${ii}`}
+                    className={`flex items-center px-2 py-1.5 rounded-md cursor-pointer text-xs ${
+                      isHighlighted
+                        ? 'bg-claude-accent-light/50 dark:bg-[#d4784f]/10'
+                        : 'hover:bg-claude-bg/50 dark:hover:bg-[#3d3832]'
+                    }`}
+                    onClick={() => onSelectHistory(term)}
+                  >
+                    <Clock className="h-3 w-3 text-claude-text-muted mr-2 flex-shrink-0" />
+                    <span className="truncate flex-1 min-w-0">{term}</span>
+                  </div>
+                );
+              })}
+              {searchHistory.length > 0 && (
+                <div className="border-t border-claude-border mt-1 pt-1 px-2 py-1 flex items-center justify-between">
+                  <span className="text-[10px] text-claude-text-muted">{searchHistory.length} recent search{searchHistory.length !== 1 ? 'es' : ''}</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onClearHistory(); }}
+                    className="text-[10px] text-claude-accent hover:text-claude-accent/80 transition-colors"
+                  >
+                    Clear history
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+          {hasQuery && suggestions.length > 0 && (
+            <div className="border-t border-claude-border mt-1 pt-1 px-2 py-1">
+              <span className="text-[10px] text-claude-text-muted">{suggestions.length} suggestion{suggestions.length !== 1 ? 's' : ''}</span>
+            </div>
+          )}
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Tour Overlay Component ─────────────────────────────────────────────────
+
+interface TourStepConfig {
+  title: string;
+  description: string;
+  targetRef: React.RefObject<HTMLElement | null>;
+}
+
+const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
+  { title: 'Welcome to PDB Structure Tracker', description: 'Track and evaluate protein structures from the PDB database with powerful filtering, comparison, and visualization tools.' },
+  { title: 'Browse by Week', description: 'Select a week to view its PDB structures. Each card shows the count and method distribution.' },
+  { title: 'Switch Modes', description: 'Toggle between Weekly browsing and Protein Evaluation modes.' },
+  { title: 'Search & Filter', description: 'Search by PDB ID, title, or journal. Use advanced filters for resolution, impact factor, and organisms.' },
+  { title: 'Preview & Visualize', description: 'View summary statistics, interactive charts, and timeline visualizations in the side panel.' },
+  { title: 'Keyboard Shortcuts', description: 'Use ⌘K to search, ⌘E to switch modes, ⌘B to toggle bookmarks, and Esc to clear.' },
+];
+
+function TourOverlay({
+  tourActive,
+  tourStep,
+  setTourStep,
+  finishTour,
+  steps,
+}: {
+  tourActive: boolean;
+  tourStep: number;
+  setTourStep: (s: number) => void;
+  finishTour: () => void;
+  steps: TourStepConfig[];
+}) {
+  const [spotlightRect, setSpotlightRect] = useState<DOMRect | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const [positionAbove, setPositionAbove] = useState(false);
+  const rafRef = useRef<number | null>(null);
+
+  const currentStep = steps[tourStep];
+  const isLastStep = tourStep === steps.length - 1;
+
+  const updatePosition = useCallback(() => {
+    if (!currentStep?.targetRef?.current) {
+      setSpotlightRect(null);
+      return;
+    }
+    const el = currentStep.targetRef.current;
+    const rect = el.getBoundingClientRect();
+    setSpotlightRect(rect);
+
+    const tooltipWidth = 280;
+    const tooltipHeight = 200;
+    const gap = 12;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Determine if tooltip should be above or below
+    const spaceBelow = vh - rect.bottom;
+    const spaceAbove = rect.top;
+    const above = spaceBelow < tooltipHeight + gap && spaceAbove > spaceBelow;
+    setPositionAbove(above);
+
+    // Horizontal centering with clamping
+    let left = rect.left + rect.width / 2 - tooltipWidth / 2;
+    left = Math.max(8, Math.min(left, vw - tooltipWidth - 8));
+
+    let top: number;
+    if (above) {
+      top = rect.top - gap - tooltipHeight;
+    } else {
+      top = rect.bottom + gap;
+    }
+    top = Math.max(8, top);
+
+    setTooltipPos({ top, left });
+  }, [currentStep]);
+
+  useLayoutEffect(() => {
+    if (!tourActive) return;
+    const raf = requestAnimationFrame(() => updatePosition());
+    const handleResize = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(updatePosition);
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('scroll', handleResize, true);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('scroll', handleResize, true);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [tourActive, updatePosition]);
+
+  // Update position when step changes
+  useEffect(() => {
+    if (tourActive) {
+      const raf = requestAnimationFrame(() => updatePosition());
+      return () => cancelAnimationFrame(raf);
+    }
+  }, [tourActive, tourStep, updatePosition]);
+
+  if (!tourActive || !currentStep || !spotlightRect) return null;
+
+  const stepConfig = TOUR_STEPS[tourStep];
+
+  return createPortal(
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={`tour-step-${tourStep}`}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="fixed inset-0 z-[100]"
+      >
+        {/* Overlay with spotlight cutout using box-shadow technique */}
+        <div
+          className="absolute inset-0"
+          style={{
+            boxShadow: spotlightRect
+              ? `0 0 0 9999px rgba(0, 0, 0, 0.4)`
+              : undefined,
+          }}
+        />
+
+        {/* Spotlight highlight element */}
+        <div
+          className="absolute rounded-lg border-2 border-claude-accent animate-[pulse_2s_ease-in-out_infinite] pointer-events-none"
+          style={{
+            top: spotlightRect.top - 4,
+            left: spotlightRect.left - 4,
+            width: spotlightRect.width + 8,
+            height: spotlightRect.height + 8,
+          }}
+        />
+
+        {/* Tooltip Card */}
+        <motion.div
+          initial={{ opacity: 0, y: positionAbove ? 6 : -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: positionAbove ? 6 : -6 }}
+          transition={{ duration: 0.2 }}
+          className="absolute bg-white dark:bg-[#242220] border border-claude-border rounded-xl shadow-2xl p-4 max-w-[280px]"
+          style={{
+            top: tooltipPos.top,
+            left: tooltipPos.left,
+          }}
+        >
+          {/* Skip button */}
+          <button
+            onClick={finishTour}
+            className="absolute top-3 right-3 text-[10px] text-claude-text-muted hover:text-claude-text transition-colors"
+          >
+            Skip
+          </button>
+
+          {/* Step number + title */}
+          <div className="flex items-start gap-2.5 mb-2">
+            <span className="h-5 w-5 rounded-full bg-claude-accent text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0 mt-0.5">
+              {tourStep + 1}
+            </span>
+            <div className="min-w-0 pr-8">
+              <div className="text-sm font-semibold text-claude-text leading-tight">
+                {stepConfig.title}
+              </div>
+            </div>
+          </div>
+
+          {/* Description */}
+          <p className="text-xs text-claude-text-secondary leading-relaxed mb-4 pl-[30px]">
+            {stepConfig.description}
+          </p>
+
+          {/* Step dots */}
+          <div className="flex items-center gap-1.5 pl-[30px] mb-3">
+            {TOUR_STEPS.map((_, i) => (
+              <span
+                key={i}
+                className={`h-1.5 w-1.5 rounded-full transition-all duration-200 ${
+                  i === tourStep
+                    ? 'bg-claude-accent'
+                    : 'border border-claude-text-muted/40 bg-transparent'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Navigation buttons */}
+          <div className="flex items-center gap-2 pl-[30px]">
+            {tourStep > 0 && (
+              <button
+                onClick={() => setTourStep(tourStep - 1)}
+                className="px-3 py-1.5 rounded-md text-[11px] font-medium text-claude-text-secondary hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
+              >
+                Back
+              </button>
+            )}
+            <button
+              onClick={() => {
+                if (isLastStep) {
+                  finishTour();
+                } else {
+                  setTourStep(tourStep + 1);
+                }
+              }}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-medium transition-colors ${
+                isLastStep
+                  ? 'bg-claude-accent text-white hover:bg-claude-accent-hover'
+                  : 'bg-claude-accent text-white hover:bg-claude-accent-hover'
+              }`}
+            >
+              {isLastStep ? 'Get Started' : 'Next'}
+            </button>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body
+  );
+}
+
 // ─── Main PDB Tracker Component ──────────────────────────────────────────────
 
 export default function PdbTracker() {
@@ -731,6 +1125,9 @@ export default function PdbTracker() {
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
 
+  // ── Row Selection (Batch Operations) ──
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+
   // ── Column Visibility ──
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
     try {
@@ -739,6 +1136,22 @@ export default function PdbTracker() {
     } catch { /* ignore */ }
     return new Set<string>();
   });
+
+  // ── Data Density ──
+  const [compactMode, setCompactMode] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-compact-mode');
+      if (saved !== null) return saved === 'true';
+    } catch { /* ignore */ }
+    return false;
+  });
+
+  // Persist compact mode to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('pdb-compact-mode', String(compactMode));
+    } catch { /* ignore */ }
+  }, [compactMode]);
 
   // Persist hidden columns to localStorage
   useEffect(() => {
@@ -755,6 +1168,17 @@ export default function PdbTracker() {
       return next;
     });
   }, []);
+
+  // ── Search Dropdown ──
+  const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+  const [searchHighlightIndex, setSearchHighlightIndex] = useState(-1);
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-search-history');
+      if (saved) return JSON.parse(saved) as string[];
+    } catch { /* ignore */ }
+    return [];
+  });
 
   // ── Advanced Filters ──
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
@@ -820,6 +1244,29 @@ export default function PdbTracker() {
     } catch { /* ignore */ }
   }, [bookmarks]);
 
+  // Persist search history to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('pdb-search-history', JSON.stringify(searchHistory));
+    } catch { /* ignore */ }
+  }, [searchHistory]);
+
+  // Add search term to history
+  const addToSearchHistory = useCallback((term: string) => {
+    const trimmed = term.trim();
+    if (!trimmed) return;
+    setSearchHistory(prev => {
+      const filtered = prev.filter(h => h.toLowerCase() !== trimmed.toLowerCase());
+      return [trimmed, ...filtered].slice(0, 10);
+    });
+  }, []);
+
+  // Clear search history
+  const clearSearchHistory = useCallback(() => {
+    setSearchHistory([]);
+    toast('Search history cleared');
+  }, []);
+
   const toggleBookmark = useCallback((pdbId: string) => {
     setBookmarks(prev => {
       const next = new Set(prev);
@@ -857,6 +1304,50 @@ export default function PdbTracker() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
 
+  // ── Tour State ──
+  const [tourActive, setTourActive] = useState(false);
+  const [tourStep, setTourStep] = useState(0);
+
+  // ── Tour Refs ──
+  const tourTitleRef = useRef<HTMLDivElement>(null);
+  const tourSidebarRef = useRef<HTMLDivElement>(null);
+  const tourModeSwitcherRef = useRef<HTMLDivElement>(null);
+  const tourSearchRef = useRef<HTMLDivElement>(null);
+  const tourPreviewRef = useRef<HTMLDivElement>(null);
+  const tourShortcutsRef = useRef<HTMLButtonElement>(null);
+
+  // ── Tour Auto-Start ──
+  useEffect(() => {
+    if (!mounted) return;
+    try {
+      const completed = localStorage.getItem('pdb-tour-completed');
+      if (!completed) {
+        const timer = setTimeout(() => { setTourActive(true); setTourStep(0); }, 1500);
+        return () => clearTimeout(timer);
+      }
+    } catch { /* ignore */ }
+  }, [mounted]);
+
+  // ── Tour Completion ──
+  const finishTour = useCallback(() => {
+    setTourActive(false);
+    setTourStep(0);
+    try { localStorage.setItem('pdb-tour-completed', 'true'); } catch { /* ignore */ }
+    toast('Tour complete!', { description: 'Explore the app and use ⌘K anytime to search.' });
+  }, []);
+
+  const startTour = useCallback(() => {
+    setTourActive(true);
+    setTourStep(0);
+  }, []);
+
+  // ── Tour: Ensure preview panel is open for step 5 ──
+  useEffect(() => {
+    if (tourActive && tourStep === 4 && !previewOpen) {
+      setPreviewOpen(true);
+    }
+  }, [tourActive, tourStep, previewOpen]);
+
   // ── Keyboard Shortcuts ──
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -864,6 +1355,7 @@ export default function PdbTracker() {
       if (isMod && e.key === 'k') {
         e.preventDefault();
         searchInputRef.current?.focus();
+        setSearchDropdownOpen(true);
       }
       if (isMod && e.key === 'e') {
         e.preventDefault();
@@ -874,7 +1366,10 @@ export default function PdbTracker() {
         setShowBookmarksOnly(prev => !prev);
       }
       if (e.key === 'Escape') {
-        if (detailPanelOpen) {
+        if (searchDropdownOpen) {
+          setSearchDropdownOpen(false);
+          setSearchHighlightIndex(-1);
+        } else if (detailPanelOpen) {
           setDetailPanelOpen(false);
           setSelectedEntry(null);
         } else if (searchQuery) {
@@ -885,10 +1380,13 @@ export default function PdbTracker() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchQuery]);
+  }, [searchQuery, searchDropdownOpen]);
 
   // ── Reset page on filter/sort change ──
   useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange]);
+
+  // ── Clear row selection on week/mode change ──
+  useEffect(() => { setSelectedRows(new Set()); }, [selectedWeekId, mode]);
 
   // ── Debounced Search ──
   useEffect(() => {
@@ -1163,6 +1661,88 @@ export default function PdbTracker() {
     );
   }, [evaluations, debouncedSearch]);
 
+  // ── Search Suggestions ──
+  const searchSuggestions = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return [];
+
+    const suggestions: SearchSuggestionItem[] = [];
+    const seen = new Set<string>();
+
+    if (mode === 'weekly') {
+      // PDB IDs (max 5)
+      entries.forEach(e => {
+        if (suggestions.filter(s => s.type === 'pdbId').length >= 5) return;
+        if (e.pdbId.toLowerCase().includes(q) && !seen.has(`pdb-${e.pdbId}`)) {
+          seen.add(`pdb-${e.pdbId}`);
+          suggestions.push({ type: 'pdbId', text: e.pdbId });
+        }
+      });
+
+      // Titles (max 3)
+      entries.forEach(e => {
+        if (suggestions.filter(s => s.type === 'title').length >= 3) return;
+        if (e.title.toLowerCase().includes(q) && !seen.has(`title-${e.pdbId}`)) {
+          seen.add(`title-${e.pdbId}`);
+          suggestions.push({ type: 'title', text: e.title, subtitle: e.pdbId });
+        }
+      });
+
+      // Organisms (max 3)
+      entries.forEach(e => {
+        if (suggestions.filter(s => s.type === 'organism').length >= 3) return;
+        if (e.organisms) {
+          e.organisms.split('|').forEach(o => {
+            const trimmed = o.trim();
+            if (trimmed.toLowerCase().includes(q) && !seen.has(`org-${trimmed}`)) {
+              seen.add(`org-${trimmed}`);
+              suggestions.push({ type: 'organism', text: trimmed });
+            }
+          });
+        }
+      });
+
+      // Journals (max 2)
+      entries.forEach(e => {
+        if (suggestions.filter(s => s.type === 'journal').length >= 2) return;
+        if (e.journal && e.journal.toLowerCase().includes(q) && !seen.has(`jnl-${e.journal}`)) {
+          seen.add(`jnl-${e.journal}`);
+          suggestions.push({ type: 'journal', text: e.journal });
+        }
+      });
+    } else {
+      // Evaluation mode suggestions
+      evaluations.forEach(ev => {
+        if (ev.uniprotId.toLowerCase().includes(q) && !seen.has(`uid-${ev.uniprotId}`)) {
+          seen.add(`uid-${ev.uniprotId}`);
+          suggestions.push({ type: 'pdbId', text: ev.uniprotId, subtitle: ev.proteinName || undefined });
+        }
+      });
+      evaluations.forEach(ev => {
+        if (suggestions.filter(s => s.type === 'title').length >= 3) return;
+        if (ev.proteinName?.toLowerCase().includes(q) && !seen.has(`pn-${ev.uniprotId}`)) {
+          seen.add(`pn-${ev.uniprotId}`);
+          suggestions.push({ type: 'title', text: ev.proteinName, subtitle: ev.uniprotId });
+        }
+      });
+      evaluations.forEach(ev => {
+        if (suggestions.filter(s => s.type === 'organism').length >= 3) return;
+        if (ev.organism?.toLowerCase().includes(q) && !seen.has(`org-${ev.organism}`)) {
+          seen.add(`org-${ev.organism}`);
+          suggestions.push({ type: 'organism', text: ev.organism! });
+        }
+      });
+    }
+
+    return suggestions;
+  }, [searchQuery, mode, entries, evaluations]);
+
+  // Total flattened suggestion count for keyboard navigation
+  const totalSuggestionCount = useMemo(() => {
+    if (!searchQuery.trim()) return searchHistory.length;
+    return searchSuggestions.length;
+  }, [searchQuery, searchSuggestions, searchHistory]);
+
   // ── Average score helper ──
   function getAvgScore(scores: string | null): number {
     if (!scores) return 0;
@@ -1204,6 +1784,134 @@ export default function PdbTracker() {
     toast(`Exported ${sortedEntries.length} structures`, { description: 'Downloaded as CSV file' });
   }, [sortedEntries, selectedWeekId]);
 
+  // ── Batch Row Operations ──
+  const toggleRowSelection = useCallback((pdbId: string) => {
+    setSelectedRows(prev => {
+      const next = new Set(prev);
+      if (next.has(pdbId)) next.delete(pdbId);
+      else next.add(pdbId);
+      return next;
+    });
+  }, []);
+
+  const toggleAllPageRows = useCallback(() => {
+    setSelectedRows(prev => {
+      const pageIds = paginatedEntries.map(e => e.pdbId);
+      const allSelected = pageIds.every(id => prev.has(id));
+      const next = new Set(prev);
+      if (allSelected) {
+        pageIds.forEach(id => next.delete(id));
+      } else {
+        pageIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  }, [paginatedEntries]);
+
+  const selectAllRows = useCallback(() => {
+    setSelectedRows(new Set(sortedEntries.map(e => e.pdbId)));
+  }, [sortedEntries]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedRows(new Set());
+  }, []);
+
+  const batchBookmarkAll = useCallback(() => {
+    setBookmarks(prev => {
+      const next = new Set(prev);
+      let addedCount = 0;
+      selectedRows.forEach(id => {
+        if (!next.has(id)) { next.add(id); addedCount++; }
+      });
+      toast(`Bookmarked ${addedCount} structures`, { description: `${addedCount} structure${addedCount !== 1 ? 's' : ''} added to bookmarks` });
+      return next;
+    });
+  }, [selectedRows]);
+
+  const batchRemoveBookmarks = useCallback(() => {
+    setBookmarks(prev => {
+      const next = new Set(prev);
+      let removedCount = 0;
+      selectedRows.forEach(id => {
+        if (next.has(id)) { next.delete(id); removedCount++; }
+      });
+      toast(`Removed ${removedCount} bookmarks`, { description: `${removedCount} structure${removedCount !== 1 ? 's' : ''} removed from bookmarks` });
+      return next;
+    });
+  }, [selectedRows]);
+
+  const handleExportSelectedCsv = useCallback(() => {
+    const selectedEntries = sortedEntries.filter(e => selectedRows.has(e.pdbId));
+    if (!selectedEntries.length) return;
+    const headers = ['PDB ID', 'Method', 'Resolution', 'IF', 'Organism', 'Title', 'Date', 'Ligands'];
+    const escapeCsv = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    const rows = selectedEntries.map(entry => [
+      escapeCsv(entry.pdbId),
+      escapeCsv(getMethodLabel(entry.method)),
+      entry.resolution != null ? String(entry.resolution) : '',
+      entry.journalIf != null ? String(entry.journalIf) : '',
+      escapeCsv(entry.organisms || ''),
+      escapeCsv(entry.title || ''),
+      escapeCsv(entry.releaseDate || ''),
+      escapeCsv(entry.ligands || ''),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pdb-selected-${selectedWeekId || 'export'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported ${selectedEntries.length} structures`, { description: 'Downloaded as CSV file' });
+  }, [sortedEntries, selectedRows, selectedWeekId]);
+
+  const handleExportRowCsv = useCallback((entry: PdbEntry) => {
+    const headers = ['PDB ID', 'Method', 'Resolution', 'IF', 'Organism', 'Title', 'Date', 'Ligands'];
+    const escapeCsv = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    const rows = [[
+      escapeCsv(entry.pdbId),
+      escapeCsv(getMethodLabel(entry.method)),
+      entry.resolution != null ? String(entry.resolution) : '',
+      entry.journalIf != null ? String(entry.journalIf) : '',
+      escapeCsv(entry.organisms || ''),
+      escapeCsv(entry.title || ''),
+      escapeCsv(entry.releaseDate || ''),
+      escapeCsv(entry.ligands || ''),
+    ].join(',')];
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pdb-${entry.pdbId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported ${entry.pdbId}`, { description: 'Downloaded as CSV file' });
+  }, []);
+
+  const copyPdbId = useCallback((pdbId: string) => {
+    navigator.clipboard.writeText(pdbId).then(() => {
+      toast(`Copied ${pdbId} to clipboard`);
+    }).catch(() => {
+      toast('Failed to copy to clipboard');
+    });
+  }, []);
+
+  // ── Selection state for current page ──
+  const allPageSelected = paginatedEntries.length > 0 && paginatedEntries.every(e => selectedRows.has(e.pdbId));
+  const somePageSelected = paginatedEntries.some(e => selectedRows.has(e.pdbId)) && !allPageSelected;
+
   // ── Sort Icon ──
   function SortIcon({ field }: { field: string }) {
     if (sortField !== field) return <ArrowUpDown className="h-3 w-3 text-claude-text-muted/50" />;
@@ -1223,8 +1931,8 @@ export default function PdbTracker() {
         {/* ═══════════ HEADER BAR ═══════════ */}
         <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20 no-print">
           {/* Gradient border at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-claude-cryoem via-claude-accent to-claude-xray bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
-          <div className="flex items-center gap-3">
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-claude-accent/20 to-transparent bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
+          <div ref={tourTitleRef} className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-claude-accent-light">
               <Dna className="h-4.5 w-4.5 text-claude-accent" />
             </div>
@@ -1238,6 +1946,7 @@ export default function PdbTracker() {
           <Popover>
             <PopoverTrigger asChild>
               <button
+                ref={tourShortcutsRef}
                 className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
                 aria-label="Keyboard shortcuts"
               >
@@ -1275,6 +1984,15 @@ export default function PdbTracker() {
             </PopoverContent>
           </Popover>
 
+          {/* Help / Restart Tour Button */}
+          <button
+            onClick={startTour}
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+            aria-label="Help"
+          >
+            <HelpCircle className="h-4 w-4 text-claude-text-secondary" />
+          </button>
+
           {/* Dark mode toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
@@ -1309,40 +2027,31 @@ export default function PdbTracker() {
 
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar */}
-          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print">
+          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print sidebar-gradient">
             {renderSidebar()}
           </aside>
 
           {/* Mobile sidebar overlay */}
-          <AnimatePresence>
-            {mobileSidebarOpen && (
-              <>
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm md:hidden"
-                  onClick={() => setMobileSidebarOpen(false)}
-                />
-                <motion.aside
-                  initial={{ x: -280 }}
-                  animate={{ x: 0 }}
-                  exit={{ x: -280 }}
-                  transition={{ duration: 0.2 }}
-                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] bg-white dark:bg-[#242220] border-r border-claude-border flex flex-col md:hidden no-print"
-                >
-                  <div className="flex items-center justify-between p-3 border-b border-claude-border">
-                    <span className="text-xs font-semibold text-claude-text">Navigation</span>
-                    <Button variant="ghost" size="sm" onClick={() => setMobileSidebarOpen(false)} className="h-7 w-7 p-0">
+          <Drawer
+            direction="left"
+            open={mobileSidebarOpen}
+            onOpenChange={setMobileSidebarOpen}
+          >
+            <DrawerContent className="left-0 right-auto top-0 bottom-0 w-[280px] max-w-[85vw] h-full rounded-none border-r border-claude-border bg-white dark:bg-[#242220] mobile-drawer-shadow sidebar-gradient">
+              <div className="mobile-drawer-handle" />
+              <DrawerHeader className="p-3 border-b border-claude-border">
+                <div className="flex items-center justify-between">
+                  <DrawerTitle className="text-xs font-semibold text-claude-text">Navigation</DrawerTitle>
+                  <DrawerClose asChild>
+                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
                       <X className="h-4 w-4" />
                     </Button>
-                  </div>
-                  {renderSidebar()}
-                </motion.aside>
-              </>
-            )}
-          </AnimatePresence>
+                  </DrawerClose>
+                </div>
+              </DrawerHeader>
+              {renderSidebar()}
+            </DrawerContent>
+          </Drawer>
 
           {/* ═══════════ MAIN AREA ═══════════ */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
@@ -1380,21 +2089,79 @@ export default function PdbTracker() {
                   </Select>
 
                   {/* Search */}
-                  <div className="relative flex-1 max-w-xs">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
+                  <div ref={tourSearchRef} className="relative flex-1 max-w-xs">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
                     <input
                       ref={searchInputRef}
                       type="text"
                       placeholder="Search PDB ID, title, journal..."
                       value={searchQuery}
-                      onChange={e => setSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 claude-focus-ring"
+                      onChange={e => { setSearchQuery(e.target.value); setSearchDropdownOpen(true); setSearchHighlightIndex(-1); }}
+                      onFocus={() => setSearchDropdownOpen(true)}
+                      onBlur={() => { setTimeout(() => { setSearchDropdownOpen(false); setSearchHighlightIndex(-1); }, 200); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'ArrowDown') {
+                          e.preventDefault();
+                          setSearchHighlightIndex(prev => Math.min(prev + 1, totalSuggestionCount - 1));
+                        } else if (e.key === 'ArrowUp') {
+                          e.preventDefault();
+                          setSearchHighlightIndex(prev => Math.max(prev - 1, -1));
+                        } else if (e.key === 'Enter') {
+                          e.preventDefault();
+                          if (searchHighlightIndex >= 0) {
+                            if (searchQuery.trim()) {
+                              const item = searchSuggestions[searchHighlightIndex];
+                              if (item) {
+                                setSearchQuery(item.text);
+                                addToSearchHistory(item.text);
+                                setSearchDropdownOpen(false);
+                                setSearchHighlightIndex(-1);
+                              }
+                            } else {
+                              const term = searchHistory[searchHighlightIndex];
+                              if (term) {
+                                setSearchQuery(term);
+                                addToSearchHistory(term);
+                                setSearchDropdownOpen(false);
+                                setSearchHighlightIndex(-1);
+                              }
+                            }
+                          } else {
+                            addToSearchHistory(searchQuery);
+                            setSearchDropdownOpen(false);
+                          }
+                        } else if (e.key === 'Escape') {
+                          setSearchDropdownOpen(false);
+                          setSearchHighlightIndex(-1);
+                        }
+                      }}
+                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 input-focus-glow"
                     />
                     {searchQuery && (
-                      <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2">
+                      <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
                         <X className="h-3 w-3 text-claude-text-muted hover:text-claude-text" />
                       </button>
                     )}
+                    <SearchDropdown
+                      isOpen={searchDropdownOpen}
+                      searchQuery={searchQuery}
+                      suggestions={searchSuggestions}
+                      searchHistory={searchHistory}
+                      highlightIndex={searchHighlightIndex}
+                      onSelectSuggestion={(item) => {
+                        setSearchQuery(item.text);
+                        addToSearchHistory(item.text);
+                        setSearchDropdownOpen(false);
+                        setSearchHighlightIndex(-1);
+                      }}
+                      onSelectHistory={(term) => {
+                        setSearchQuery(term);
+                        addToSearchHistory(term);
+                        setSearchDropdownOpen(false);
+                        setSearchHighlightIndex(-1);
+                      }}
+                      onClearHistory={clearSearchHistory}
+                    />
                   </div>
 
                   {/* Active Filter Chips */}
@@ -1435,6 +2202,14 @@ export default function PdbTracker() {
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
                         Bookmarked
                         <button onClick={() => setShowBookmarksOnly(false)} className="hover:text-claude-accent/80 transition-colors">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {selectedRows.size > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                        {selectedRows.size} selected
+                        <button onClick={clearSelection} className="hover:text-claude-accent/80 transition-colors">
                           <X className="h-2.5 w-2.5" />
                         </button>
                       </span>
@@ -1486,6 +2261,26 @@ export default function PdbTracker() {
                       ))}
                     </DropdownMenuContent>
                   </DropdownMenu>
+
+                  {/* Data Density Toggle */}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => setCompactMode(!compactMode)}
+                        className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
+                          compactMode
+                            ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                            : 'border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                        }`}
+                        aria-label={compactMode ? 'Switch to comfortable mode' : 'Switch to compact mode'}
+                      >
+                        {compactMode ? <AlignJustify className="h-3 w-3" /> : <AlignVerticalSpaceAround className="h-3 w-3" />}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom">
+                      <span className="text-[10px]">{compactMode ? 'Compact mode' : 'Comfortable mode'}</span>
+                    </TooltipContent>
+                  </Tooltip>
 
                   {sortedEntries.length > 0 && (
                     <button
@@ -1809,10 +2604,11 @@ export default function PdbTracker() {
                 >
               {mode === 'weekly' ? (
                 loadingEntries ? (
-                  <table className="w-full text-xs">
+                  <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {[
+                          { h: '', field: '' },
                           { h: '', field: '' },
                           { h: 'PDB ID', field: 'pdbId' },
                           { h: 'Method', field: 'method' },
@@ -1822,15 +2618,15 @@ export default function PdbTracker() {
                           { h: 'Title', field: 'title' },
                           { h: 'Date', field: 'releaseDate' },
                           { h: 'Ligands', field: '_ligands' },
-                        ].filter(c => !c.field || !hiddenColumns.has(c.field)).map(c => (
-                          <th key={c.h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
+                        ].filter(c => !c.field || !hiddenColumns.has(c.field)).map((c, ci) => (
+                          <th key={`skel-h-${ci}-${c.h || 'empty'}-${c.field || ''}`} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
                             {c.h}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      <TableSkeleton rows={8} cols={2 + [
+                      <TableSkeleton rows={8} cols={3 + [
                         'pdbId','method','resolution','journalIf','organisms','title','releaseDate','_ligands'
                       ].filter(f => !hiddenColumns.has(f)).length} />
                     </tbody>
@@ -1842,10 +2638,25 @@ export default function PdbTracker() {
                     <p className="text-xs mt-1">Try adjusting filters or selecting a different week</p>
                   </div>
                 ) : (
-                  <table className="w-full text-xs">
+                  <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
-                        <th className="px-1.5 py-3.5 w-[32px] table-header-cell"></th>
+                        <th className="px-1.5 py-3.5 w-[32px] table-header-cell">
+                          <button
+                            onClick={toggleAllPageRows}
+                            className={`inline-flex items-center justify-center h-3.5 w-3.5 rounded border transition-colors duration-150 ${
+                              allPageSelected
+                                ? 'bg-claude-accent border-claude-accent'
+                                : somePageSelected
+                                  ? 'bg-claude-accent border-claude-accent'
+                                  : 'border-claude-border-light bg-white dark:bg-[#242220] hover:border-claude-text-muted/40'
+                            }`}
+                            title={allPageSelected ? 'Deselect all on page' : 'Select all on page'}
+                          >
+                            {allPageSelected && <Check className="h-2.5 w-2.5 text-white" />}
+                            {somePageSelected && <Minus className="h-2.5 w-2.5 text-white" />}
+                          </button>
+                        </th>
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: 'method', label: 'Method', w: 'w-[90px]' },
@@ -1874,32 +2685,41 @@ export default function PdbTracker() {
                         const mc = getMethodColor(entry.method);
                         const ligandList = parseLigands(entry.ligands);
                         const ifStyle = getIfTierStyle(entry.ifTier);
+                        const isSelected = selectedRows.has(entry.pdbId);
 
                         return (
-                          <motion.tr
-                            key={entry.pdbId}
-                            initial={{ opacity: 0, y: 4 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
-                            className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''}`}
-                            onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
-                          >
-                            <td className="px-1.5 py-2 w-[32px]">
-                              <button
-                                onClick={(e) => { e.stopPropagation(); toggleBookmark(entry.pdbId); }}
-                                className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors duration-200 ${
-                                  bookmarks.has(entry.pdbId)
-                                    ? 'text-claude-accent'
-                                    : 'text-claude-text-muted/0 group-hover:text-claude-text-muted/40 hover:!text-claude-accent'
-                                }`}
-                                title={bookmarks.has(entry.pdbId) ? 'Remove bookmark' : 'Add bookmark'}
+                          <ContextMenu key={entry.pdbId}>
+                            <ContextMenuTrigger asChild>
+                              <motion.tr
+                                initial={{ opacity: 0, y: 4 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
+                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-[#d4784f]/5' : ''}`}
+                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
                               >
-                                {bookmarks.has(entry.pdbId)
-                                  ? <BookmarkCheck className="h-3.5 w-3.5" />
-                                  : <Bookmark className="h-3.5 w-3.5" />
-                                }
-                              </button>
-                            </td>
+                                <td className="px-1.5 py-2 w-[32px]" onClick={(e) => e.stopPropagation()}>
+                                  <Checkbox
+                                    checked={isSelected}
+                                    onCheckedChange={() => toggleRowSelection(entry.pdbId)}
+                                    className="h-3.5 w-3.5 rounded border-claude-border-light data-[state=checked]:bg-claude-accent data-[state=checked]:border-claude-accent"
+                                  />
+                                </td>
+                                <td className="px-1.5 py-2 w-[28px]" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); toggleBookmark(entry.pdbId); }}
+                                    className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors duration-200 ${
+                                      bookmarks.has(entry.pdbId)
+                                        ? 'text-claude-accent'
+                                        : 'text-claude-text-muted/0 group-hover:text-claude-text-muted/40 hover:!text-claude-accent'
+                                    }`}
+                                    title={bookmarks.has(entry.pdbId) ? 'Remove bookmark' : 'Add bookmark'}
+                                  >
+                                    {bookmarks.has(entry.pdbId)
+                                      ? <BookmarkCheck className="h-3.5 w-3.5" />
+                                      : <Bookmark className="h-3.5 w-3.5" />
+                                    }
+                                  </button>
+                                </td>
                             <td className="px-3 py-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1907,10 +2727,10 @@ export default function PdbTracker() {
                                     href={`https://www.rcsb.org/structure/${entry.pdbId}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="font-mono font-semibold text-claude-accent hover:underline inline-flex items-center gap-0.5"
+                                    className="font-mono font-semibold text-claude-accent pdb-link external-link-hover inline-flex items-center gap-0.5"
                                   >
                                     {entry.pdbId}
-                                    <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                                    <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                   </a>
                                 </TooltipTrigger>
                                 <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg">
@@ -2014,6 +2834,48 @@ export default function PdbTracker() {
                             </td>
                             )}
                           </motion.tr>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="w-52 bg-white dark:bg-[#242220] border border-claude-border shadow-xl rounded-lg p-1">
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
+                              >
+                                <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                View Details
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => toggleBookmark(entry.pdbId)}
+                              >
+                                {bookmarks.has(entry.pdbId)
+                                  ? <><BookmarkMinus className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />Remove Bookmark</>
+                                  : <><BookmarkPlus className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />Bookmark</>
+                                }
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => copyPdbId(entry.pdbId)}
+                              >
+                                <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Copy PDB ID
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => window.open(`https://www.rcsb.org/structure/${entry.pdbId}`, '_blank')}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Open in RCSB PDB
+                              </ContextMenuItem>
+                              <ContextMenuSeparator className="bg-claude-border-light my-1" />
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => handleExportRowCsv(entry)}
+                              >
+                                <Download className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Export Row
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                     </tbody>
@@ -2028,7 +2890,7 @@ export default function PdbTracker() {
                     <p className="text-xs mt-1">Choose from the sidebar to view structures and BLAST results</p>
                   </div>
                 ) : loadingEvalDetail ? (
-                  <table className="w-full text-xs">
+                  <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {[
@@ -2053,7 +2915,7 @@ export default function PdbTracker() {
                     </tbody>
                   </table>
                 ) : (
-                  <table className="w-full text-xs">
+                  <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {[
@@ -2096,10 +2958,10 @@ export default function PdbTracker() {
                                       href={`https://www.rcsb.org/structure/${row.pdbId}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="font-mono font-semibold text-claude-accent hover:underline inline-flex items-center gap-0.5"
+                                      className="font-mono font-semibold text-claude-accent pdb-link external-link-hover inline-flex items-center gap-0.5"
                                     >
                                       {row.pdbId}
-                                      <ExternalLink className="h-2.5 w-2.5 opacity-50" />
+                                      <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                     </a>
                                   </TooltipTrigger>
                                   <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg">
@@ -2211,11 +3073,12 @@ export default function PdbTracker() {
           <AnimatePresence>
             {previewOpen && (
               <motion.aside
+                ref={tourPreviewRef as React.RefObject<HTMLElement>}
                 initial={{ width: 0, opacity: 0 }}
                 animate={{ width: 380, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="hidden md:flex flex-shrink-0 border-l border-claude-border bg-white dark:bg-[#242220] overflow-hidden no-print"
+                className="hidden md:flex flex-shrink-0 bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border"
               >
                 {renderPreviewPanel()}
               </motion.aside>
@@ -2239,7 +3102,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: 380 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col md:hidden no-print"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl border-l border-claude-border flex flex-col md:hidden no-print glassmorphism-panel"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border">
                     <span className="text-xs font-semibold text-claude-text">Details</span>
@@ -2264,7 +3127,7 @@ export default function PdbTracker() {
           <span>{evaluations.length} evaluations</span>
           <span>·</span>
           <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-breathe" />
             Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
           </span>
           <span>·</span>
@@ -2272,10 +3135,10 @@ export default function PdbTracker() {
             href="https://www.rcsb.org"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-claude-accent hover:underline inline-flex items-center gap-0.5"
+            className="text-claude-accent pdb-link external-link-hover inline-flex items-center gap-0.5"
           >
             RCSB PDB
-            <ExternalLink className="h-2.5 w-2.5" />
+            <ExternalLink className="h-2.5 w-2.5 ext-arrow" />
           </a>
         </footer>
       </div>
@@ -2289,6 +3152,65 @@ export default function PdbTracker() {
           content={reportModal.content}
         />
       </div>
+
+      {/* ═══════════ BATCH ACTION BAR ═══════════ */}
+      <AnimatePresence>
+        {selectedRows.size > 0 && mode === 'weekly' && (
+          <motion.div
+            initial={{ y: 60, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 60, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 no-print"
+          >
+            <div className="bg-white dark:bg-[#242220] border border-claude-border rounded-xl shadow-2xl px-4 py-2.5 flex items-center gap-3">
+              <span className="text-xs font-medium text-claude-text-secondary whitespace-nowrap">
+                {selectedRows.size} structure{selectedRows.size !== 1 ? 's' : ''} selected
+              </span>
+              <div className="w-px h-5 bg-claude-border-light" />
+              <button
+                onClick={batchBookmarkAll}
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-accent bg-claude-accent-light hover:bg-claude-accent-light/80 transition-colors duration-150"
+              >
+                <BookmarkPlus className="h-3 w-3" />
+                Bookmark All
+              </button>
+              <button
+                onClick={batchRemoveBookmarks}
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-text-secondary bg-claude-border-light/50 hover:bg-claude-border-light dark:bg-[#3d3832]/50 dark:hover:bg-[#3d3832] transition-colors duration-150"
+              >
+                <BookmarkMinus className="h-3 w-3" />
+                Remove Bookmarks
+              </button>
+              <button
+                onClick={handleExportSelectedCsv}
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-text-secondary bg-claude-border-light/50 hover:bg-claude-border-light dark:bg-[#3d3832]/50 dark:hover:bg-[#3d3832] transition-colors duration-150"
+              >
+                <Download className="h-3 w-3" />
+                Export Selected
+              </button>
+              <div className="w-px h-5 bg-claude-border-light" />
+              <button
+                onClick={clearSelection}
+                className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                title="Clear selection"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            {allPageSelected && sortedEntries.length > paginatedEntries.length && (
+              <div className="text-center mt-1">
+                <button
+                  onClick={selectAllRows}
+                  className="text-[10px] text-claude-accent hover:underline font-medium"
+                >
+                  Select all {sortedEntries.length} structures
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ═══════════ ROW DETAIL SLIDE-OVER PANEL ═══════════ */}
       <AnimatePresence>
@@ -2436,9 +3358,9 @@ export default function PdbTracker() {
                         href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-claude-accent-light text-claude-accent hover:bg-claude-accent/15 transition-colors"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150 external-link-hover"
                       >
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-3 w-3 ext-arrow" />
                         RCSB PDB
                       </a>
                       {selectedEntry.doi && (
@@ -2446,9 +3368,9 @@ export default function PdbTracker() {
                           href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/15 transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 hover:shadow-sm transition-all duration-150 external-link-hover"
                         >
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3 w-3 ext-arrow" />
                           DOI
                         </a>
                       )}
@@ -2457,9 +3379,9 @@ export default function PdbTracker() {
                           href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/15 transition-colors"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 hover:shadow-sm transition-all duration-150 external-link-hover"
                         >
-                          <ExternalLink className="h-3 w-3" />
+                          <ExternalLink className="h-3 w-3 ext-arrow" />
                           PubMed
                         </a>
                       )}
@@ -2492,6 +3414,22 @@ export default function PdbTracker() {
           </>
         )}
       </AnimatePresence>
+
+      {/* ═══════════ ONBOARDING TOUR OVERLAY ═══════════ */}
+      {mounted && <TourOverlay
+        tourActive={tourActive}
+        tourStep={tourStep}
+        setTourStep={setTourStep}
+        finishTour={finishTour}
+        steps={[
+          { title: TOUR_STEPS[0].title, description: TOUR_STEPS[0].description, targetRef: tourTitleRef as React.RefObject<HTMLElement | null> },
+          { title: TOUR_STEPS[1].title, description: TOUR_STEPS[1].description, targetRef: tourSidebarRef as React.RefObject<HTMLElement | null> },
+          { title: TOUR_STEPS[2].title, description: TOUR_STEPS[2].description, targetRef: tourModeSwitcherRef as React.RefObject<HTMLElement | null> },
+          { title: TOUR_STEPS[3].title, description: TOUR_STEPS[3].description, targetRef: tourSearchRef as React.RefObject<HTMLElement | null> },
+          { title: TOUR_STEPS[4].title, description: TOUR_STEPS[4].description, targetRef: tourPreviewRef as React.RefObject<HTMLElement | null> },
+          { title: TOUR_STEPS[5].title, description: TOUR_STEPS[5].description, targetRef: tourShortcutsRef as React.RefObject<HTMLElement | null> },
+        ]}
+      />}
     </TooltipProvider>
   );
 
@@ -2500,7 +3438,7 @@ export default function PdbTracker() {
     return (
       <>
         {/* Mode Switcher */}
-        <div className="p-3 border-b border-claude-border">
+        <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border">
           <div className="flex rounded-lg bg-claude-border-light p-0.5">
             <button
               onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
@@ -2530,7 +3468,7 @@ export default function PdbTracker() {
         {/* Sidebar Content */}
         <ScrollArea className="flex-1 sidebar-scroll">
           {mode === 'weekly' ? (
-            <div className="p-3 space-y-2">
+            <div ref={tourSidebarRef} className="p-3 space-y-2">
               {/* Back button */}
               {selectedWeekId && (
                 <button
@@ -2619,7 +3557,7 @@ export default function PdbTracker() {
                       onClick={() => setSelectedWeekId(snap.weekId)}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
                         isSelected
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card'
+                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
                           : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >
@@ -2711,13 +3649,71 @@ export default function PdbTracker() {
 
               {/* Eval Search */}
               <div className="relative">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
                 <input
                   type="text"
                   placeholder="Search proteins..."
                   value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
+                  onChange={e => { setSearchQuery(e.target.value); setSearchDropdownOpen(true); setSearchHighlightIndex(-1); }}
+                  onFocus={() => setSearchDropdownOpen(true)}
+                  onBlur={() => { setTimeout(() => { setSearchDropdownOpen(false); setSearchHighlightIndex(-1); }, 200); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowDown') {
+                      e.preventDefault();
+                      setSearchHighlightIndex(prev => Math.min(prev + 1, totalSuggestionCount - 1));
+                    } else if (e.key === 'ArrowUp') {
+                      e.preventDefault();
+                      setSearchHighlightIndex(prev => Math.max(prev - 1, -1));
+                    } else if (e.key === 'Enter') {
+                      e.preventDefault();
+                      if (searchHighlightIndex >= 0) {
+                        if (searchQuery.trim()) {
+                          const item = searchSuggestions[searchHighlightIndex];
+                          if (item) {
+                            setSearchQuery(item.text);
+                            addToSearchHistory(item.text);
+                            setSearchDropdownOpen(false);
+                            setSearchHighlightIndex(-1);
+                          }
+                        } else {
+                          const term = searchHistory[searchHighlightIndex];
+                          if (term) {
+                            setSearchQuery(term);
+                            addToSearchHistory(term);
+                            setSearchDropdownOpen(false);
+                            setSearchHighlightIndex(-1);
+                          }
+                        }
+                      } else {
+                        addToSearchHistory(searchQuery);
+                        setSearchDropdownOpen(false);
+                      }
+                    } else if (e.key === 'Escape') {
+                      setSearchDropdownOpen(false);
+                      setSearchHighlightIndex(-1);
+                    }
+                  }}
                   className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 claude-focus-ring"
+                />
+                <SearchDropdown
+                  isOpen={searchDropdownOpen}
+                  searchQuery={searchQuery}
+                  suggestions={searchSuggestions}
+                  searchHistory={searchHistory}
+                  highlightIndex={searchHighlightIndex}
+                  onSelectSuggestion={(item) => {
+                    setSearchQuery(item.text);
+                    addToSearchHistory(item.text);
+                    setSearchDropdownOpen(false);
+                    setSearchHighlightIndex(-1);
+                  }}
+                  onSelectHistory={(term) => {
+                    setSearchQuery(term);
+                    addToSearchHistory(term);
+                    setSearchDropdownOpen(false);
+                    setSearchHighlightIndex(-1);
+                  }}
+                  onClearHistory={clearSearchHistory}
                 />
               </div>
 
@@ -2747,7 +3743,7 @@ export default function PdbTracker() {
                       onClick={() => setSelectedEvalId(ev.uniprotId)}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
                         selectedEvalId === ev.uniprotId
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card'
+                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
                           : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >
@@ -2790,15 +3786,15 @@ export default function PdbTracker() {
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col">
         <div className="px-4 pt-3 border-b border-claude-border">
           <TabsList className="w-full h-8 bg-claude-border-light p-0.5">
-            <TabsTrigger value="summary" className="flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+            <TabsTrigger value="summary" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <BarChart3 className="h-3 w-3 mr-1" />
               Summary
             </TabsTrigger>
-            <TabsTrigger value="timeline" className="flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+            <TabsTrigger value="timeline" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <Clock className="h-3 w-3 mr-1" />
               Timeline
             </TabsTrigger>
-            <TabsTrigger value="report" className="flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+            <TabsTrigger value="report" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <FileText className="h-3 w-3 mr-1" />
               Full Report
             </TabsTrigger>
@@ -3191,7 +4187,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 1: Method Distribution Donut Chart ─── */}
       {methodPieData.length > 0 && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Method Distribution</h4>
           <div className="flex items-center gap-3">
             <div className="w-[120px] h-[120px] flex-shrink-0">
@@ -3237,7 +4233,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 2: Resolution Distribution Bar Chart ─── */}
       {resolutionBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution Distribution</h4>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={resolutionBarData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
@@ -3272,7 +4268,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 5: Organism Distribution Horizontal Bar Chart ─── */}
       {organismBarData.length > 0 && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Top Organisms</h4>
           <ResponsiveContainer width="100%" height={130}>
             <BarChart data={organismBarData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
@@ -3304,7 +4300,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 3: Impact Factor Tier Distribution ─── */}
       {ifTierBarData.length > 0 && ifTierBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Impact Factor Tiers</h4>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={ifTierBarData} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
@@ -3324,7 +4320,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 4: Weekly Trends Mini Area Chart ─── */}
       {weeklyTrendData.length > 1 && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Weekly Trends</h4>
           <ResponsiveContainer width="100%" height={100}>
             <AreaChart data={weeklyTrendData} margin={{ top: 2, right: 10, bottom: 0, left: 0 }}>
@@ -4265,7 +5261,7 @@ function WeekComparisonView({
       </div>
 
       {/* Side-by-Side Method Donut Charts */}
-      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
         <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Method Distribution</h4>
         <div className="flex items-center gap-1">
           {/* Week A Donut */}
@@ -4309,7 +5305,7 @@ function WeekComparisonView({
 
       {/* Grouped Bar Chart: Resolution Distribution */}
       {resDataB.some(d => d.weekA > 0 || d.weekB > 0) && (
-        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution Comparison</h4>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={resDataB} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
