@@ -1,0 +1,167 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model PdbStructure {
+  pdbId          String   @id
+  method         String
+  releaseDate    String
+  resolution     Float?
+  resolutionHigh Float?
+  title          String
+  doi            String?
+  journal        String?
+  journalIf      Float?
+  authors        String?
+  organisms      String?
+  ligands        String?
+  pubmedId       String?
+  fetchDate      String
+  weekId         String
+  isCryoem       Int      @default(0)
+  isXray         Int      @default(0)
+  ifTier         String   @default("unknown")
+
+  @@index([releaseDate])
+  @@index([method])
+  @@index([weekId])
+  @@index([journal])
+}
+
+model PdbChain {
+  id                Int    @id @default(autoincrement())
+  pdbId             String
+  asymId            String
+  entityId          Int
+  uniprotAccession  String?
+  uniprotId         String?
+  geneName          String?
+  organismTaxId     Int?
+  organismName      String?
+  sequence          String?
+  startResidue      Int?
+  endResidue        Int?
+
+  @@unique([pdbId, asymId])
+  @@index([uniprotAccession])
+  @@index([pdbId])
+}
+
+model WeeklySnapshot {
+  weekId           String @id
+  weekStart        String
+  weekEnd          String
+  totalStructures  Int    @default(0)
+  cryoemCount      Int    @default(0)
+  xrayCount        Int    @default(0)
+  nmrCount         Int    @default(0)
+  otherCount       Int    @default(0)
+  cryoemResDist    String?
+  xrayResDist      String?
+  cryoemAvgRes     Float?
+  xrayAvgRes       Float?
+  topJournals      String?
+  ifDist           String?
+  createdAt        String @default("2025-01-01")
+}
+
+model Evaluation {
+  uniprotId       String @id
+  entryName       String?
+  proteinName     String?
+  geneNames       String?
+  organism        String?
+  sequenceLength  Int?
+  coverage        Float?
+  scores          String?
+  report          String?
+  createdAt       String @default("2025-01-01")
+  updatedAt       String @default("2025-01-01")
+
+  pdbStructures   EvaluationPdbStructure[]
+  blastResults    EvaluationBlastResult[]
+}
+
+model EvaluationPdbStructure {
+  id              Int    @id @default(autoincrement())
+  uniprotId       String
+  pdbId           String
+  method          String?
+  resolution      Float?
+  title           String?
+  depositionDate  String?
+  releaseDate     String?
+  ligand          String?
+  ligandNames     String?
+  journal         String?
+  journalIf       Float?
+  doi             String?
+  pubmedId        String?
+  organism        String?
+  authors         String?
+  isCryoem        Int    @default(0)
+  isXray          Int    @default(0)
+  isNmr           Int    @default(0)
+  ifTier          String @default("unknown")
+  updatedAt       String @default("2025-01-01")
+
+  evaluation      Evaluation @relation(fields: [uniprotId], references: [uniprotId])
+
+  @@unique([uniprotId, pdbId])
+  @@index([uniprotId])
+}
+
+model EvaluationBlastResult {
+  id             Int    @id @default(autoincrement())
+  uniprotId      String
+  pdbId          String?
+  uniprotRef     String?
+  description    String?
+  identity       Int?
+  evalue         Float?
+  queryCoverage  Int?
+  targetCoverage Int?
+  method         String?
+  resolution     Float?
+  releaseDate    String?
+  source         String?
+  taxonomyId     Int?
+  journal        String?
+  journalIf      Float?
+  ifTier         String @default("unknown")
+  ligand         String?
+  title          String?
+  updatedAt      String @default("2025-01-01")
+
+  evaluation     Evaluation @relation(fields: [uniprotId], references: [uniprotId])
+
+  @@index([uniprotId])
+}
+
+model WeeklyReport {
+  id          Int    @id @default(autoincrement())
+  weekId      String
+  weekStart   String?
+  weekEnd     String?
+  reportType  String @default("all")
+  title       String?
+  filename    String?
+  content     String?
+  createdAt   String @default("2025-01-01")
+
+  @@unique([weekId, reportType])
+}
+
+model EvaluationReport {
+  id          Int    @id @default(autoincrement())
+  uniprotId   String @unique
+  title       String?
+  filename    String?
+  content     String?
+  createdAt   String @default("2025-01-01")
+}

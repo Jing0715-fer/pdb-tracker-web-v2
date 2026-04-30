@@ -1,0 +1,289 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* Claude-style custom colors */
+  --color-claude-bg: #faf8f5;
+  --color-claude-surface: #ffffff;
+  --color-claude-border: #e8e4dd;
+  --color-claude-border-light: #f0ece5;
+  --color-claude-text: #1a1a1a;
+  --color-claude-text-secondary: #6b6560;
+  --color-claude-text-muted: #9b9590;
+  --color-claude-accent: #c96442;
+  --color-claude-accent-hover: #b5573a;
+  --color-claude-accent-light: #fdf0eb;
+  --color-claude-cryoem: #2d8f8f;
+  --color-claude-cryoem-bg: #e8f5f5;
+  --color-claude-xray: #7c5cbf;
+  --color-claude-xray-bg: #f0ebf8;
+  --color-claude-nmr: #c9872e;
+  --color-claude-nmr-bg: #fdf4e5;
+  --color-claude-other: #6b7280;
+  --color-claude-other-bg: #f3f4f6;
+  --color-claude-top: #dc2626;
+  --color-claude-top-bg: #fef2f2;
+  --color-claude-high: #ea580c;
+  --color-claude-high-bg: #fff7ed;
+  --color-claude-mid: #16a34a;
+  --color-claude-mid-bg: #f0fdf4;
+  --color-claude-low: #6b7280;
+  --color-claude-low-bg: #f3f4f6;
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: #faf8f5;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #c96442;
+  --primary-foreground: #ffffff;
+  --secondary: #f5f0ea;
+  --secondary-foreground: #1a1a1a;
+  --muted: #f5f0ea;
+  --muted-foreground: #6b6560;
+  --accent: #f5f0ea;
+  --accent-foreground: #1a1a1a;
+  --destructive: #dc2626;
+  --border: #e8e4dd;
+  --input: #e8e4dd;
+  --ring: #c96442;
+  --chart-1: #c96442;
+  --chart-2: #2d8f8f;
+  --chart-3: #7c5cbf;
+  --chart-4: #c9872e;
+  --chart-5: #6b7280;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #c96442;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f5f0ea;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e8e4dd;
+  --sidebar-ring: #c96442;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-claude-bg text-foreground;
+    font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+/* Custom scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #d4cfc8;
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #b8b2aa;
+}
+
+/* Markdown content styles */
+.markdown-content h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+  margin-top: 1.5rem;
+  color: #1a1a1a;
+}
+
+.markdown-content h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 1.25rem;
+  color: #1a1a1a;
+}
+
+.markdown-content h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  margin-top: 1rem;
+  color: #1a1a1a;
+}
+
+.markdown-content p {
+  margin-bottom: 0.75rem;
+  line-height: 1.7;
+  color: #3d3832;
+}
+
+.markdown-content ul, .markdown-content ol {
+  margin-bottom: 0.75rem;
+  padding-left: 1.5rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.25rem;
+  line-height: 1.6;
+  color: #3d3832;
+}
+
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+
+.markdown-content th, .markdown-content td {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e8e4dd;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: #f5f0ea;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid #c96442;
+  padding-left: 1rem;
+  margin: 0.75rem 0;
+  color: #6b6560;
+  font-style: italic;
+}
+
+.markdown-content code {
+  background: #f5f0ea;
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.85em;
+  font-family: var(--font-geist-mono), monospace;
+}
+
+.markdown-content pre {
+  background: #2b2926;
+  color: #e8e4dd;
+  padding: 1rem;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+/* Smooth transitions */
+.claude-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover card effect */
+.claude-hover {
+  transition: all 0.15s ease;
+}
+
+.claude-hover:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+/* Score bar animation */
+@keyframes score-fill {
+  from { width: 0; }
+  to { width: var(--score-width); }
+}
+
+.score-bar-fill {
+  animation: score-fill 0.6s ease-out forwards;
+}
+
+/* Table row hover */
+.table-row-hover {
+  transition: background-color 0.1s ease;
+}
+
+.table-row-hover:hover {
+  background-color: #fdfcfa;
+}
+
+/* Ligand chip */
+.ligand-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-family: var(--font-geist-mono), monospace;
+  font-weight: 500;
+  background: #f0ece5;
+  color: #6b6560;
+  border: 1px solid #e8e4dd;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ligand-chip:hover {
+  background: #e8e2d8;
+  color: #3d3832;
+  border-color: #d4cfc8;
+}
