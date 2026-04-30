@@ -1507,6 +1507,107 @@
   100% { background-position: 0% 50%; }
 }
 
+/* ─── Ambient Background Orbs ────────────────────────────────────────────── */
+
+@keyframes ambient-orb-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(30px, -20px) scale(1.05); }
+  50% { transform: translate(-20px, 15px) scale(0.95); }
+  75% { transform: translate(15px, 25px) scale(1.03); }
+}
+
+@keyframes ambient-orb-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-25px, 15px) scale(0.97); }
+  50% { transform: translate(20px, -25px) scale(1.04); }
+  75% { transform: translate(-15px, -20px) scale(0.98); }
+}
+
+@keyframes ambient-orb-3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(10px, -30px) scale(1.02); }
+  66% { transform: translate(-15px, 10px) scale(0.96); }
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.ambient-orb-1 {
+  animation: ambient-orb-1 25s ease-in-out infinite;
+}
+
+.ambient-orb-2 {
+  animation: ambient-orb-2 30s ease-in-out infinite;
+}
+
+.ambient-orb-3 {
+  animation: ambient-orb-3 22s ease-in-out infinite;
+}
+
+/* ─── Typewriter Cursor ────────────────────────────────────────────────── */
+
+@keyframes typewriter-cursor {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: #c96442;
+  margin-left: 1px;
+  vertical-align: text-bottom;
+  animation: typewriter-cursor 0.8s ease-in-out infinite;
+}
+
+.dark .typewriter-cursor {
+  background-color: #d4784f;
+}
+
+/* ─── Scroll Progress Bar ──────────────────────────────────────────────── */
+
+.scroll-progress-bar {
+  position: sticky;
+  top: 0;
+  left: 0;
+  height: 2px;
+  z-index: 20;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.scroll-progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c96442, #d4784f, #c9872e);
+  transition: width 0.1s linear;
+  border-radius: 0 1px 1px 0;
+}
+
+.dark .scroll-progress-bar-fill {
+  background: linear-gradient(90deg, #d4784f, #e08a62, #d9a24e);
+}
+
+/* ─── Tilt Effect Shine ────────────────────────────────────────────────── */
+
+.tilt-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.tilt-card:hover .tilt-shine {
+  opacity: 1;
+}
+
 .week-card-active-border {
   position: relative;
 }

@@ -67,6 +67,13 @@ import {
   Layers,
   FileDiff,
   StickyNote,
+  FileJson,
+  ClipboardCopy,
+  Table as TableIcon,
+  Grid3x3,
+  Columns,
+  Sparkles,
+  GitMerge,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -98,12 +105,12 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
-import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend, ScatterChart, Scatter, ZAxis, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts';
 import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
 import {
@@ -182,6 +189,143 @@ function AnimatedNumber({ value, decimals = 0, suffix = '' }: { value: number; d
     >
       {display}{suffix}
     </motion.span>
+  );
+}
+
+// ─── useTilt Hook ────────────────────────────────────────────────────────────
+
+function useTilt<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  const [tiltStyle, setTiltStyle] = useState<React.CSSProperties>({});
+  const [shineStyle, setShineStyle] = useState<React.CSSProperties>({});
+  const isTouchDevice = useRef(false);
+  const styleRef = useRef<React.CSSProperties>({});
+  const shineRef = useRef<React.CSSProperties>({});
+
+  useEffect(() => {
+    isTouchDevice.current = !window.matchMedia('(hover: hover)').matches;
+  }, []);
+
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (isTouchDevice.current || !ref.current) return;
+    const el = ref.current;
+    const rect = el.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const maxRotation = 3;
+    const rotateX = ((y - centerY) / centerY) * -maxRotation;
+    const rotateY = ((x - centerX) / centerX) * maxRotation;
+
+    const newStyle: React.CSSProperties = {
+      transform: `perspective(600px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale3d(1.01, 1.01, 1.01)`,
+      transition: 'transform 150ms ease-out',
+    };
+    styleRef.current = newStyle;
+    setTiltStyle(newStyle);
+
+    const shineX = (x / rect.width) * 100;
+    const shineY = (y / rect.height) * 100;
+    const newShine: React.CSSProperties = {
+      background: `radial-gradient(circle at ${shineX}% ${shineY}%, rgba(255,255,255,0.08) 0%, transparent 60%)`,
+    };
+    shineRef.current = newShine;
+    setShineStyle(newShine);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    const newStyle: React.CSSProperties = {
+      transform: 'perspective(600px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)',
+      transition: 'transform 300ms ease-out',
+    };
+    styleRef.current = newStyle;
+    setTiltStyle(newStyle);
+    shineRef.current = {};
+    setShineStyle({});
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || isTouchDevice.current) return;
+    el.addEventListener('mousemove', handleMouseMove);
+    el.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      el.removeEventListener('mousemove', handleMouseMove);
+      el.removeEventListener('mouseleave', handleMouseLeave);
+    };
+  }, [handleMouseMove, handleMouseLeave]);
+
+  return { ref, tiltStyle, shineStyle };
+}
+
+// ─── TiltCard Component ────────────────────────────────────────────────────
+
+function TiltCard({ children, className = '', style = {}, animationDelay }: {
+  children: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  animationDelay?: string;
+}) {
+  const { ref, tiltStyle, shineStyle } = useTilt<HTMLDivElement>();
+  return (
+    <div
+      ref={ref}
+      className={`tilt-card relative overflow-hidden ${className}`}
+      style={{ ...tiltStyle, ...style, ...(animationDelay ? { animationDelay } : {}) }}
+    >
+      <div className="tilt-shine" style={shineStyle} />
+      <div className="relative z-[1]">{children}</div>
+    </div>
+  );
+}
+
+// ─── useTypewriter Hook ─────────────────────────────────────────────────────
+
+function useTypewriter(text: string, speed: number = 30) {
+  const [displayedText, setDisplayedText] = useState('');
+  const [isComplete, setIsComplete] = useState(false);
+  const textRef = useRef(text);
+  const indexRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    textRef.current = text;
+    indexRef.current = 0;
+
+    function tick(idx: number) {
+      if (idx === 0) {
+        setDisplayedText('');
+        setIsComplete(false);
+      }
+      const nextIdx = idx + 1;
+      if (nextIdx <= textRef.current.length) {
+        setDisplayedText(textRef.current.slice(0, nextIdx));
+        indexRef.current = nextIdx;
+        timerRef.current = setTimeout(() => tick(nextIdx), speed);
+      } else {
+        setIsComplete(true);
+      }
+    }
+
+    timerRef.current = setTimeout(() => tick(0), 0);
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, [text, speed]);
+
+  return { displayedText, isComplete };
+}
+
+// ─── TypewriterText Component ───────────────────────────────────────────────
+
+function TypewriterText({ text, speed = 30 }: { text: string; speed?: number }) {
+  const { displayedText, isComplete } = useTypewriter(text, speed);
+  return (
+    <span>
+      {displayedText}
+      {!isComplete && <span className="typewriter-cursor" />}
+    </span>
   );
 }
 
@@ -722,6 +866,211 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
   );
 }
 
+// ─── Entry Comparison Modal Component ──────────────────────────────────────
+
+function EntryComparisonModal({
+  isOpen,
+  onClose,
+  entryA,
+  entryB,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  entryA: PdbEntry | null;
+  entryB: PdbEntry | null;
+}) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    if (isOpen) window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  if (!entryA || !entryB) return null;
+
+  const properties = [
+    { label: 'Method', keyA: entryA.method, keyB: entryB.method, type: 'text' as const },
+    { label: 'Resolution', keyA: entryA.resolution, keyB: entryB.resolution, type: 'resolution' as const },
+    { label: 'Impact Factor', keyA: entryA.journalIf, keyB: entryB.journalIf, type: 'if' as const },
+    { label: 'Organism', keyA: entryA.organisms, keyB: entryB.organisms, type: 'text' as const },
+    { label: 'Title', keyA: entryA.title, keyB: entryB.title, type: 'text' as const },
+    { label: 'Journal', keyA: entryA.journal, keyB: entryB.journal, type: 'text' as const },
+    { label: 'Authors', keyA: entryA.authors, keyB: entryB.authors, type: 'text' as const },
+    { label: 'Ligands', keyA: entryA.ligands, keyB: entryB.ligands, type: 'text' as const },
+    { label: 'Date', keyA: entryA.releaseDate, keyB: entryB.releaseDate, type: 'text' as const },
+  ];
+
+  const getDiffHighlight = (prop: typeof properties[0]): { aClass: string; bClass: string } => {
+    const aVal = prop.keyA;
+    const bVal = prop.keyB;
+    const aStr = aVal != null ? String(aVal) : '';
+    const bStr = bVal != null ? String(bVal) : '';
+
+    if (aStr === bStr) return { aClass: '', bClass: '' };
+
+    if (prop.type === 'resolution') {
+      const aRes = aVal as number | null;
+      const bRes = bVal as number | null;
+      if (aRes != null && bRes != null) {
+        // Lower resolution = better
+        return {
+          aClass: aRes < bRes ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20',
+          bClass: bRes < aRes ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20',
+        };
+      }
+    }
+    if (prop.type === 'if') {
+      const aIf = aVal as number | null;
+      const bIf = bVal as number | null;
+      if (aIf != null && bIf != null) {
+        // Higher IF = better
+        return {
+          aClass: aIf > bIf ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20',
+          bClass: bIf > aIf ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20',
+        };
+      }
+    }
+
+    // For text differences, just subtle highlight
+    return { aClass: 'bg-amber-50 dark:bg-amber-900/15', bClass: 'bg-amber-50 dark:bg-amber-900/15' };
+  };
+
+  const formatValue = (val: any, type: string): string => {
+    if (val == null || val === undefined) return '—';
+    if (type === 'resolution') return `${(val as number).toFixed(2)}Å`;
+    if (type === 'if') return (val as number).toFixed(1);
+    if (typeof val === 'string') return val.replace(/\|/g, ', ');
+    return String(val);
+  };
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.15 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.97, y: 8 }}
+            transition={{ duration: 0.2 }}
+            className="bg-white dark:bg-[#242220] rounded-[10px] shadow-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-claude-border">
+              <div className="flex items-center gap-3">
+                <Columns className="h-5 w-5 text-claude-accent" />
+                <h2 className="text-base font-semibold text-claude-text">Entry Comparison</h2>
+              </div>
+              <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            {/* Side-by-side comparison */}
+            <div className="flex-1 overflow-y-auto p-5 custom-scrollbar">
+              {/* Entry headers */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="flex items-center gap-2 p-3 rounded-lg border border-claude-border bg-claude-bg/50 dark:bg-[#1a1917]/50">
+                  <span className="font-mono font-bold text-sm text-claude-accent">{entryA.pdbId}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(entryA.method).bg} ${getMethodColor(entryA.method).text}`}>
+                    {getMethodLabel(entryA.method)}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 p-3 rounded-lg border border-claude-border bg-claude-bg/50 dark:bg-[#1a1917]/50">
+                  <span className="font-mono font-bold text-sm text-claude-accent">{entryB.pdbId}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(entryB.method).bg} ${getMethodColor(entryB.method).text}`}>
+                    {getMethodLabel(entryB.method)}
+                  </span>
+                </div>
+              </div>
+
+              {/* VS Divider */}
+              <div className="relative flex items-center justify-center mb-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-claude-border-light dark:border-[#3d3832]" />
+                </div>
+                <div className="relative z-10 px-3 py-1 rounded-full bg-claude-accent text-white text-[10px] font-bold tracking-wider">
+                  VS
+                </div>
+              </div>
+
+              {/* Property comparison rows */}
+              <div className="space-y-2">
+                {properties.map((prop) => {
+                  const diff = getDiffHighlight(prop);
+                  const isDiff = prop.keyA != null && prop.keyB != null && String(prop.keyA) !== String(prop.keyB);
+                  return (
+                    <div key={prop.label} className="grid grid-cols-[1fr_auto_1fr] gap-0">
+                      {/* Entry A value */}
+                      <div className={`p-3 rounded-l-lg border border-r-0 border-claude-border text-xs transition-colors ${diff.aClass}`}>
+                        <div className="text-[9px] font-semibold uppercase text-claude-text-muted mb-1">{prop.label}</div>
+                        <div className={`text-claude-text-secondary leading-relaxed ${prop.type === 'title' ? 'line-clamp-3' : 'line-clamp-2'}`}>
+                          {formatValue(prop.keyA, prop.type)}
+                        </div>
+                      </div>
+                      {/* Divider with diff indicator */}
+                      <div className="flex items-center justify-center w-8 border-y border-claude-border bg-claude-bg/30 dark:bg-[#1a1917]/30">
+                        {isDiff && (
+                          <span className="text-[9px] font-bold text-claude-accent">≠</span>
+                        )}
+                      </div>
+                      {/* Entry B value */}
+                      <div className={`p-3 rounded-r-lg border border-l-0 border-claude-border text-xs transition-colors ${diff.bClass}`}>
+                        <div className="text-[9px] font-semibold uppercase text-claude-text-muted mb-1">{prop.label}</div>
+                        <div className={`text-claude-text-secondary leading-relaxed ${prop.type === 'title' ? 'line-clamp-3' : 'line-clamp-2'}`}>
+                          {formatValue(prop.keyB, prop.type)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Legend */}
+              <div className="mt-4 pt-3 border-t border-claude-border flex items-center gap-4 text-[10px] text-claude-text-muted">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800/30" />
+                  Better
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800/30" />
+                  Worse
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-3 h-3 rounded bg-amber-50 dark:bg-amber-900/15 border border-amber-200 dark:border-amber-800/30" />
+                  Different
+                </span>
+                <span className="ml-auto italic">Lower resolution = better · Higher IF = better</span>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between p-4 border-t border-claude-border">
+              <div className="text-[10px] text-claude-text-muted">
+                Comparing <span className="font-mono font-semibold text-claude-accent">{entryA.pdbId}</span> vs <span className="font-mono font-semibold text-claude-accent">{entryB.pdbId}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={onClose} className="text-xs h-7">
+                  Clear Comparison
+                </Button>
+                <Button variant="default" size="sm" onClick={onClose} className="text-xs h-7 bg-claude-accent hover:bg-claude-accent-hover">
+                  Close
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 // ─── Pagination Component ────────────────────────────────────────────────────
 
 function Pagination({
@@ -1214,6 +1563,10 @@ export default function PdbTracker() {
   const [entries, setEntries] = useState<PdbEntry[]>([]);
   const [weeklyReports, setWeeklyReports] = useState<WeeklyReport[]>([]);
 
+  // ── Heatmap Data (all entries across weeks) ──
+  const [heatmapEntries, setHeatmapEntries] = useState<PdbEntry[]>([]);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+
   // ── Evaluation Mode Data ──
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
@@ -1237,6 +1590,36 @@ export default function PdbTracker() {
   const [compareWeekId, setCompareWeekId] = useState<string | null>(null);
   const [compareEntries, setCompareEntries] = useState<PdbEntry[]>([]);
 
+  // ── Entry Comparison (Side-by-Side) ──
+  const [entryComparison, setEntryComparison] = useState<{ entryA: PdbEntry | null; entryB: PdbEntry | null }>({ entryA: null, entryB: null });
+  const [entryCompareModalOpen, setEntryCompareModalOpen] = useState(false);
+
+  const entryCompareCount = (entryComparison.entryA ? 1 : 0) + (entryComparison.entryB ? 1 : 0);
+
+  const toggleEntryCompare = useCallback((entry: PdbEntry) => {
+    setEntryComparison(prev => {
+      if (prev.entryA?.pdbId === entry.pdbId) {
+        return { ...prev, entryA: prev.entryB, entryB: null };
+      }
+      if (prev.entryB?.pdbId === entry.pdbId) {
+        return { ...prev, entryB: null };
+      }
+      if (!prev.entryA) {
+        return { ...prev, entryA: entry };
+      }
+      if (!prev.entryB) {
+        return { ...prev, entryB: entry };
+      }
+      // Both slots filled — replace entryB
+      return { ...prev, entryB: entry };
+    });
+  }, []);
+
+  const clearEntryComparison = useCallback(() => {
+    setEntryComparison({ entryA: null, entryB: null });
+    setEntryCompareModalOpen(false);
+  }, []);
+
   // ── Mobile State ──
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
@@ -1251,6 +1634,18 @@ export default function PdbTracker() {
   // ── Row Pulse Animation ──
   const [pulsingRowId, setPulsingRowId] = useState<string | null>(null);
   const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Scroll Progress ──
+  const [scrollProgress, setScrollProgress] = useState(0);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const handleTableScroll = useCallback(() => {
+    const el = tableScrollRef.current;
+    if (!el) return;
+    const { scrollTop, scrollHeight, clientHeight } = el;
+    const maxScroll = scrollHeight - clientHeight;
+    if (maxScroll <= 0) { setScrollProgress(0); return; }
+    setScrollProgress((scrollTop / maxScroll) * 100);
+  }, []);
 
   // ── Bookmarks ──
   const [bookmarks, setBookmarks] = useState<Set<string>>(() => {
@@ -1466,6 +1861,7 @@ export default function PdbTracker() {
   const [selectedOrganisms, setSelectedOrganisms] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
   const [qualityFilter, setQualityFilter] = useState<string>('all');
+  const [hasLigandsFilter, setHasLigandsFilter] = useState(false);
 
   // Organism list from current week's entries
   const organismOptions = useMemo(() => {
@@ -1491,8 +1887,9 @@ export default function PdbTracker() {
     if (selectedOrganisms.size > 0) count++;
     if (dateRange.from || dateRange.to) count++;
     if (qualityFilter !== 'all') count++;
+    if (hasLigandsFilter) count++;
     return count;
-  }, [resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter]);
+  }, [resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter]);
 
   const clearAdvancedFilters = useCallback(() => {
     setResolutionRange([0, 5]);
@@ -1500,6 +1897,7 @@ export default function PdbTracker() {
     setSelectedOrganisms(new Set());
     setDateRange({ from: '', to: '' });
     setQualityFilter('all');
+    setHasLigandsFilter(false);
   }, []);
 
   const toggleOrganism = useCallback((organism: string) => {
@@ -1843,6 +2241,26 @@ export default function PdbTracker() {
     return () => { cancelled = true; };
   }, [mode, selectedWeekId, methodFilter]);
 
+  // ── Fetch All Entries for Heatmap ──
+  useEffect(() => {
+    if (mode !== 'weekly' || previewTab !== 'heatmap') return;
+    if (heatmapEntries.length > 0) return; // already loaded
+    let cancelled = false;
+    async function load() {
+      setHeatmapLoading(true);
+      try {
+        const res = await fetch('/api/entries?limit=1000');
+        if (!cancelled) {
+          const data = await res.json();
+          setHeatmapEntries(data);
+        }
+      } catch (e) { console.error('Failed to fetch heatmap entries:', e); }
+      finally { if (!cancelled) setHeatmapLoading(false); }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [mode, previewTab, heatmapEntries.length]);
+
   // ── Fetch Weekly Reports ──
   useEffect(() => {
     if (mode !== 'weekly' || !selectedWeekId) return;
@@ -2017,11 +2435,19 @@ export default function PdbTracker() {
         const qs = computeQualityScore(e);
         switch (qualityFilter) {
           case 'excellent': return qs.total >= 80;
+          case 'high': return qs.total >= 70;
           case 'good': return qs.total >= 60 && qs.total < 80;
           case 'fair': return qs.total >= 40 && qs.total < 60;
           case 'low': return qs.total < 40;
           default: return true;
         }
+      });
+    }
+    if (hasLigandsFilter) {
+      source = source.filter(e => {
+        if (!e.ligands) return false;
+        const ligandList = parseLigands(e.ligands);
+        return ligandList.length > 0 && !ligandList.every(l => l === 'N/A');
       });
     }
     if (!source.length) return [];
@@ -2043,7 +2469,7 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, debouncedSearch, entryNotes]);
+  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, debouncedSearch, entryNotes]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
@@ -2252,6 +2678,137 @@ export default function PdbTracker() {
     toast(`Exported ${sortedEntries.length} structures`, { description: 'Downloaded as CSV file' });
     addNotification('export', `Exported ${sortedEntries.length} structures as CSV`, 'Downloaded as CSV file');
   }, [sortedEntries, selectedWeekId, addNotification]);
+
+  // ── JSON Export ──
+  const handleExportJson = useCallback(() => {
+    if (!sortedEntries.length) return;
+    const data = sortedEntries.map(entry => ({
+      pdbId: entry.pdbId,
+      method: getMethodLabel(entry.method),
+      resolution: entry.resolution,
+      impactFactor: entry.journalIf,
+      organism: entry.organisms,
+      title: entry.title,
+      releaseDate: entry.releaseDate,
+      ligands: entry.ligands,
+      journal: entry.journal,
+      doi: entry.doi,
+      authors: entry.authors,
+      ifTier: entry.ifTier,
+    }));
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pdb-structures-${selectedWeekId || 'export'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported as JSON`, { description: `${sortedEntries.length} structures downloaded` });
+    addNotification('export', `Exported ${sortedEntries.length} structures as JSON`, 'Downloaded as JSON file');
+  }, [sortedEntries, selectedWeekId, addNotification]);
+
+  // ── JSON Full Export ──
+  const handleExportJsonFull = useCallback(() => {
+    if (!sortedEntries.length) return;
+    const data = {
+      metadata: {
+        exportedAt: new Date().toISOString(),
+        weekId: selectedWeekId,
+        weekStart: selectedSnapshot?.weekStart || null,
+        weekEnd: selectedSnapshot?.weekEnd || null,
+        totalStructures: sortedEntries.length,
+        snapshot: selectedSnapshot ? {
+          cryoemCount: selectedSnapshot.cryoemCount,
+          xrayCount: selectedSnapshot.xrayCount,
+          nmrCount: selectedSnapshot.nmrCount,
+          otherCount: selectedSnapshot.otherCount,
+          cryoemAvgRes: selectedSnapshot.cryoemAvgRes,
+          xrayAvgRes: selectedSnapshot.xrayAvgRes,
+          topJournals: selectedSnapshot.topJournals,
+          ifDist: selectedSnapshot.ifDist,
+        } : null,
+        evaluations: evaluations.length,
+        filters: {
+          methodFilter,
+          searchQuery,
+        },
+      },
+      entries: sortedEntries.map(entry => ({
+        pdbId: entry.pdbId,
+        method: entry.method,
+        methodLabel: getMethodLabel(entry.method),
+        resolution: entry.resolution,
+        impactFactor: entry.journalIf,
+        ifTier: entry.ifTier,
+        organism: entry.organisms,
+        title: entry.title,
+        releaseDate: entry.releaseDate,
+        fetchDate: entry.fetchDate,
+        ligands: entry.ligands,
+        journal: entry.journal,
+        doi: entry.doi,
+        pubmedId: entry.pubmedId,
+        authors: entry.authors,
+        weekId: entry.weekId,
+        isCryoem: entry.isCryoem,
+        isXray: entry.isXray,
+      })),
+    };
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pdb-structures-${selectedWeekId || 'export'}-full.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported as JSON (Full)`, { description: `${sortedEntries.length} structures with metadata` });
+    addNotification('export', `Exported ${sortedEntries.length} structures as JSON (Full)`, 'Downloaded with metadata');
+  }, [sortedEntries, selectedWeekId, selectedSnapshot, evaluations, methodFilter, searchQuery, addNotification]);
+
+  // ── Markdown Table Export ──
+  const handleExportMarkdown = useCallback(() => {
+    if (!sortedEntries.length) return;
+    const headers = ['PDB ID', 'Method', 'Resolution', 'IF', 'Organism', 'Title', 'Date'];
+    const rows = sortedEntries.map(entry =>
+      `| ${entry.pdbId} | ${getMethodLabel(entry.method)} | ${entry.resolution != null ? entry.resolution + 'Å' : '—'} | ${entry.journalIf != null ? entry.journalIf.toFixed(1) : '—'} | ${(entry.organisms || '—').split('|')[0]?.trim() || '—'} | ${entry.title || '—'} | ${entry.releaseDate || '—'} |`
+    );
+    const separator = `| ${headers.map(() => '---').join(' | ')} |`;
+    const md = [`| ${headers.join(' | ')} |`, separator, ...rows].join('\n');
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pdb-structures-${selectedWeekId || 'export'}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast(`Exported as Markdown`, { description: `${sortedEntries.length} structures as table` });
+    addNotification('export', `Exported ${sortedEntries.length} structures as Markdown`, 'Downloaded as Markdown table');
+  }, [sortedEntries, selectedWeekId, addNotification]);
+
+  // ── Clipboard Export ──
+  const handleExportClipboard = useCallback(() => {
+    if (!sortedEntries.length) return;
+    const headers = ['PDB ID', 'Method', 'Resolution', 'IF', 'Organism', 'Title', 'Date', 'Ligands'];
+    const rows = sortedEntries.map(entry => [
+      entry.pdbId,
+      getMethodLabel(entry.method),
+      entry.resolution != null ? String(entry.resolution) : '',
+      entry.journalIf != null ? String(entry.journalIf) : '',
+      (entry.organisms || '').split('|')[0]?.trim() || '',
+      entry.title || '',
+      entry.releaseDate || '',
+      entry.ligands || '',
+    ].join('\t'));
+    const tsv = [headers.join('\t'), ...rows].join('\n');
+    navigator.clipboard.writeText(tsv).then(() => {
+      toast('Copied to clipboard', { description: `${sortedEntries.length} structures as tab-separated values` });
+      addNotification('export', `Copied ${sortedEntries.length} structures to clipboard`, 'Tab-separated values ready to paste');
+    }).catch(() => {
+      toast('Failed to copy', { description: 'Please try again or use download export' });
+    });
+  }, [sortedEntries, addNotification]);
 
   // ── Batch Row Operations ──
   const toggleRowSelection = useCallback((pdbId: string) => {
@@ -2637,7 +3194,14 @@ export default function PdbTracker() {
           </Drawer>
 
           {/* ═══════════ MAIN AREA ═══════════ */}
-          <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${hasLoaded ? 'animate-load-main' : 'opacity-0'}`}>
+          <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative ${hasLoaded ? 'animate-load-main' : 'opacity-0'}`}>
+            {/* Ambient Background Orbs */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden="true">
+              <div className="ambient-orb ambient-orb-1" style={{ width: '300px', height: '300px', top: '10%', left: '5%', background: 'rgba(201, 100, 66, 0.03)' }} />
+              <div className="ambient-orb ambient-orb-2" style={{ width: '350px', height: '350px', top: '50%', right: '10%', background: 'rgba(253, 240, 235, 0.08)' }} />
+              <div className="ambient-orb ambient-orb-3" style={{ width: '250px', height: '250px', bottom: '20%', left: '30%', background: 'rgba(45, 143, 143, 0.03)' }} />
+            </div>
+
             {/* Toolbar */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-claude-border bg-white/80 dark:bg-[#242220]/80 backdrop-blur-sm no-print">
               {mode === 'weekly' ? (
@@ -2812,12 +3376,153 @@ export default function PdbTracker() {
                         </button>
                       </span>
                     )}
+                    {entryCompareCount > 0 && (
+                      <button
+                        onClick={() => {
+                          if (entryCompareCount === 2) {
+                            setEntryCompareModalOpen(true);
+                          } else {
+                            toast('Select one more entry to compare', { description: 'Click the compare icon on another row' });
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-400 border border-teal-200 dark:border-teal-800/30 hover:bg-teal-100 dark:hover:bg-teal-900/30 transition-colors"
+                      >
+                        <Columns className="h-2.5 w-2.5" />
+                        Comparing {entryCompareCount}/2
+                        <span
+                          onClick={(e) => { e.stopPropagation(); clearEntryComparison(); }}
+                          className="hover:text-teal-600 dark:hover:text-teal-300 transition-colors ml-0.5"
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </span>
+                      </button>
+                    )}
+                    {hasLigandsFilter && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/30">
+                        <Dna className="h-2.5 w-2.5" />
+                        Ligands
+                        <button onClick={() => setHasLigandsFilter(false)} className="hover:text-rose-600 dark:hover:text-rose-300 transition-colors">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )}
                   </div>
 
                   {/* Count & Export */}
                   <span className="text-[10px] text-claude-text-muted ml-auto whitespace-nowrap">
                     {entries.length} structures
                   </span>
+
+                  {/* Presets Dropdown */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                      >
+                        <Sparkles className="h-3 w-3" />
+                        Presets
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuLabel className="text-[10px] text-claude-text-muted">Quick Filter Presets</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          setResolutionRange([0, 2.0]);
+                          setAdvancedFiltersOpen(true);
+                          toast('Applied preset: High Resolution', { description: 'Resolution ≤ 2.0Å' });
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5 text-green-600 dark:text-green-400 mr-2 flex-shrink-0" />
+                        High Resolution
+                        <span className="ml-auto text-[9px] text-claude-text-muted">≤ 2.0Å</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          setIfRange([10, 50]);
+                          setAdvancedFiltersOpen(true);
+                          toast('Applied preset: Top Journals', { description: 'Impact Factor ≥ 10' });
+                        }}
+                      >
+                        <Star className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 mr-2 flex-shrink-0" />
+                        Top Journals
+                        <span className="ml-auto text-[9px] text-claude-text-muted">IF ≥ 10</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          setMethodFilter('Cryo-EM');
+                          toast('Applied preset: Cryo-EM Only', { description: 'Showing only Cryo-EM structures' });
+                        }}
+                      >
+                        <FlaskConical className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400 mr-2 flex-shrink-0" />
+                        Cryo-EM Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          setMethodFilter('X-RAY DIFFRACTION');
+                          toast('Applied preset: X-ray Only', { description: 'Showing only X-ray structures' });
+                        }}
+                      >
+                        <Activity className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400 mr-2 flex-shrink-0" />
+                        X-ray Only
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          const sevenDaysAgo = new Date();
+                          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+                          const fromStr = sevenDaysAgo.toISOString().slice(0, 10);
+                          setDateRange(prev => ({ ...prev, from: fromStr }));
+                          setAdvancedFiltersOpen(true);
+                          toast('Applied preset: Recent (7 days)', { description: `From ${fromStr}` });
+                        }}
+                      >
+                        <Clock className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 mr-2 flex-shrink-0" />
+                        Recent (7 days)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          setHasLigandsFilter(true);
+                          setAdvancedFiltersOpen(true);
+                          toast('Applied preset: With Ligands', { description: 'Showing entries that have ligands' });
+                        }}
+                      >
+                        <Dna className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400 mr-2 flex-shrink-0" />
+                        With Ligands
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer"
+                        onClick={() => {
+                          setQualityFilter('high');
+                          setAdvancedFiltersOpen(true);
+                          toast('Applied preset: High Quality', { description: 'Quality score ≥ 70' });
+                        }}
+                      >
+                        <CheckCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 mr-2 flex-shrink-0" />
+                        High Quality
+                        <span className="ml-auto text-[9px] text-claude-text-muted">≥ 70</span>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-xs cursor-pointer text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400 focus:bg-red-50 dark:focus:bg-red-900/20"
+                        onClick={() => {
+                          setMethodFilter('all');
+                          setSearchQuery('');
+                          setShowBookmarksOnly(false);
+                          clearAdvancedFilters();
+                          toast('All filters cleared');
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-2 flex-shrink-0" />
+                        Clear All Filters
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
 
                   {/* Column Visibility Toggle */}
                   <DropdownMenu>
@@ -2881,13 +3586,42 @@ export default function PdbTracker() {
                   </Tooltip>
 
                   {sortedEntries.length > 0 && (
-                    <button
-                      onClick={handleExportCsv}
-                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
-                    >
-                      <Download className="h-3 w-3" />
-                      Export
-                    </button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                        >
+                          <Download className="h-3 w-3" />
+                          Export
+                          <ChevronDown className="h-3 w-3 ml-0.5 opacity-50" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel className="text-[10px] text-claude-text-muted">Export Format</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleExportCsv} className="text-xs cursor-pointer">
+                          <FileText className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          CSV
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportJson} className="text-xs cursor-pointer">
+                          <FileJson className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          JSON
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportJsonFull} className="text-xs cursor-pointer">
+                          <FileJson className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          JSON (Full)
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={handleExportMarkdown} className="text-xs cursor-pointer">
+                          <TableIcon className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          Markdown Table
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleExportClipboard} className="text-xs cursor-pointer">
+                          <ClipboardCopy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          Copy to Clipboard
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
 
                   {/* Print Button */}
@@ -3076,8 +3810,17 @@ export default function PdbTracker() {
                           )}
                           {qualityFilter !== 'all' && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
-                              Quality: {qualityFilter === 'excellent' ? 'Excellent' : qualityFilter === 'good' ? 'Good' : qualityFilter === 'fair' ? 'Fair' : 'Low'}
+                              Quality: {qualityFilter === 'excellent' ? 'Excellent' : qualityFilter === 'high' ? 'High' : qualityFilter === 'good' ? 'Good' : qualityFilter === 'fair' ? 'Fair' : 'Low'}
                               <button onClick={() => setQualityFilter('all')} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
+                          {hasLigandsFilter && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800/30">
+                              <Dna className="h-2.5 w-2.5" />
+                              With Ligands
+                              <button onClick={() => setHasLigandsFilter(false)} className="hover:text-rose-600 dark:hover:text-rose-300 transition-colors">
                                 <X className="h-2.5 w-2.5" />
                               </button>
                             </span>
@@ -3223,6 +3966,12 @@ export default function PdbTracker() {
                                   Excellent (≥80)
                                 </span>
                               </SelectItem>
+                              <SelectItem value="high">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#10b981' }} />
+                                  High (≥70)
+                                </span>
+                              </SelectItem>
                               <SelectItem value="good">
                                 <span className="flex items-center gap-1.5">
                                   <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#14b8a6' }} />
@@ -3243,6 +3992,20 @@ export default function PdbTracker() {
                               </SelectItem>
                             </SelectContent>
                           </Select>
+                        </div>
+
+                        {/* Has Ligands Filter */}
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <label className="text-xs font-semibold text-claude-text-secondary">Ligands</label>
+                          <label className="flex items-center gap-2 text-xs text-claude-text-secondary hover:text-claude-text cursor-pointer py-0.5">
+                            <Checkbox
+                              checked={hasLigandsFilter}
+                              onCheckedChange={() => setHasLigandsFilter(!hasLigandsFilter)}
+                              className="h-3.5 w-3.5 data-[state=checked]:bg-[#c96442] data-[state=checked]:border-[#c96442]"
+                            />
+                            <span>Has Ligands</span>
+                            <span className="text-[9px] text-claude-text-muted ml-auto">Exclude N/A</span>
+                          </label>
                         </div>
                       </div>
                     </div>
@@ -3301,7 +4064,11 @@ export default function PdbTracker() {
             </div>
 
             {/* Data Table */}
-            <div className="flex-1 overflow-auto custom-scrollbar preview-scroll">
+            <div className="flex-1 overflow-auto custom-scrollbar preview-scroll relative z-10" ref={tableScrollRef} onScroll={handleTableScroll}>
+              {/* Scroll Progress Bar */}
+              <div className="scroll-progress-bar" style={{ opacity: scrollProgress > 0 ? 1 : 0 }}>
+                <div className="scroll-progress-bar-fill" style={{ width: `${scrollProgress}%` }} />
+              </div>
               <AnimatePresence mode="wait" initial={false}>
                 <motion.div
                   key={`${mode}-${selectedWeekId || 'no-week'}-${selectedEvalId || 'no-eval'}`}
@@ -3316,6 +4083,7 @@ export default function PdbTracker() {
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {[
+                          { h: '', field: '' },
                           { h: '', field: '' },
                           { h: '', field: '' },
                           { h: 'PDB ID', field: 'pdbId' },
@@ -3346,7 +4114,7 @@ export default function PdbTracker() {
                       <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-[#2b2926] flex items-center justify-center mb-4">
                         <Database className="h-8 w-8 opacity-30 animate-float" />
                       </div>
-                      <p className="text-sm font-medium text-claude-text">No structures found</p>
+                      <p className="text-sm font-medium text-claude-text"><TypewriterText text="No structures found for this week" /></p>
                       <p className="text-xs mt-1 text-claude-text-muted max-w-[200px] text-center">Try adjusting filters or selecting a different week</p>
                       {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0) && (
                         <button
@@ -3378,6 +4146,19 @@ export default function PdbTracker() {
                             {allPageSelected && <Check className="h-2.5 w-2.5 text-white" />}
                             {somePageSelected && <Minus className="h-2.5 w-2.5 text-white" />}
                           </button>
+                        </th>
+                        <th className="px-1.5 py-3.5 w-[28px] table-header-cell" />
+                        <th className="px-1.5 py-3.5 w-[28px] table-header-cell">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="inline-flex items-center justify-center w-full text-claude-text-muted">
+                                <GitMerge className="h-3 w-3" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom">
+                              <span className="text-[10px]">Compare entries side-by-side</span>
+                            </TooltipContent>
+                          </Tooltip>
                         </th>
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
@@ -3447,6 +4228,32 @@ export default function PdbTracker() {
                                       ? <BookmarkCheck className="h-3.5 w-3.5" />
                                       : <Bookmark className="h-3.5 w-3.5" />
                                     }
+                                  </button>
+                                </td>
+                                <td className="px-1.5 py-2 w-[28px]" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleEntryCompare(entry);
+                                      if (entryComparison.entryA?.pdbId === entry.pdbId || entryComparison.entryB?.pdbId === entry.pdbId) {
+                                        // deselecting
+                                      } else if (entryComparison.entryA && entryComparison.entryB) {
+                                        toast('Replaced comparison entry', { description: `${entry.pdbId} replaced ${entryComparison.entryB.pdbId}` });
+                                      } else if (entryComparison.entryA) {
+                                        toast('Ready to compare!', { description: `${entryComparison.entryA.pdbId} vs ${entry.pdbId}` });
+                                        setEntryCompareModalOpen(true);
+                                      } else {
+                                        toast('Entry selected for comparison', { description: 'Select one more entry to compare' });
+                                      }
+                                    }}
+                                    className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors duration-200 ${
+                                      (entryComparison.entryA?.pdbId === entry.pdbId || entryComparison.entryB?.pdbId === entry.pdbId)
+                                        ? 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20'
+                                        : 'text-claude-text-muted/0 group-hover:text-claude-text-muted/40 hover:!text-teal-600 dark:hover:!text-teal-400'
+                                    }`}
+                                    title={(entryComparison.entryA?.pdbId === entry.pdbId || entryComparison.entryB?.pdbId === entry.pdbId) ? 'Remove from comparison' : 'Compare entry'}
+                                  >
+                                    <GitMerge className="h-3.5 w-3.5" />
                                   </button>
                                 </td>
                             <td className="px-3 py-2">
@@ -3674,7 +4481,7 @@ export default function PdbTracker() {
                       <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-[#2b2926] flex items-center justify-center mb-4">
                         <Microscope className="h-8 w-8 opacity-30 animate-float" />
                       </div>
-                      <p className="text-sm font-medium text-claude-text">Select a protein evaluation</p>
+                      <p className="text-sm font-medium text-claude-text"><TypewriterText text="No evaluations match your search" /></p>
                       <p className="text-xs mt-1 text-claude-text-muted max-w-[220px] text-center">Choose from the sidebar to view structures and BLAST results</p>
                     </div>
                   </div>
@@ -3982,6 +4789,14 @@ export default function PdbTracker() {
           content={reportModal.content}
         />
       </div>
+
+      {/* Entry Comparison Modal */}
+      <EntryComparisonModal
+        isOpen={entryCompareModalOpen}
+        onClose={clearEntryComparison}
+        entryA={entryComparison.entryA}
+        entryB={entryComparison.entryB}
+      />
 
       {/* ═══════════ BATCH ACTION BAR ═══════════ */}
       <AnimatePresence>
@@ -4386,6 +5201,22 @@ export default function PdbTracker() {
             <CommandItem onSelect={() => { setCommandPaletteOpen(false); handleExportCsv(); }}>
               <Download className="h-4 w-4 mr-2 text-claude-text-muted" />
               <span>Export Current View as CSV</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); handleExportJson(); }}>
+              <FileJson className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Export as JSON</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); handleExportJsonFull(); }}>
+              <FileJson className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Export as JSON (Full)</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); handleExportMarkdown(); }}>
+              <TableIcon className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Export as Markdown Table</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); handleExportClipboard(); }}>
+              <ClipboardCopy className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Copy to Clipboard (TSV)</span>
             </CommandItem>
             <CommandItem onSelect={() => { setCommandPaletteOpen(false); window.print(); }}>
               <Printer className="h-4 w-4 mr-2 text-claude-text-muted" />
@@ -4926,6 +5757,10 @@ export default function PdbTracker() {
               <Clock className="h-3 w-3 mr-1" />
               Timeline
             </TabsTrigger>
+            <TabsTrigger value="heatmap" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
+              <Grid3x3 className="h-3 w-3 mr-1" />
+              Heatmap
+            </TabsTrigger>
             <TabsTrigger value="report" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <FileText className="h-3 w-3 mr-1" />
               Full Report
@@ -4977,6 +5812,20 @@ export default function PdbTracker() {
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
                 <Clock className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-xs">Select a week to view timeline</p>
+              </div>
+            )
+          ) : previewTab === 'heatmap' ? (
+            /* Heatmap Tab */
+            mode === 'weekly' ? (
+              <ActivityHeatmap
+                entries={heatmapEntries}
+                snapshots={snapshots}
+                loading={heatmapLoading}
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+                <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
+                <p className="text-xs">Heatmap available in weekly mode</p>
               </div>
             )
           ) : (
@@ -6178,7 +7027,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
     <div className="px-4 py-2">
       <div className="flex gap-3">
         {/* Total Structures Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '400ms' }}>
+        <TiltCard className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="400ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Total Structures</div>
@@ -6205,10 +7054,10 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
             </div>
           )}
           {totalDelta !== null && <DeltaIndicator value={totalDelta} />}
-        </div>
+        </TiltCard>
 
         {/* Avg Resolution Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '450ms' }}>
+        <TiltCard className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="450ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Resolution</div>
@@ -6223,10 +7072,10 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
               {stats.avgRes <= 1.5 ? 'Excellent' : stats.avgRes <= 2.0 ? 'High' : stats.avgRes <= 3.0 ? 'Medium' : 'Low'} quality
             </div>
           )}
-        </div>
+        </TiltCard>
 
         {/* Cryo-EM % Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '500ms' }}>
+        <TiltCard className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="500ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Cryo-EM %</div>
@@ -6244,10 +7093,10 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
             </div>
             <span className="text-[9px] text-claude-cryoem">{stats.cryoemCount} structures</span>
           </div>
-        </div>
+        </TiltCard>
 
         {/* Top IF Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '550ms' }}>
+        <TiltCard className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="550ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Top IF</div>
@@ -6260,8 +7109,313 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
           {stats.topIf?.journal && (
             <div className="text-[9px] text-claude-text-muted mt-1 line-clamp-1">{stats.topIf.journal}</div>
           )}
+        </TiltCard>
+      </div>
+    </div>
+  );
+}
+
+// ─── Activity Heatmap Component (GitHub-style contribution graph) ────────────
+
+function ActivityHeatmap({
+  entries,
+  snapshots,
+  loading,
+}: {
+  entries: PdbEntry[];
+  snapshots: WeeklySnapshot[];
+  loading: boolean;
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const [hoveredCell, setHoveredCell] = useState<{ date: string; count: number; x: number; y: number } | null>(null);
+
+  // Calculate date range from all data (snapshots)
+  const dateRange = useMemo(() => {
+    if (snapshots.length === 0) return { start: new Date(), end: new Date() };
+    const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    const start = new Date(sorted[0].weekStart);
+    const end = new Date(sorted[sorted.length - 1].weekEnd);
+    return { start, end };
+  }, [snapshots]);
+
+  // Count entries per day
+  const dailyCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    entries.forEach(entry => {
+      if (!entry.releaseDate) return;
+      const dateKey = entry.releaseDate.split('T')[0];
+      counts[dateKey] = (counts[dateKey] || 0) + 1;
+    });
+    return counts;
+  }, [entries]);
+
+  // Build the grid data
+  const gridData = useMemo(() => {
+    const { start, end } = dateRange;
+    // Adjust start to previous Sunday
+    const adjustedStart = new Date(start);
+    adjustedStart.setDate(adjustedStart.getDate() - adjustedStart.getDay());
+
+    // Adjust end to next Saturday
+    const adjustedEnd = new Date(end);
+    adjustedEnd.setDate(adjustedEnd.getDate() + (6 - adjustedEnd.getDay()));
+
+    const weeks: { date: string; dayOfWeek: number; count: number }[][] = [];
+    let current = new Date(adjustedStart);
+    let currentWeek: { date: string; dayOfWeek: number; count: number }[] = [];
+
+    while (current <= adjustedEnd) {
+      const dateKey = current.toISOString().split('T')[0];
+      const dayOfWeek = current.getDay();
+      currentWeek.push({
+        date: dateKey,
+        dayOfWeek,
+        count: dailyCounts[dateKey] || 0,
+      });
+
+      if (dayOfWeek === 6) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+
+      current.setDate(current.getDate() + 1);
+    }
+
+    // Push remaining days if any
+    if (currentWeek.length > 0) {
+      weeks.push(currentWeek);
+    }
+
+    return weeks;
+  }, [dateRange, dailyCounts]);
+
+  // Month labels for the top
+  const monthLabels = useMemo(() => {
+    const labels: { label: string; weekIndex: number }[] = [];
+    let prevMonth = -1;
+    gridData.forEach((week, weekIdx) => {
+      // Find the first day of the week that has a new month
+      for (const day of week) {
+        const d = new Date(day.date);
+        const month = d.getMonth();
+        if (month !== prevMonth) {
+          labels.push({
+            label: d.toLocaleDateString('en-US', { month: 'short' }),
+            weekIndex: weekIdx,
+          });
+          prevMonth = month;
+          break;
+        }
+      }
+    });
+    return labels;
+  }, [gridData]);
+
+  // Stats
+  const stats = useMemo(() => {
+    const totalStructures = entries.length;
+    const activeDays = Object.values(dailyCounts).filter(c => c > 0).length;
+    const avgPerDay = activeDays > 0 ? (totalStructures / activeDays).toFixed(1) : '0';
+    return { totalStructures, activeDays, avgPerDay };
+  }, [entries, dailyCounts]);
+
+  const CELL_SIZE = 11;
+  const CELL_GAP = 2;
+  const CELL_STEP = CELL_SIZE + CELL_GAP;
+  const DAY_LABEL_WIDTH = 24;
+  const MONTH_LABEL_HEIGHT = 16;
+  const PADDING_TOP = 4;
+
+  // Color mapping function
+  const getCellColor = (count: number): string => {
+    if (count === 0) return isDark ? '#2b2926' : '#f0ece5';
+    if (count <= 2) return isDark ? '#8f5a3a' : '#fddcc8';
+    if (count <= 5) return isDark ? '#c4644a' : '#f5a67a';
+    if (count <= 10) return isDark ? '#d4784f' : '#e8744e';
+    return isDark ? '#e89f6a' : '#c96442';
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 space-y-3">
+        <div className="h-4 w-32 shimmer-skeleton rounded" />
+        <div className="h-[140px] shimmer-skeleton rounded-lg" />
+        <div className="h-4 w-48 shimmer-skeleton rounded" />
+      </div>
+    );
+  }
+
+  if (entries.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+        <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
+        <p className="text-xs">No data available for heatmap</p>
+        <p className="text-[10px] mt-1 opacity-60">Switch to weekly mode and select a week</p>
+      </div>
+    );
+  }
+
+  const svgWidth = DAY_LABEL_WIDTH + gridData.length * CELL_STEP + 8;
+  const svgHeight = MONTH_LABEL_HEIGHT + 7 * CELL_STEP + PADDING_TOP;
+
+  return (
+    <div className="p-4 space-y-4">
+      {/* Header */}
+      <div>
+        <h3 className="text-sm font-semibold text-claude-text dark:text-[#e8e4dd]">Activity Heatmap</h3>
+        <p className="text-[10px] text-claude-text-muted mt-0.5">
+          PDB structure deposition activity across all weeks
+        </p>
+      </div>
+
+      {/* Heatmap Grid */}
+      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow overflow-x-auto">
+        <div className="relative" style={{ minWidth: svgWidth }}>
+          <svg
+            width={svgWidth}
+            height={svgHeight}
+            viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+            className="block"
+          >
+            {/* Month labels */}
+            {monthLabels.map((ml, i) => (
+              <text
+                key={`month-${i}`}
+                x={DAY_LABEL_WIDTH + ml.weekIndex * CELL_STEP}
+                y={10}
+                className="fill-claude-text-muted"
+                style={{ fontSize: '9px', fontWeight: 500 }}
+              >
+                {ml.label}
+              </text>
+            ))}
+
+            {/* Day-of-week labels */}
+            {[1, 3, 5].map(dayIdx => {
+              const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+              return (
+                <text
+                  key={`day-${dayIdx}`}
+                  x={0}
+                  y={MONTH_LABEL_HEIGHT + PADDING_TOP + dayIdx * CELL_STEP + CELL_SIZE / 2 + 3}
+                  className="fill-claude-text-muted dark:fill-[#9b9590]"
+                  style={{ fontSize: '8px', fontWeight: 500 }}
+                >
+                  {dayNames[dayIdx]}
+                </text>
+              );
+            })}
+
+            {/* Grid cells */}
+            {gridData.map((week, weekIdx) =>
+              week.map(day => {
+                const x = DAY_LABEL_WIDTH + weekIdx * CELL_STEP;
+                const y = MONTH_LABEL_HEIGHT + PADDING_TOP + day.dayOfWeek * CELL_STEP;
+                const color = getCellColor(day.count);
+                const isHovered = hoveredCell?.date === day.date;
+                return (
+                  <rect
+                    key={`cell-${day.date}`}
+                    x={x}
+                    y={y}
+                    width={CELL_SIZE}
+                    height={CELL_SIZE}
+                    rx={2}
+                    ry={2}
+                    fill={color}
+                    stroke={isHovered ? (isDark ? '#e8e4dd' : '#c96442') : 'none'}
+                    strokeWidth={isHovered ? 1.5 : 0}
+                    style={{ cursor: 'pointer', transition: 'fill 0.15s ease' }}
+                    onMouseEnter={(e) => {
+                      const rect = (e.target as SVGRectElement).getBoundingClientRect();
+                      setHoveredCell({
+                        date: day.date,
+                        count: day.count,
+                        x: rect.left + rect.width / 2,
+                        y: rect.top,
+                      });
+                    }}
+                    onMouseLeave={() => setHoveredCell(null)}
+                  />
+                );
+              })
+            )}
+          </svg>
+
+          {/* Tooltip */}
+          {hoveredCell && (
+            <div
+              className="fixed z-50 pointer-events-none"
+              style={{
+                left: hoveredCell.x,
+                top: hoveredCell.y - 8,
+                transform: 'translate(-50%, -100%)',
+              }}
+            >
+              <div className="bg-[#2b2926] dark:bg-[#1a1917] text-white text-[10px] px-2 py-1 rounded-md shadow-lg whitespace-nowrap">
+                <span className="font-semibold">{hoveredCell.count} structure{hoveredCell.count !== 1 ? 's' : ''}</span>
+                <span className="opacity-70 ml-1">on {hoveredCell.date}</span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Legend */}
+        <div className="flex items-center gap-1.5 mt-3">
+          <span className="text-[9px] text-claude-text-muted">Less</span>
+          {[0, 1, 3, 6, 11].map((count, i) => (
+            <div
+              key={`legend-${i}`}
+              className="rounded-sm"
+              style={{
+                width: CELL_SIZE,
+                height: CELL_SIZE,
+                backgroundColor: getCellColor(count),
+              }}
+            />
+          ))}
+          <span className="text-[9px] text-claude-text-muted">More</span>
         </div>
       </div>
+
+      {/* Summary */}
+      <div className="flex items-center gap-3 text-[10px] text-claude-text-muted">
+        <span className="font-semibold text-claude-text dark:text-[#e8e4dd]">{stats.totalStructures}</span> total structures
+        <span className="text-claude-border">·</span>
+        <span className="font-semibold text-claude-text dark:text-[#e8e4dd]">{stats.activeDays}</span> active days
+        <span className="text-claude-border">·</span>
+        <span className="font-semibold text-claude-text dark:text-[#e8e4dd]">{stats.avgPerDay}</span> avg/day
+      </div>
+
+      {/* Weekly breakdown mini table */}
+      {snapshots.length > 0 && (
+        <div className="space-y-1.5">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd]">Weekly Breakdown</h4>
+          {[...snapshots]
+            .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+            .map(snap => {
+              const maxCount = Math.max(...snapshots.map(s => s.totalStructures), 1);
+              const pct = (snap.totalStructures / maxCount) * 100;
+              return (
+                <div key={snap.weekId} className="flex items-center gap-2">
+                  <span className="text-[9px] font-mono text-claude-text-muted w-10 flex-shrink-0">{snap.weekId.replace('W', ' W')}</span>
+                  <div className="flex-1 h-4 rounded-sm overflow-hidden bg-claude-border-light/30 dark:bg-[#2b2926]">
+                    <div
+                      className="h-full rounded-sm transition-all duration-300"
+                      style={{
+                        width: `${pct}%`,
+                        backgroundColor: isDark ? '#d4784f' : '#c96442',
+                        minWidth: snap.totalStructures > 0 ? '4px' : '0',
+                      }}
+                    />
+                  </div>
+                  <span className="text-[9px] font-mono text-claude-text-secondary w-6 text-right">{snap.totalStructures}</span>
+                </div>
+              );
+            })}
+        </div>
+      )}
     </div>
   );
 }
@@ -6687,6 +7841,62 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
               </div>
             </div>
           )}
+
+          {/* Score Radar Chart */}
+          {Object.keys(scores).length >= 3 && (
+            <div className="pt-2 mt-2 border-t border-claude-border/50">
+              <h5 className="text-[11px] font-semibold text-claude-text mb-2">Score Radar</h5>
+              <ResponsiveContainer width="100%" height={180}>
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={Object.entries(scores).map(([key, value]) => ({
+                  metric: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+                  score: value as number,
+                  fullMark: 10,
+                }))}>
+                  <PolarGrid stroke={isDark ? '#3d3832' : '#e8e4dd'} />
+                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9, fill: isDark ? '#9b9590' : '#6b6560' }} />
+                  <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fontSize: 8, fill: isDark ? '#6b6560' : '#9b9590' }} axisLine={false} />
+                  <Radar name="Score" dataKey="score" stroke={isDark ? '#d4784f' : '#c96442'} fill={isDark ? '#d4784f' : '#c96442'} fillOpacity={0.15} strokeWidth={2} />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Protein Sequence Coverage Bar ── */}
+      {evalData.sequenceLength != null && evalData.sequenceLength > 0 && (
+        <div className="rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-claude-text">Sequence Coverage</h4>
+            <span className="text-[10px] font-mono font-medium" style={{ color: coverageColor }}>
+              Coverage: {coveragePct.toFixed(0)}%
+            </span>
+          </div>
+          <div className="h-2 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden relative">
+            {pdbStructures.length > 0 && pdbStructures.map((s, i) => {
+              // Simulate coverage segments - spread structures across the protein
+              const segmentWidth = Math.max(2, (coveragePct / pdbStructures.length));
+              const leftOffset = (i / pdbStructures.length) * (100 - segmentWidth);
+              return (
+                <motion.div
+                  key={`cov-${s.pdbId}-${i}`}
+                  initial={{ width: 0, opacity: 0 }}
+                  animate={{ width: `${segmentWidth}%`, opacity: 1 }}
+                  transition={{ duration: 0.4, delay: i * 0.05 }}
+                  className="absolute top-0 h-full rounded-full"
+                  style={{
+                    left: `${leftOffset}%`,
+                    backgroundColor: isDark ? '#d4784f' : '#c96442',
+                    opacity: 0.6 + (0.4 / pdbStructures.length) * (i + 1),
+                  }}
+                />
+              );
+            })}
+          </div>
+          <div className="flex items-center justify-between text-[9px] text-claude-text-muted">
+            <span>1</span>
+            <span className="font-mono">{evalData.sequenceLength} aa</span>
+          </div>
         </div>
       )}
 

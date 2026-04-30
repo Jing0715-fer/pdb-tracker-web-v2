@@ -1547,7 +1547,8 @@ Stage Summary:
 - Data Density Toggle
 - Interactive Onboarding Tour
 - Print-Friendly Report View
-- CSV Export
+- CSV Export → Multi-Format Export (CSV, JSON, JSON Full, Markdown, Clipboard)
+- Activity Heatmap (GitHub-style contribution graph)
 - Dark Mode with warm Claude aesthetic
 - Resizable Panels
 - Quality Score System
@@ -1563,17 +1564,280 @@ Stage Summary:
 - All API endpoints responding correctly
 - No console errors (except expected Molstar 404 for fake PDB IDs)
 - Lint passes cleanly
-- Component file is now ~6828 lines - refactoring into smaller components remains strongly recommended
+- Component file is now ~8043 lines - refactoring into smaller components remains strongly recommended
 
 ## Recommended Next Steps
-1. **Refactor pdb-tracker.tsx into smaller components** (top priority, file is ~6828 lines)
+1. **Refactor pdb-tracker.tsx into smaller components** (top priority, file is ~8043 lines)
 2. Add virtual scrolling for large datasets (performance)
 3. Add batch comparison (3+ weeks at once)
 4. Add PDB structure similarity search
 5. Add protein sequence alignment view
 6. Add data import/sync from live RCSB PDB API
 7. Add user preference persistence with Prisma
-8. Add data export in JSON and Excel formats
+8. Add Excel export format
 9. Add collaborative annotations/comments on PDB entries
 10. Add configurable dashboard layout (drag-and-drop widgets)
 11. Add AI-powered structure summary generation
+
+---
+Task ID: 3-a
+Agent: Feature Agent (Heatmap & Export)
+Task: Add Activity Heatmap and Multi-Format Export features
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx (~6828 lines) to understand current structure
+- **Part 1: Activity Heatmap (GitHub-style contribution graph)**
+  - Added `heatmapEntries` and `heatmapLoading` state for storing all entries across all weeks
+  - Added useEffect to fetch all entries (limit=1000) when heatmap tab is selected, with caching to avoid re-fetch
+  - Created `ActivityHeatmap` component with SVG-based GitHub-style contribution grid:
+    - Grid of colored squares: weeks as columns, days of week as rows
+    - Date range calculated from all snapshots (spans all 12 weeks of data)
+    - Adjusted start to previous Sunday and end to next Saturday for complete weeks
+    - Daily counts computed from entries mapped by release date
+    - Color intensity levels: empty=transparent/light, 1-2=light claude accent, 3-5=medium, 6-10=strong, 10+=claude accent
+    - Warm Claude color palette: #f0ece5, #fddcc8, #f5a67a, #e8744e, #c96442 (light mode)
+    - Dark mode colors: #2b2926, #8f5a3a, #c4644a, #d4784f, #e89f6a
+    - Month labels at the top (Jan, Feb, Mar...) detected from grid data
+    - Day-of-week labels on the left (Mon, Wed, Fri)
+    - Hover tooltip showing "X structures on YYYY-MM-DD" with dark background
+    - Legend: "Less" [□□□□■] "More" below the heatmap
+    - Summary: "X total structures · Y active days · Z avg/day"
+    - Weekly breakdown mini table showing bar chart per week
+    - Loading state with shimmer skeleton
+    - Empty state with Grid3x3 icon
+  - Added "Heatmap" tab trigger in preview panel (between Timeline and Full Report) with Grid3x3 icon
+  - Added heatmap tab content in renderPreviewPanel with AnimatePresence transition
+  - Only available in weekly mode; shows message in evaluation mode
+- **Part 2: Multi-Format Export (replacing simple CSV button)**
+  - Added `FileJson`, `ClipboardCopy`, `Table as TableIcon`, `Grid3x3` icon imports from lucide-react
+  - Added `DropdownMenuItem` to dropdown-menu import
+  - Created 4 new export handler functions:
+    1. `handleExportJson` — exports sortedEntries as formatted JSON array with pdbId, method, resolution, IF, organism, title, date, ligands, journal, doi, authors, ifTier
+    2. `handleExportJsonFull` — exports structured JSON with metadata (exportedAt, weekId, date range, snapshot stats, evaluation count, filters) + full entry details
+    3. `handleExportMarkdown` — exports as Markdown table with headers and separator row
+    4. `handleExportClipboard` — copies tab-separated values to clipboard for pasting into Excel/Sheets
+  - Replaced simple Export button with DropdownMenu:
+    - Trigger: button with Download icon + "Export" + ChevronDown
+    - Menu items: CSV, JSON, JSON (Full), Markdown Table, separator, Copy to Clipboard
+    - Each item has appropriate icon (FileText, FileJson, TableIcon, ClipboardCopy)
+    - Styled with text-xs and cursor-pointer
+  - Added toast notifications for each format: "Exported as {format}" with description
+  - Added notification system calls for each export
+  - Added all 5 export options to command palette (⌘K menu)
+- **Lint Fixes (pre-existing issues)**
+  - Fixed `useTypewriter` hook: replaced synchronous setState in effect body with callback-based setTimeout approach to satisfy react-hooks/set-state-in-effect rule
+  - Fixed `useTilt` hook usage in WeeklyStatCards: destructured return values at call site to satisfy react-hooks/refs rule (renamed tilt1→tilt1Ref etc. and used separate tilt1Style, tilt1Shine variables)
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Activity Heatmap with SVG-based GitHub-style contribution graph in preview panel
+- Multi-Format Export dropdown with CSV, JSON, JSON (Full), Markdown, and Clipboard options
+- All export formats generate proper data structures with appropriate filenames
+- Toast notifications and notification center entries for all exports
+- Heatmap shows all 12 weeks of data with warm Claude color palette
+- Dark mode fully supported in both features
+- Fixed pre-existing lint issues (useTypewriter and useTilt hooks)
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 3-b
+Agent: Feature Agent (Comparison & Presets)
+Task: Add PDB Structure Side-by-Side Comparison and Quick Filter Presets
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx to understand current structure (~6828 lines)
+- **Part 1: PDB Structure Side-by-Side Comparison (Feature 1)**
+  - Added `Columns`, `Sparkles`, `GitMerge` icon imports from lucide-react
+  - Added `entryComparison` state: `{ entryA: PdbEntry | null, entryB: PdbEntry | null }`
+  - Added `entryCompareModalOpen` state for controlling modal visibility
+  - Added `entryCompareCount` computed value for toolbar badge
+  - Added `toggleEntryCompare(entry)` callback with smart replacement logic:
+    - If clicking already-selected entry, deselect it (shift remaining entry)
+    - If one slot filled and clicking new entry, fill second slot and auto-open modal
+    - If both slots filled, replace entryB with new entry
+  - Added `clearEntryComparison()` callback
+  - Created `EntryComparisonModal` component with:
+    - Side-by-side entry header cards showing PDB ID + method badge
+    - VS divider between the two entries (accent-colored pill)
+    - Property comparison rows for all 9 properties (Method, Resolution, IF, Organism, Title, Journal, Authors, Ligands, Date)
+    - Grid layout: `[1fr_auto_1fr]` with center column for diff indicator (≠)
+    - Diff highlighting: green for better, red for worse, amber for different text
+    - Resolution: lower = better (green), higher = worse (red)
+    - IF: higher = better (green), lower = worse (red)
+    - Legend section at bottom explaining color coding
+    - Footer with "Comparing {id} vs {id}" text, "Clear Comparison" and "Close" buttons
+    - Escape key handler, backdrop click to close, AnimatePresence transitions
+    - Full dark mode support
+  - Added compare column to weekly table:
+    - Table header: empty th for bookmark column + th with GitMerge icon + tooltip for compare column
+    - Table body: GitMerge icon button after bookmark column
+    - Selected state: teal colored background (teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-900/20)
+    - Unselected state: hidden until hover (text-claude-text-muted/0 group-hover:text-claude-text-muted/40)
+    - Click handler with toast notifications for selection progress
+  - Added comparison count badge in toolbar filter chips area:
+    - Shows "Comparing 1/2" or "Comparing 2/2" with Columns icon
+    - Clickable: opens modal if 2 selected, shows "select one more" toast if 1 selected
+    - X button to clear comparison
+    - Styled with teal colors (bg-teal-50 dark:bg-teal-900/20)
+  - Updated skeleton table: added third empty header column for compare
+  - Rendered EntryComparisonModal in main component after ReportModal
+
+- **Part 2: Quick Filter Presets (Feature 2)**
+  - Added Presets dropdown button in weekly toolbar (using DropdownMenu with DropdownMenuItem)
+  - 7 preset filters:
+    1. "High Resolution" → Resolution ≤ 2.0Å (sets resolutionRange [0, 2.0])
+    2. "Top Journals" → IF ≥ 10 (sets ifRange [10, 50])
+    3. "Cryo-EM Only" → Method = Cryo-EM (sets methodFilter)
+    4. "X-ray Only" → Method = X-ray (sets methodFilter)
+    5. "Recent (7 days)" → Date filter for last 7 days (sets dateRange.from)
+    6. "With Ligands" → Entries with ligands (sets hasLigandsFilter)
+    7. "High Quality" → Quality score ≥ 70 (sets qualityFilter to 'high')
+  - Each preset shows colored icon and optional suffix label
+  - "Clear All Filters" destructive item at bottom (red styling)
+  - When preset is selected:
+    - Applies the appropriate filter state changes
+    - Opens advanced filter panel when relevant (setAdvancedFiltersOpen(true))
+    - Shows Sonner toast: "Applied preset: {name}" with description
+  - Added `hasLigandsFilter` state and filter logic:
+    - New state: `hasLigandsFilter` (boolean, default false)
+    - Filter in sortedEntries: checks ligands field is not null, has entries, and not all "N/A"
+    - Updated activeAdvancedFilterCount useMemo to include hasLigandsFilter
+    - Updated clearAdvancedFilters callback to reset hasLigandsFilter
+    - Updated sortedEntries dependency array
+  - Added "High (≥70)" quality filter option:
+    - New case in quality filter switch: `case 'high': return qs.total >= 70`
+    - Added SelectItem in advanced filters panel with emerald color dot
+    - Updated quality filter chip display to handle 'high' value
+  - Added "Has Ligands" checkbox in advanced filters panel after Quality Filter
+  - Added "With Ligands" filter chip in:
+    - Main toolbar filter chips area (rose/rose-50/rose-700 styling with Dna icon)
+    - Advanced filter panel active filter chips (same styling)
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- PDB entry side-by-side comparison modal with property diff highlighting
+- Compare icon column in weekly table rows with selection state
+- "Comparing X/2" badge in toolbar with click-to-open functionality
+- Quick filter presets dropdown with 7 preset options
+- "Clear All Filters" destructive button in presets dropdown
+- New "hasLigandsFilter" state with proper filter logic and UI controls
+- New "High (≥70)" quality filter tier
+- All new elements support dark mode
+- Uses existing Claude color palette and styling patterns
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 4-a, 4-b
+Agent: Style Enhancement Agent
+Task: Add ambient background, 3D tilt effect, typewriter text, radar chart, scroll progress
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx (~6828 lines) and globals.css to understand current structure
+- Enhancement 1: Ambient Animated Background - Added 3 CSS keyframes (ambient-orb-1/2/3) and floating gradient orbs behind main content
+- Enhancement 2: 3D Tilt Effect on Stat Cards - Created useTilt hook and TiltCard wrapper, applied to all 4 WeeklyStatCards
+- Enhancement 3: Typewriter Effect - Created useTypewriter hook and TypewriterText component, applied to empty state messages
+- Enhancement 4: Enhanced Evaluation Dashboard - Added RadarChart for score radar and sequence coverage bar with animated segments
+- Enhancement 5: Scroll Progress Indicator - Added thin progress bar at top of data table with scroll event tracking
+- Lint passes with no errors, dev server compiling successfully
+
+Stage Summary:
+- Ambient animated background with 3 floating gradient orbs and CSS keyframe animations
+- 3D tilt effect on stat cards with useTilt hook and TiltCard wrapper component
+- Typewriter text reveal animation for empty state messages with blinking cursor
+- Score radar chart in evaluation mode dashboard using recharts RadarChart
+- Protein sequence coverage bar visualization with animated segments
+- Scroll-linked progress indicator at top of data table
+- All enhancements support dark mode, all existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 15
+Agent: Main Agent (QA & Coordination - Round 10)
+Task: Assess project state, perform QA testing, add new features and style enhancements
+
+Work Log:
+- Read worklog.md to understand prior work (9 rounds of development, ~6828 line component)
+- Performed QA with agent-browser - no bugs found, all features working
+- Lint passes cleanly
+- Coordinated 3 parallel enhancement sub-agents:
+  1. Task 3-a: Activity Heatmap + Multi-format Export
+  2. Task 3-b: PDB Structure Side-by-Side Comparison + Quick Filter Presets
+  3. Task 4-a/4-b: Ambient background + 3D tilt + Typewriter + Enhanced eval + Scroll progress
+- Final QA: All features verified, dark mode working, no page errors, lint passes
+
+Stage Summary:
+- Added GitHub-style Activity Heatmap tab in preview panel with SVG grid, color intensity levels, tooltips, and summary stats
+- Added Multi-format Export dropdown (CSV, JSON, JSON Full, Markdown Table, Clipboard) replacing simple Export button
+- Added PDB Entry Side-by-Side Comparison with smart diff highlighting (green=better, red=worse)
+- Added Quick Filter Presets dropdown (High Resolution, Top Journals, Cryo-EM Only, X-ray Only, Recent 7 days, With Ligands, High Quality)
+- Added Ambient Animated Background with 3 floating gradient orbs
+- Added 3D Tilt Effect on stat cards with useTilt hook and shine overlay
+- Added Typewriter Effect for empty state messages with useTypewriter hook
+- Added Radar Chart for evaluation score visualization
+- Added Protein Sequence Coverage Bar visualization in evaluation mode
+- Added Scroll-Linked Progress Indicator at top of data table
+- Added Has Ligands filter and High Quality filter tier
+- All new elements support dark mode
+
+## Project Current State (Round 10)
+
+**Status: Feature-Rich & Production-Ready**
+
+### New Features Added This Round:
+- **Activity Heatmap**: GitHub-style contribution graph in preview panel Heatmap tab
+- **Multi-Format Export**: CSV, JSON, JSON (Full), Markdown Table, Clipboard copy
+- **PDB Entry Comparison**: Side-by-side comparison with smart diff highlighting
+- **Quick Filter Presets**: 7 preset filters with one-click application
+- **Has Ligands Filter**: New filter for entries with ligand data
+- **High Quality Filter**: New quality tier (≥70) in advanced filters
+
+### New Style Enhancements This Round:
+- **Ambient Animated Background**: 3 floating gradient orbs with blur
+- **3D Tilt Effect**: Mouse-tracking perspective tilt on stat cards
+- **Typewriter Effect**: Character-by-character reveal for empty states
+- **Radar Chart**: Score radar visualization in evaluation mode
+- **Coverage Bar**: Protein sequence coverage visualization
+- **Scroll Progress**: 2px gradient progress bar at table top
+
+### Complete Feature List (Abbreviated):
+- Weekly browsing (12 weeks, 684 structures) + Evaluation mode (8 proteins)
+- 10+ interactive charts (donut, bar, area, scatter, timeline, heatmap, radar, comparison)
+- 3D Molecular Viewer (Molstar) with graceful fallback
+- Row Detail Panel with notes, quality score, 3D viewer
+- Week Comparison + Week Diff View + PDB Entry Side-by-Side Comparison
+- Smart Search with auto-suggestions and history
+- Batch Operations + Command Palette + Share View
+- Notification Center + Bookmark/Favorites + PDB Entry Notes
+- Quick Filter Presets + Advanced Filter Panel + Column Visibility
+- Multi-format Export (CSV/JSON/Markdown/Clipboard)
+- Activity Heatmap (GitHub-style)
+- Statistics Summary Cards with animated counters
+- Data Density Toggle + Resizable Panels + Quality Score System
+- Interactive Onboarding Tour + Print-Friendly Report
+- Dark Mode with warm Claude aesthetic
+
+### Technical Stack:
+- Next.js 16 + TypeScript + Prisma + SQLite
+- recharts + molstar + framer-motion + next-themes
+- cmdk + vaul + sonner + Tailwind CSS 4 + shadcn/ui
+
+## Unresolved Issues / Risks
+- None identified during QA testing
+- All API endpoints responding correctly
+- Only console errors are expected Molstar 404s for mock PDB IDs
+- Lint passes cleanly
+- Component file is now ~8038 lines - refactoring into smaller components is strongly recommended
+
+## Recommended Next Steps
+1. **Refactor pdb-tracker.tsx into smaller components** (top priority, file is ~8038 lines)
+2. Add virtual scrolling for large datasets (performance)
+3. Add data import/sync from live RCSB PDB API
+4. Add collaborative annotations/comments on PDB entries
+5. Add configurable drag-and-drop dashboard layout
+6. Add AI-powered structure summary generation
+7. Add protein sequence alignment view
+8. Add responsive mobile detail panel improvements
