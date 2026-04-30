@@ -106,6 +106,68 @@
   --sidebar-ring: #c96442;
 }
 
+.dark {
+  --background: #1a1917;
+  --foreground: #e8e4dd;
+  --card: #242220;
+  --card-foreground: #e8e4dd;
+  --popover: #242220;
+  --popover-foreground: #e8e4dd;
+  --primary: #d4784f;
+  --primary-foreground: #ffffff;
+  --secondary: #2b2926;
+  --secondary-foreground: #e8e4dd;
+  --muted: #2b2926;
+  --muted-foreground: #9b9590;
+  --accent: #2b2926;
+  --accent-foreground: #e8e4dd;
+  --destructive: #ef4444;
+  --border: #3d3832;
+  --input: #3d3832;
+  --ring: #d4784f;
+  --chart-1: #d4784f;
+  --chart-2: #3db5b5;
+  --chart-3: #9b7ed8;
+  --chart-4: #d9a24e;
+  --chart-5: #9b9590;
+  --sidebar: #242220;
+  --sidebar-foreground: #e8e4dd;
+  --sidebar-primary: #d4784f;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2b2926;
+  --sidebar-accent-foreground: #e8e4dd;
+  --sidebar-border: #3d3832;
+  --sidebar-ring: #d4784f;
+
+  /* Dark mode Claude custom colors */
+  --color-claude-bg: #1a1917;
+  --color-claude-surface: #242220;
+  --color-claude-border: #3d3832;
+  --color-claude-border-light: #2b2926;
+  --color-claude-text: #e8e4dd;
+  --color-claude-text-secondary: #9b9590;
+  --color-claude-text-muted: #6b6560;
+  --color-claude-accent: #d4784f;
+  --color-claude-accent-hover: #e08a62;
+  --color-claude-accent-light: #3d2a22;
+  --color-claude-cryoem: #3db5b5;
+  --color-claude-cryoem-bg: #1a2e2e;
+  --color-claude-xray: #9b7ed8;
+  --color-claude-xray-bg: #28203a;
+  --color-claude-nmr: #d9a24e;
+  --color-claude-nmr-bg: #302818;
+  --color-claude-other: #9b9590;
+  --color-claude-other-bg: #2b2926;
+  --color-claude-top: #ef6b6b;
+  --color-claude-top-bg: #2e1a1a;
+  --color-claude-high: #f09040;
+  --color-claude-high-bg: #2e2218;
+  --color-claude-mid: #3dbb5e;
+  --color-claude-mid-bg: #1a2e1e;
+  --color-claude-low: #9b9590;
+  --color-claude-low-bg: #2b2926;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -135,6 +197,14 @@
   background: #b8b2aa;
 }
 
+.dark .custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #4a4540;
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #5a5550;
+}
+
 /* Markdown content styles */
 .markdown-content h1 {
   font-size: 1.5rem;
@@ -142,6 +212,10 @@
   margin-bottom: 0.75rem;
   margin-top: 1.5rem;
   color: #1a1a1a;
+}
+
+.dark .markdown-content h1 {
+  color: #e8e4dd;
 }
 
 .markdown-content h2 {
@@ -152,6 +226,10 @@
   color: #1a1a1a;
 }
 
+.dark .markdown-content h2 {
+  color: #e8e4dd;
+}
+
 .markdown-content h3 {
   font-size: 1.1rem;
   font-weight: 600;
@@ -160,10 +238,18 @@
   color: #1a1a1a;
 }
 
+.dark .markdown-content h3 {
+  color: #e8e4dd;
+}
+
 .markdown-content p {
   margin-bottom: 0.75rem;
   line-height: 1.7;
   color: #3d3832;
+}
+
+.dark .markdown-content p {
+  color: #9b9590;
 }
 
 .markdown-content ul, .markdown-content ol {
@@ -175,6 +261,10 @@
   margin-bottom: 0.25rem;
   line-height: 1.6;
   color: #3d3832;
+}
+
+.dark .markdown-content li {
+  color: #9b9590;
 }
 
 .markdown-content table {
@@ -190,10 +280,19 @@
   text-align: left;
 }
 
+.dark .markdown-content th, .dark .markdown-content td {
+  border-color: #3d3832;
+}
+
 .markdown-content th {
   background: #f5f0ea;
   font-weight: 600;
   color: #1a1a1a;
+}
+
+.dark .markdown-content th {
+  background: #2b2926;
+  color: #e8e4dd;
 }
 
 .markdown-content blockquote {
@@ -204,12 +303,21 @@
   font-style: italic;
 }
 
+.dark .markdown-content blockquote {
+  border-left-color: #d4784f;
+  color: #6b6560;
+}
+
 .markdown-content code {
   background: #f5f0ea;
   padding: 0.125rem 0.375rem;
   border-radius: 4px;
   font-size: 0.85em;
   font-family: var(--font-geist-mono), monospace;
+}
+
+.dark .markdown-content code {
+  background: #2b2926;
 }
 
 .markdown-content pre {
@@ -232,6 +340,10 @@
   color: #1a1a1a;
 }
 
+.dark .markdown-content strong {
+  color: #e8e4dd;
+}
+
 /* Smooth transitions */
 .claude-transition {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -245,6 +357,10 @@
 .claude-hover:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
   transform: translateY(-1px);
+}
+
+.dark .claude-hover:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 /* Score bar animation */
@@ -264,6 +380,10 @@
 
 .table-row-hover:hover {
   background-color: #fdfcfa;
+}
+
+.dark .table-row-hover:hover {
+  background-color: #2b2926;
 }
 
 /* Ligand chip */
@@ -286,4 +406,16 @@
   background: #e8e2d8;
   color: #3d3832;
   border-color: #d4cfc8;
+}
+
+.dark .ligand-chip {
+  background: #2b2926;
+  color: #9b9590;
+  border-color: #3d3832;
+}
+
+.dark .ligand-chip:hover {
+  background: #3d3832;
+  color: #e8e4dd;
+  border-color: #4a4540;
 }

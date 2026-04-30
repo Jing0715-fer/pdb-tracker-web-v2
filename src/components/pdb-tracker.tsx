@@ -27,6 +27,10 @@ import {
   Menu,
   Dna,
   ArrowLeft,
+  Moon,
+  Sun,
+  Download,
+  Keyboard,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,6 +58,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { useTheme } from 'next-themes';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -347,7 +353,7 @@ function LigandTooltipContent({ ligand }: { ligand: LigandInfo }) {
         <img
           src={ligand.imageUrl}
           alt={ligand.name}
-          className="w-24 h-24 rounded-md bg-white border border-claude-border flex-shrink-0 object-contain p-1"
+          className="w-24 h-24 rounded-md bg-white dark:bg-[#1a1917] border border-claude-border flex-shrink-0 object-contain p-1"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <div className="flex-1 min-w-0">
@@ -471,7 +477,7 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={{ duration: 0.2 }}
-            className="bg-white rounded-[10px] shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] flex flex-col"
+            className="bg-white dark:bg-[#242220] rounded-[10px] shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-claude-border">
@@ -527,7 +533,7 @@ function Pagination({
   };
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 border-t border-claude-border bg-white">
+    <div className="flex items-center justify-between px-4 py-3 border-t border-claude-border bg-white dark:bg-[#242220]">
       <span className="text-[11px] text-claude-text-muted">
         Showing <span className="font-mono font-medium text-claude-text-secondary">{start}</span>–<span className="font-mono font-medium text-claude-text-secondary">{end}</span> of <span className="font-mono font-medium text-claude-text-secondary">{totalItems}</span> entries
       </span>
@@ -535,7 +541,7 @@ function Pagination({
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white text-claude-text-secondary hover:bg-claude-border-light transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
           Prev
@@ -550,7 +556,7 @@ function Pagination({
               className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium transition-colors duration-150 ${
                 page === p
                   ? 'bg-claude-accent text-white shadow-sm'
-                  : 'border border-claude-border bg-white text-claude-text-secondary hover:bg-claude-border-light'
+                  : 'border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
               }`}
             >
               {p}
@@ -560,7 +566,7 @@ function Pagination({
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white text-claude-text-secondary hover:bg-claude-border-light transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Next
           <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
@@ -638,6 +644,35 @@ export default function PdbTracker() {
   const [loadingEvalDetail, setLoadingEvalDetail] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Theme ──
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  // ── Keyboard Shortcuts ──
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const isMod = e.metaKey || e.ctrlKey;
+      if (isMod && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (isMod && e.key === 'e') {
+        e.preventDefault();
+        setMode(prev => prev === 'weekly' ? 'evaluation' : 'weekly');
+      }
+      if (e.key === 'Escape') {
+        if (searchQuery) {
+          setSearchQuery('');
+          searchInputRef.current?.blur();
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchQuery]);
 
   // ── Reset page on filter/sort change ──
   useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId]);
@@ -870,6 +905,36 @@ export default function PdbTracker() {
     } catch { return 0; }
   }
 
+  // ── CSV Export ──
+  const handleExportCsv = useCallback(() => {
+    if (!sortedEntries.length) return;
+    const headers = ['PDB ID', 'Method', 'Resolution', 'IF', 'Organism', 'Title', 'Date', 'Ligands'];
+    const escapeCsv = (val: string) => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n')) {
+        return `"${val.replace(/"/g, '""')}"`;
+      }
+      return val;
+    };
+    const rows = sortedEntries.map(entry => [
+      escapeCsv(entry.pdbId),
+      escapeCsv(getMethodLabel(entry.method)),
+      entry.resolution != null ? String(entry.resolution) : '',
+      entry.journalIf != null ? String(entry.journalIf) : '',
+      escapeCsv(entry.organisms || ''),
+      escapeCsv(entry.title || ''),
+      escapeCsv(entry.releaseDate || ''),
+      escapeCsv(entry.ligands || ''),
+    ].join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pdb-structures-${selectedWeekId || 'export'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [sortedEntries, selectedWeekId]);
+
   // ── Sort Icon ──
   function SortIcon({ field }: { field: string }) {
     if (sortField !== field) return <ArrowUpDown className="h-3 w-3 text-claude-text-muted/50" />;
@@ -887,7 +952,7 @@ export default function PdbTracker() {
       <div className="flex flex-col h-full w-full overflow-hidden">
 
         {/* ═══════════ HEADER BAR ═══════════ */}
-        <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white border-b border-claude-border relative z-20">
+        <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20">
           {/* Gradient border at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-claude-cryoem via-claude-accent to-claude-xray" />
           <div className="flex items-center gap-3">
@@ -900,10 +965,58 @@ export default function PdbTracker() {
             </div>
           </div>
 
+          {/* Keyboard Shortcuts Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <button
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                aria-label="Keyboard shortcuts"
+              >
+                <Keyboard className="h-4 w-4 text-claude-text-secondary" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent side="bottom" align="end" className="w-56 p-3">
+              <div className="text-xs font-semibold text-claude-text mb-2">Keyboard Shortcuts</div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-claude-text-secondary">Focus search</span>
+                  <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
+                    <span className="text-[9px]">⌘</span>K
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-claude-text-secondary">Toggle mode</span>
+                  <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
+                    <span className="text-[9px]">⌘</span>E
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-claude-text-secondary">Clear search</span>
+                  <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
+                    Esc
+                  </kbd>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Dark mode toggle */}
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+            aria-label="Toggle dark mode"
+          >
+            {mounted && theme === 'dark' ? (
+              <Sun className="h-4 w-4 text-claude-text-secondary" />
+            ) : (
+              <Moon className="h-4 w-4 text-claude-text-secondary" />
+            )}
+          </button>
+
           {/* Mobile hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="ml-auto md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light transition-colors duration-150"
+            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
           >
             <Menu className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -911,7 +1024,7 @@ export default function PdbTracker() {
           {/* Mobile preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light transition-colors duration-150"
+            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
           >
             <BarChart3 className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -921,7 +1034,7 @@ export default function PdbTracker() {
 
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar */}
-          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white flex-col">
+          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col">
             {renderSidebar()}
           </aside>
 
@@ -942,7 +1055,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: -280 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] bg-white border-r border-claude-border flex flex-col md:hidden"
+                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] bg-white dark:bg-[#242220] border-r border-claude-border flex flex-col md:hidden"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border">
                     <span className="text-xs font-semibold text-claude-text">Navigation</span>
@@ -959,7 +1072,7 @@ export default function PdbTracker() {
           {/* ═══════════ MAIN AREA ═══════════ */}
           <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
             {/* Toolbar */}
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-claude-border bg-white/80 backdrop-blur-sm">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-claude-border bg-white/80 dark:bg-[#242220]/80 backdrop-blur-sm">
               {mode === 'weekly' ? (
                 <>
                   {/* Week Select */}
@@ -995,11 +1108,12 @@ export default function PdbTracker() {
                   <div className="relative flex-1 max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
                     <input
+                      ref={searchInputRef}
                       type="text"
                       placeholder="Search PDB ID, title, journal..."
                       value={searchQuery}
                       onChange={e => setSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
+                      className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
                     />
                     {searchQuery && (
                       <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2">
@@ -1008,10 +1122,39 @@ export default function PdbTracker() {
                     )}
                   </div>
 
-                  {/* Count */}
+                  {/* Active Filter Chips */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {methodFilter !== 'all' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                        Method: {getMethodLabel(methodFilter === 'Cryo-EM' ? 'CRYO-EM' : methodFilter === 'X-RAY DIFFRACTION' ? 'X-RAY DIFFRACTION' : methodFilter === 'SOLUTION NMR' ? 'SOLUTION NMR' : methodFilter)}
+                        <button onClick={() => setMethodFilter('all')} className="hover:text-claude-accent/80 transition-colors">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {searchQuery && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                        Search: {searchQuery.length > 12 ? searchQuery.slice(0, 12) + '…' : searchQuery}
+                        <button onClick={() => setSearchQuery('')} className="hover:text-claude-accent/80 transition-colors">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Count & Export */}
                   <span className="text-[10px] text-claude-text-muted ml-auto whitespace-nowrap">
                     {entries.length} structures
                   </span>
+                  {sortedEntries.length > 0 && (
+                    <button
+                      onClick={handleExportCsv}
+                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                    >
+                      <Download className="h-3 w-3" />
+                      Export
+                    </button>
+                  )}
                 </>
               ) : (
                 <>
@@ -1047,7 +1190,7 @@ export default function PdbTracker() {
                 loadingEntries ? (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-[#faf8f5]">
+                      <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {['PDB ID','Method','Resolution','IF','Organism','Title','Date','Ligands'].map(h => (
                           <th key={h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
                             {h}
@@ -1068,7 +1211,7 @@ export default function PdbTracker() {
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-[#faf8f5]">
+                      <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: 'method', label: 'Method', w: 'w-[90px]' },
@@ -1082,7 +1225,7 @@ export default function PdbTracker() {
                           <th
                             key={col.field}
                             onClick={() => col.field !== '_ligands' && handleSort(col.field)}
-                            className={`px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide ${col.w} ${col.field !== '_ligands' ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
+                            className={`px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 ${col.w} ${col.field !== '_ligands' ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
                           >
                             <span className="inline-flex items-center gap-1">
                               {col.label}
@@ -1093,13 +1236,19 @@ export default function PdbTracker() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedEntries.map(entry => {
+                      {paginatedEntries.map((entry, idx) => {
                         const mc = getMethodColor(entry.method);
                         const ligandList = parseLigands(entry.ligands);
                         const ifStyle = getIfTierStyle(entry.ifTier);
 
                         return (
-                          <tr key={entry.pdbId} className="table-row-hover border-b border-claude-border-light">
+                          <motion.tr
+                            key={entry.pdbId}
+                            initial={{ opacity: 0, y: 4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
+                            className="table-row-hover border-b border-claude-border-light hover:shadow-md"
+                          >
                             <td className="px-3 py-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1199,7 +1348,7 @@ export default function PdbTracker() {
                                 )}
                               </div>
                             </td>
-                          </tr>
+                          </motion.tr>
                         );
                       })}
                     </tbody>
@@ -1216,7 +1365,7 @@ export default function PdbTracker() {
                 ) : loadingEvalDetail ? (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-[#faf8f5]">
+                      <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {['PDB ID','Type','Method','Resolution','IF','Title / Description','Date'].map(h => (
                           <th key={h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
                             {h}
@@ -1231,7 +1380,7 @@ export default function PdbTracker() {
                 ) : (
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-[#faf8f5]">
+                      <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: '_type', label: 'Type', w: 'w-[70px]' },
@@ -1244,7 +1393,7 @@ export default function PdbTracker() {
                           <th
                             key={col.field}
                             onClick={() => !['_type', '_ligands'].includes(col.field) && handleSort(col.field)}
-                            className={`px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
+                            className={`px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
                           >
                             <span className="inline-flex items-center gap-1">
                               {col.label}
@@ -1373,7 +1522,7 @@ export default function PdbTracker() {
                 animate={{ width: 380, opacity: 1 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2 }}
-                className="hidden md:flex flex-shrink-0 border-l border-claude-border bg-white overflow-hidden"
+                className="hidden md:flex flex-shrink-0 border-l border-claude-border bg-white dark:bg-[#242220] overflow-hidden"
               >
                 {renderPreviewPanel()}
               </motion.aside>
@@ -1397,7 +1546,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: 380 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white border-l border-claude-border flex flex-col md:hidden"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col md:hidden"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border">
                     <span className="text-xs font-semibold text-claude-text">Details</span>
@@ -1413,7 +1562,7 @@ export default function PdbTracker() {
         </div>
 
         {/* ═══════════ FOOTER ═══════════ */}
-        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white text-[10px] text-claude-text-muted">
+        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted">
           <span>PDB Structure Tracker &copy; 2025</span>
           <span>·</span>
           <a
@@ -1449,7 +1598,7 @@ export default function PdbTracker() {
               onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                 mode === 'weekly'
-                  ? 'bg-white text-claude-text shadow-sm'
+                  ? 'bg-white dark:bg-[#2b2926] text-claude-text shadow-sm'
                   : 'text-claude-text-muted hover:text-claude-text-secondary'
               }`}
             >
@@ -1460,7 +1609,7 @@ export default function PdbTracker() {
               onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                 mode === 'evaluation'
-                  ? 'bg-white text-claude-text shadow-sm'
+                  ? 'bg-white dark:bg-[#2b2926] text-claude-text shadow-sm'
                   : 'text-claude-text-muted hover:text-claude-text-secondary'
               }`}
             >
@@ -1504,10 +1653,10 @@ export default function PdbTracker() {
                     <button
                       key={snap.weekId}
                       onClick={() => setSelectedWeekId(snap.weekId)}
-                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-150 claude-hover ${
+                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
                         isSelected
                           ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent'
-                          : 'bg-white border-claude-border hover:border-claude-border-light'
+                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540]'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-1.5">
@@ -1570,7 +1719,7 @@ export default function PdbTracker() {
                     <button
                       key={report.id}
                       onClick={() => openReport(report.id, report.title || 'Weekly Report')}
-                      className="w-full text-left p-2.5 rounded-lg border border-claude-border bg-white hover:bg-claude-border-light transition-all duration-150 claude-hover flex items-start gap-2"
+                      className="w-full text-left p-2.5 rounded-lg border border-claude-border bg-white dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover flex items-start gap-2"
                     >
                       <FileText className="h-3.5 w-3.5 text-claude-accent mt-0.5 flex-shrink-0" />
                       <div className="min-w-0">
@@ -1604,7 +1753,7 @@ export default function PdbTracker() {
                   placeholder="Search proteins..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
                 />
               </div>
 
@@ -1622,10 +1771,10 @@ export default function PdbTracker() {
                     <button
                       key={ev.uniprotId}
                       onClick={() => setSelectedEvalId(ev.uniprotId)}
-                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-150 claude-hover ${
+                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
                         selectedEvalId === ev.uniprotId
                           ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent'
-                          : 'bg-white border-claude-border hover:border-claude-border-light'
+                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540]'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
@@ -1667,11 +1816,11 @@ export default function PdbTracker() {
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col">
         <div className="px-4 pt-3 border-b border-claude-border">
           <TabsList className="w-full h-8 bg-claude-border-light p-0.5">
-            <TabsTrigger value="summary" className="flex-1 text-xs h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <TabsTrigger value="summary" className="flex-1 text-xs h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <BarChart3 className="h-3 w-3 mr-1" />
               Summary
             </TabsTrigger>
-            <TabsTrigger value="report" className="flex-1 text-xs h-7 data-[state=active]:bg-white data-[state=active]:shadow-sm">
+            <TabsTrigger value="report" className="flex-1 text-xs h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
               <FileText className="h-3 w-3 mr-1" />
               Full Report
             </TabsTrigger>
@@ -1681,7 +1830,7 @@ export default function PdbTracker() {
         <ScrollArea className="flex-1">
           {previewTab === 'summary' ? (
             mode === 'weekly' && selectedSnapshot ? (
-              <WeeklySummary snapshot={selectedSnapshot} />
+              <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} />
             ) : mode === 'evaluation' && selectedEval ? (
               <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
             ) : (
@@ -1698,7 +1847,7 @@ export default function PdbTracker() {
                   <button
                     key={report.id}
                     onClick={() => openReport(report.id, report.title || 'Weekly Report')}
-                    className="w-full text-left p-3 rounded-[10px] border border-claude-border bg-white hover:bg-claude-border-light transition-all duration-150 claude-hover"
+                    className="w-full text-left p-3 rounded-[10px] border border-claude-border bg-white dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <FileText className="h-3.5 w-3.5 text-claude-accent" />
@@ -1727,9 +1876,33 @@ export default function PdbTracker() {
   }
 }
 
-// ─── Weekly Summary Sub-Component (Enhanced) ─────────────────────────────────
+// ─── Weekly Summary Sub-Component (Enhanced with Charts) ─────────────────────
 
-function WeeklySummary({ snapshot }: { snapshot: WeeklySnapshot }) {
+const METHOD_COLORS: Record<string, string> = {
+  'Cryo-EM': '#2d8f8f',
+  'X-ray': '#7c5cbf',
+  'NMR': '#c9872e',
+  'Other': '#6b7280',
+};
+
+const RESOLUTION_RANGES = [
+  { label: '≤1.5Å', min: 0, max: 1.5, color: '#16a34a' },
+  { label: '1.5-2.0Å', min: 1.5, max: 2.0, color: '#2d8f8f' },
+  { label: '2.0-2.5Å', min: 2.0, max: 2.5, color: '#7c5cbf' },
+  { label: '2.5-3.0Å', min: 2.5, max: 3.0, color: '#c9872e' },
+  { label: '3.0-3.5Å', min: 3.0, max: 3.5, color: '#ea580c' },
+  { label: '>3.5Å', min: 3.5, max: Infinity, color: '#dc2626' },
+];
+
+const IF_TIER_COLORS: Record<string, string> = {
+  top: '#dc2626',
+  high: '#ea580c',
+  mid: '#16a34a',
+  low: '#6b7280',
+  unknown: '#9b9590',
+};
+
+function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snapshots: WeeklySnapshot[] }) {
   const topJournals = useMemo(() => {
     try { return snapshot.topJournals ? JSON.parse(snapshot.topJournals) : []; }
     catch { return []; }
@@ -1750,7 +1923,64 @@ function WeeklySummary({ snapshot }: { snapshot: WeeklySnapshot }) {
     catch { return null; }
   }, [snapshot.xrayResDist]);
 
-  // Method distribution data for bar chart
+  // Method distribution data for donut chart
+  const methodPieData = useMemo(() => [
+    { name: 'Cryo-EM', value: snapshot.cryoemCount, color: METHOD_COLORS['Cryo-EM'] },
+    { name: 'X-ray', value: snapshot.xrayCount, color: METHOD_COLORS['X-ray'] },
+    { name: 'NMR', value: snapshot.nmrCount, color: METHOD_COLORS['NMR'] },
+    { name: 'Other', value: snapshot.otherCount, color: METHOD_COLORS['Other'] },
+  ].filter(d => d.value > 0), [snapshot]);
+
+  // Resolution distribution data for horizontal bar chart
+  const resolutionBarData = useMemo(() => {
+    const data: { range: string; count: number; color: string }[] = [];
+    const combinedDist: Record<string, number> = {};
+
+    if (xrayResDist) {
+      for (const [range, count] of Object.entries(xrayResDist)) {
+        combinedDist[range] = (combinedDist[range] || 0) + (count as number);
+      }
+    }
+    if (cryoemResDist) {
+      for (const [range, count] of Object.entries(cryoemResDist)) {
+        combinedDist[range] = (combinedDist[range] || 0) + (count as number);
+      }
+    }
+
+    // Map the combined distribution to the standard ranges
+    for (const r of RESOLUTION_RANGES) {
+      const count = combinedDist[r.label.replace('Å', '')] || combinedDist[r.label] || 0;
+      data.push({ range: r.label, count, color: r.color });
+    }
+
+    // If no distribution data from API, return empty but with labels
+    return data;
+  }, [xrayResDist, cryoemResDist]);
+
+  // IF Tier distribution data for bar chart
+  const ifTierBarData = useMemo(() => {
+    if (!ifDist) return [];
+    return [
+      { tier: 'Top', count: ifDist.top || 0, color: IF_TIER_COLORS.top },
+      { tier: 'High', count: ifDist.high || 0, color: IF_TIER_COLORS.high },
+      { tier: 'Mid', count: ifDist.mid || 0, color: IF_TIER_COLORS.mid },
+      { tier: 'Low', count: ifDist.low || 0, color: IF_TIER_COLORS.low },
+    ];
+  }, [ifDist]);
+
+  // Weekly trends data for area chart
+  const weeklyTrendData = useMemo(() => {
+    if (!snapshots || snapshots.length === 0) return [];
+    return [...snapshots]
+      .sort((a, b) => a.weekStart.localeCompare(b.weekStart))
+      .map(s => ({
+        week: s.weekId.replace('W', ' W'),
+        total: s.totalStructures,
+        cryoem: s.cryoemCount,
+        xray: s.xrayCount,
+      }));
+  }, [snapshots]);
+
   const methodData = [
     { label: 'Cryo-EM', count: snapshot.cryoemCount, color: '#2d8f8f', bg: '#e8f5f5' },
     { label: 'X-ray', count: snapshot.xrayCount, color: '#7c5cbf', bg: '#f0ebf8' },
@@ -1790,9 +2020,155 @@ function WeeklySummary({ snapshot }: { snapshot: WeeklySnapshot }) {
         </div>
       </div>
 
-      {/* Method Distribution - Bar Chart Style */}
+      {/* ─── Chart 1: Method Distribution Donut Chart ─── */}
+      {methodPieData.length > 0 && (
+        <div className="bg-claude-bg/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text mb-2">Method Distribution</h4>
+          <div className="flex items-center gap-3">
+            <div className="w-[120px] h-[120px] flex-shrink-0">
+              <ResponsiveContainer width="100%" height={120}>
+                <PieChart>
+                  <Pie
+                    data={methodPieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={28}
+                    outerRadius={52}
+                    paddingAngle={2}
+                    dataKey="value"
+                    stroke="none"
+                    animationBegin={0}
+                    animationDuration={600}
+                  >
+                    {methodPieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RTooltip
+                    formatter={(value: number, name: string) => [`${value} structures`, name]}
+                    contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="flex-1 space-y-1.5">
+              {methodPieData.map(item => {
+                const pct = snapshot.totalStructures > 0 ? (item.value / snapshot.totalStructures) * 100 : 0;
+                return (
+                  <div key={item.name} className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                    <span className="text-[10px] text-claude-text-secondary flex-1">{item.name}</span>
+                    <span className="text-[10px] font-mono text-claude-text-muted">{item.value}</span>
+                    <span className="text-[9px] text-claude-text-muted">({pct.toFixed(0)}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Chart 2: Resolution Distribution Bar Chart ─── */}
+      {resolutionBarData.some(d => d.count > 0) && (
+        <div className="bg-claude-bg/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution Distribution</h4>
+          <ResponsiveContainer width="100%" height={120}>
+            <BarChart data={resolutionBarData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
+              <XAxis type="number" tick={{ fontSize: 9, fill: '#9b9590' }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="range" tick={{ fontSize: 9, fill: '#7c756e' }} axisLine={false} tickLine={false} width={52} />
+              <RTooltip
+                formatter={(value: number) => [`${value} structures`, 'Count']}
+                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+              />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} animationDuration={600}>
+                {resolutionBarData.map((entry, index) => (
+                  <Cell key={`res-cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Average Resolution */}
+      <div className="grid grid-cols-2 gap-2">
+        {snapshot.cryoemAvgRes != null && (
+          <div className="p-3 rounded-lg bg-claude-cryoem-bg/30">
+            <div className="text-[10px] text-claude-cryoem/70 mb-0.5">Cryo-EM Avg Res</div>
+            <div className="text-sm font-mono font-semibold text-claude-cryoem">{snapshot.cryoemAvgRes.toFixed(2)}Å</div>
+          </div>
+        )}
+        {snapshot.xrayAvgRes != null && (
+          <div className="p-3 rounded-lg bg-claude-xray-bg/30">
+            <div className="text-[10px] text-claude-xray/70 mb-0.5">X-ray Avg Res</div>
+            <div className="text-sm font-mono font-semibold text-claude-xray">{snapshot.xrayAvgRes.toFixed(2)}Å</div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── Chart 3: Impact Factor Tier Distribution ─── */}
+      {ifTierBarData.length > 0 && ifTierBarData.some(d => d.count > 0) && (
+        <div className="bg-claude-bg/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text mb-2">Impact Factor Tiers</h4>
+          <ResponsiveContainer width="100%" height={100}>
+            <BarChart data={ifTierBarData} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
+              <XAxis dataKey="tier" tick={{ fontSize: 9, fill: '#7c756e' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: '#9b9590' }} axisLine={false} tickLine={false} width={24} />
+              <RTooltip
+                formatter={(value: number) => [`${value} structures`, 'Count']}
+                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+              />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} animationDuration={600}>
+                {ifTierBarData.map((entry, index) => (
+                  <Cell key={`if-cell-${index}`} fill={entry.color} />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ─── Chart 4: Weekly Trends Mini Area Chart ─── */}
+      {weeklyTrendData.length > 1 && (
+        <div className="bg-claude-bg/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text mb-2">Weekly Trends</h4>
+          <ResponsiveContainer width="100%" height={100}>
+            <AreaChart data={weeklyTrendData} margin={{ top: 2, right: 10, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#c4644a" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#c4644a" stopOpacity={0.02} />
+                </linearGradient>
+              </defs>
+              <XAxis
+                dataKey="week"
+                tick={{ fontSize: 8, fill: '#9b9590' }}
+                axisLine={false}
+                tickLine={false}
+                interval={Math.max(0, Math.floor(weeklyTrendData.length / 4) - 1)}
+              />
+              <YAxis tick={{ fontSize: 8, fill: '#9b9590' }} axisLine={false} tickLine={false} width={28} />
+              <RTooltip
+                formatter={(value: number) => [`${value} structures`, 'Total']}
+                labelFormatter={(label: string) => `Week ${label}`}
+                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
+              />
+              <Area
+                type="monotone"
+                dataKey="total"
+                stroke="#c4644a"
+                strokeWidth={1.5}
+                fill="url(#trendGradient)"
+                animationDuration={600}
+              />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* Method Distribution - Bar Chart Style (fallback detail) */}
       <div>
-        <h4 className="text-xs font-semibold text-claude-text mb-3">Method Distribution</h4>
+        <h4 className="text-xs font-semibold text-claude-text mb-3">Method Details</h4>
         <div className="space-y-2">
           {methodData.map(item => {
             const pct = snapshot.totalStructures > 0 ? (item.count / snapshot.totalStructures) * 100 : 0;
@@ -1816,26 +2192,10 @@ function WeeklySummary({ snapshot }: { snapshot: WeeklySnapshot }) {
         </div>
       </div>
 
-      {/* Average Resolution */}
-      <div className="grid grid-cols-2 gap-2">
-        {snapshot.cryoemAvgRes != null && (
-          <div className="p-3 rounded-lg bg-claude-cryoem-bg/30">
-            <div className="text-[10px] text-claude-cryoem/70 mb-0.5">Cryo-EM Avg Res</div>
-            <div className="text-sm font-mono font-semibold text-claude-cryoem">{snapshot.cryoemAvgRes.toFixed(2)}Å</div>
-          </div>
-        )}
-        {snapshot.xrayAvgRes != null && (
-          <div className="p-3 rounded-lg bg-claude-xray-bg/30">
-            <div className="text-[10px] text-claude-xray/70 mb-0.5">X-ray Avg Res</div>
-            <div className="text-sm font-mono font-semibold text-claude-xray">{snapshot.xrayAvgRes.toFixed(2)}Å</div>
-          </div>
-        )}
-      </div>
-
-      {/* Resolution Distribution */}
+      {/* Resolution Distribution (text detail) */}
       {(cryoemResDist || xrayResDist) && (
         <div>
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution Distribution</h4>
+          <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution Breakdown</h4>
           {xrayResDist && (
             <div className="mb-3">
               <div className="text-[10px] text-claude-xray font-medium mb-1.5">X-ray</div>
@@ -1904,10 +2264,10 @@ function WeeklySummary({ snapshot }: { snapshot: WeeklySnapshot }) {
         </div>
       )}
 
-      {/* IF Distribution with tier badges */}
+      {/* IF Distribution with tier badges (text detail) */}
       {ifDist && (
         <div>
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Impact Factor Tiers</h4>
+          <h4 className="text-xs font-semibold text-claude-text mb-2">IF Tier Details</h4>
           <div className="space-y-2">
             {[
               { label: 'Top', range: 'IF≥20', count: ifDist.top, color: '#dc2626', bg: '#fef2f2', badgeBg: 'bg-claude-top-bg', badgeText: 'text-claude-top' },
