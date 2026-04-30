@@ -521,3 +521,250 @@ Stage Summary:
 6. Add PDB structure similarity search
 7. Add protein sequence alignment view
 8. Add data import/sync from live RCSB PDB API
+
+---
+Task ID: 2-a and 2-b
+Agent: Bookmark & Stats Agent
+Task: Add Bookmark/Favorites System and Statistics Summary Cards
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx (~3120 lines) to understand current structure
+- **Part 1: Bookmark/Favorites System (Task 2-a)**
+  - Added `Bookmark`, `BookmarkCheck`, `Star` icon imports from lucide-react
+  - Added `Collapsible`, `CollapsibleTrigger`, `CollapsibleContent` imports from shadcn/ui
+  - Added `bookmarks` state as `Set<string>`, initialized from localStorage with try/catch fallback
+  - Added `showBookmarksOnly` boolean state for bookmark filter
+  - Added `bookmarksExpanded` boolean state for sidebar collapsible
+  - Added `useEffect` to persist bookmarks to localStorage on every change (with try/catch)
+  - Added `toggleBookmark(pdbId)` callback using `useCallback`
+  - Modified `sortedEntries` useMemo to filter by bookmarks when `showBookmarksOnly` is active
+  - Added bookmark column to weekly table: empty header column, bookmark icon button in each row
+    - Bookmarked rows: `BookmarkCheck` icon in `text-claude-accent` color
+    - Non-bookmarked rows: `Bookmark` icon hidden by default, shown on row hover (`group` class) in `text-claude-text-muted/40`
+    - Click uses `e.stopPropagation()` to prevent opening detail panel
+    - Transition: `transition-colors duration-200`
+  - Added `Ctrl/Cmd + B` keyboard shortcut to toggle bookmark filter
+  - Updated keyboard shortcuts popover with new shortcut entry
+  - Added bookmark filter button in toolbar (next to filter chips)
+    - Active state: `bg-claude-accent-light text-claude-accent border-claude-accent/30`
+    - Inactive state: `text-claude-text-muted/40` with hover effect
+  - Added "Bookmarked" filter chip when `showBookmarksOnly` is active (with X to clear)
+  - Added collapsible "Bookmarks" section in weekly sidebar above week cards
+    - Shows count badge: `({bookmarks.size})`
+    - Uses `Collapsible` component with `ChevronDown` toggle icon
+    - Lists bookmarked PDB IDs with titles (matching entries from current week's data)
+    - "Not in current week" label for bookmarks not in current data
+    - Each item is clickable and opens detail panel
+    - Max height with scroll (`max-h-48 overflow-y-auto`)
+  - Updated loading skeleton and table headers to account for new bookmark column
+- **Part 2: Statistics Summary Cards (Task 2-b)**
+  - Created `WeeklyStatCards` function component taking `entries`, `snapshots`, `selectedSnapshot` props
+  - Card 1 - Total Structures: Count with `Database` icon, mini sparkline showing last 4 weeks trend, `DeltaIndicator` comparing to previous week
+  - Card 2 - Avg Resolution: Average resolution color-coded by quality (green/amber/red), quality label (Excellent/High/Medium/Low), `Eye` icon
+  - Card 3 - Cryo-EM %: Percentage with mini circular SVG progress indicator, count of Cryo-EM structures, `FlaskConical` icon
+  - Card 4 - Top IF: Highest impact factor value with journal name, `Star` icon
+  - Each card styled with `bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3`
+  - Cards in a flex row with `gap-3`, wrapped in `px-4 py-2` container
+  - Only shown in weekly mode when entries exist and not loading
+  - Previous week comparison finds the snapshot before the current one in sorted snapshots array
+  - Mini sparkline uses 4-bar chart with last bar highlighted in accent color
+  - Full dark mode support throughout
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Bookmark/Favorites system fully implemented with localStorage persistence
+- Row bookmark indicators with hover reveal for non-bookmarked entries
+- Sidebar collapsible bookmarks section with click-to-open-detail
+- Bookmark filter with toolbar button and Ctrl+B shortcut
+- 4 statistics summary cards (Total, Avg Resolution, Cryo-EM%, Top IF)
+- Mini sparkline trend visualization in Total Structures card
+- Mini circular progress indicator in Cryo-EM% card
+- Previous week comparison with delta indicators
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 4-a and 4-b
+Agent: Style Enhancement & Toast Agent
+Task: Add alternating row colors, enhanced table headers, toast notifications, and footer enhancement
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx (~3390 lines) and globals.css to understand current structure
+- **Style Enhancement 1: Alternating Row Colors**
+  - Added `.table-row-even` CSS class with background `#faf8f5` (light) and `#1f1e1c` (dark)
+  - Added `.table-row-odd` CSS class with transparent background
+  - Updated `.table-row-hover:hover` to use `#fdf0eb` (claude accent-light hint) instead of `#fdfcfa`
+  - Updated weekly table `motion.tr` className to include `idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'`
+  - Updated evaluation table `<tr>` className to include same alternating row pattern
+- **Style Enhancement 2: Enhanced Table Header**
+  - Added `.table-header-cell` CSS class with `border-bottom: 2px solid #e8e4dd; position: relative;`
+  - Added `.dark .table-header-cell` with `border-bottom-color: #4a4540;`
+  - Added `.table-header-cell.sort-active::after` pseudo-element with small colored accent bar at bottom (60% width, #c96442)
+  - Added `.dark .table-header-cell.sort-active::after` with `#d4784f`
+  - Updated weekly table `<th>` elements: added `table-header-cell` class, `sort-active` class when column is current sort field, increased padding from `py-3` to `py-3.5`
+  - Updated evaluation table `<th>` elements: same treatment with `table-header-cell` and conditional `sort-active`
+- **Style Enhancement 3: Toast Notifications**
+  - Added `import { toast } from 'sonner'` (uses existing Sonner Toaster in layout.tsx)
+  - Bookmark toggle: toast "Bookmarked {pdbId}" with description when adding, "Removed {pdbId} from bookmarks" when removing
+  - CSV export: toast "Exported {count} structures" with description "Downloaded as CSV file"
+  - Bookmark filter toggle: toast "Showing bookmarked only" or "Showing all structures"
+- **Style Enhancement 4: Footer Enhancement**
+  - Replaced static "PDB Structure Tracker © 2025" with dynamic stats
+  - Added: "{snapshots.length} structures · {snapshots.length} weeks · {evaluations.length} evaluations"
+  - Added "Last updated" indicator with pulsing green dot (`animate-pulse`) and current date
+  - Kept existing RCSB PDB link with ExternalLink icon
+  - All items separated with `·` middle dots
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Alternating row colors for both weekly and evaluation tables with dark mode support
+- Enhanced table headers with stronger border and sort-active indicator bar
+- Updated hover color to claude accent-light (#fdf0eb)
+- Toast notifications for bookmark, export, and filter actions using Sonner
+- Enhanced footer with dynamic stats and live status indicator
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 10
+Agent: Main Agent (QA & Coordination - Round 5)
+Task: Assess project state, perform QA testing, coordinate new features and style enhancements
+
+Work Log:
+- Read worklog.md to understand prior work (Tasks 1-9 from previous sessions)
+- Opened app with agent-browser for comprehensive QA testing
+- Verified all existing features: Weekly mode, Evaluation mode, sidebar, tables, tooltips, reports, pagination, search, method filtering, charts, dark mode, 3D viewer, comparison view
+- Tested dark mode toggle, evaluation mode, row detail panel
+- No console errors, no page errors found
+- Lint passes cleanly
+- Coordinated 3 parallel enhancement sub-agents:
+  1. Task 2-a/2-b: Bookmark/Favorites system + Statistics Summary Cards
+  2. Task 3-a/3-b: Resolution vs IF Scatter Plot + Column Visibility Toggle
+  3. Task 4-a/4-b: Alternating rows, enhanced headers, toast notifications, footer enhancement
+- Performed final QA after all enhancements:
+  - Verified bookmark system: clicking bookmark icon toggles state, sidebar shows bookmarks section, Ctrl+B shortcut works
+  - Verified column visibility: dropdown shows all columns, hiding a column removes it from table
+  - Verified stat cards: showing between toolbar and table with 4 metrics
+  - Verified scatter plot: "Resolution vs Impact Factor" heading in preview panel
+  - Verified alternating row colors and enhanced table headers
+  - Verified dark mode with all new features
+  - Lint passes cleanly, no errors
+
+Stage Summary:
+- Bookmark/Favorites system with localStorage persistence, sidebar section, filter, and keyboard shortcut
+- 4 Statistics Summary Cards (Total Structures, Avg Resolution, Cryo-EM%, Top IF)
+- Resolution vs IF Scatter Plot chart in preview panel
+- Column Visibility Toggle dropdown for table columns
+- Alternating row colors with dark mode support
+- Enhanced table headers with sort-active indicator
+- Toast notifications for bookmark, export, and filter actions
+- Enhanced footer with dynamic stats and live status indicator
+- All existing functionality preserved
+- No bugs found during QA
+
+## Project Current State (Round 5)
+
+**Status: Feature-Rich & Production-Ready**
+
+### Complete Feature List:
+
+**Core Application:**
+- Weekly browsing mode (12 weeks, 684 structures)
+- Evaluation mode (8 protein evaluations with BLAST)
+- Sortable data tables with method/resolution/IF color coding
+- Tooltips for PDB entries, ligands, BLAST homologs
+- Report modal with Markdown rendering
+- Preview panel with Summary/Full Report tabs
+- Debounced search, method filtering, week selection
+- Pagination, mobile responsive design
+
+**Data Visualization (8 charts):**
+- Method Distribution donut chart
+- Resolution Distribution horizontal bar chart
+- Impact Factor Tier bar chart
+- Weekly Trends area chart
+- Organism Distribution horizontal bar chart
+- Resolution vs IF Scatter Plot (NEW)
+- Side-by-side comparison donut charts
+- Comparison resolution grouped bar chart
+
+**3D Molecular Viewer:**
+- Molstar-based 3D structure viewer
+- Loads mmCIF from RCSB PDB
+- Dark background, clean UI, 300px height
+
+**Row Detail Panel:**
+- Slide-over panel when clicking a PDB row
+- Full structure details, resolution quality bar
+- 3D viewer integration, links to RCSB/DOI/PubMed
+
+**Week Comparison:**
+- Side-by-side week comparison view
+- Delta indicators (↑/↓) with color coding
+
+**Bookmark/Favorites System (NEW):**
+- localStorage persistence for bookmarked PDB IDs
+- Row bookmark indicators with hover reveal
+- Sidebar collapsible bookmarks section
+- Bookmark filter with Ctrl+B shortcut
+- "Bookmarked" filter chip
+
+**Statistics Summary Cards (NEW):**
+- Total Structures with sparkline trend
+- Average Resolution with quality label
+- Cryo-EM % with circular progress
+- Top Impact Factor with journal name
+
+**Column Visibility Toggle (NEW):**
+- Dropdown to show/hide table columns
+- PDB ID always visible, 7 toggleable columns
+- Persisted to localStorage
+
+**UI/UX Enhancements:**
+- Dark mode toggle with warm Claude aesthetic
+- CSV export for weekly data with toast notification
+- Filter chips for active filters
+- Keyboard shortcuts (⌘K, ⌘E, ⌘B, Esc)
+- Staggered row animations
+- Shimmer loading skeletons
+- Mode/tab transition animations
+- Header gradient animation
+- Enhanced footer with dynamic stats and live status
+- Empty state float animation
+- Score bar glow for high scores
+- Alternating row colors (NEW)
+- Enhanced table headers with sort indicator (NEW)
+- Toast notifications for user actions (NEW)
+
+### Technical Stack:
+- Next.js 16 with App Router + TypeScript
+- Prisma ORM with SQLite
+- recharts for data visualization
+- molstar for 3D molecular viewing
+- framer-motion for animations
+- next-themes for dark mode
+- sonner for toast notifications
+- Tailwind CSS 4 with shadcn/ui
+- react-markdown with remark-gfm
+
+## Unresolved Issues / Risks
+- None identified during QA testing
+- All API endpoints responding correctly
+- No console errors or page errors
+- Lint passes cleanly
+- Molstar viewer requires internet access to load structures from RCSB
+- Component file is now ~3658 lines - may benefit from refactoring into smaller components
+
+## Recommended Next Steps
+1. Refactor pdb-tracker.tsx into smaller, composable components (file is 3658 lines)
+2. Add virtual scrolling for large datasets (performance optimization)
+3. Add notification/alert system for new weekly data
+4. Add batch comparison (3+ weeks at once)
+5. Add PDB structure similarity search
+6. Add protein sequence alignment view
+7. Add data import/sync from live RCSB PDB API
+8. Add user preference persistence (theme, hidden columns, bookmarks) with Prisma
+9. Add responsive mobile detail panel (current detail panel is desktop-only)
+10. Add search history and saved search filters

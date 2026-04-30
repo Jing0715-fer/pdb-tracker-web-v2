@@ -373,17 +373,56 @@
   animation: score-fill 0.6s ease-out forwards;
 }
 
+/* Table row alternating colors */
+.table-row-even {
+  background-color: #faf8f5;
+}
+
+.dark .table-row-even {
+  background-color: #1f1e1c;
+}
+
+.table-row-odd {
+  background-color: transparent;
+}
+
 /* Table row hover */
 .table-row-hover {
   transition: background-color 0.1s ease;
 }
 
 .table-row-hover:hover {
-  background-color: #fdfcfa;
+  background-color: #fdf0eb;
 }
 
 .dark .table-row-hover:hover {
   background-color: #2b2926;
+}
+
+/* Table header cell */
+.table-header-cell {
+  border-bottom: 2px solid #e8e4dd;
+  position: relative;
+}
+
+.dark .table-header-cell {
+  border-bottom-color: #4a4540;
+}
+
+.table-header-cell.sort-active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60%;
+  height: 2px;
+  background-color: #c96442;
+  border-radius: 1px;
+}
+
+.dark .table-header-cell.sort-active::after {
+  background-color: #d4784f;
 }
 
 /* Ligand chip */

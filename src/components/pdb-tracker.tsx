@@ -34,6 +34,10 @@ import {
   GitCompareArrows,
   TrendingUp,
   TrendingDown,
+  Bookmark,
+  BookmarkCheck,
+  Star,
+  Columns3,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -61,7 +65,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useTheme } from 'next-themes';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend } from 'recharts';
+import { toast } from 'sonner';
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
 import dynamic from 'next/dynamic';
 
 const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
@@ -651,6 +658,64 @@ export default function PdbTracker() {
   const [selectedEntry, setSelectedEntry] = useState<PdbEntry | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
 
+  // ── Bookmarks ──
+  const [bookmarks, setBookmarks] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-bookmarks');
+      if (saved) return new Set(JSON.parse(saved) as string[]);
+    } catch { /* ignore */ }
+    return new Set<string>();
+  });
+  const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
+  const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
+
+  // ── Column Visibility ──
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-hidden-columns');
+      if (saved) return new Set(JSON.parse(saved) as string[]);
+    } catch { /* ignore */ }
+    return new Set<string>();
+  });
+
+  // Persist hidden columns to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('pdb-hidden-columns', JSON.stringify([...hiddenColumns]));
+    } catch { /* ignore */ }
+  }, [hiddenColumns]);
+
+  const toggleColumnVisibility = useCallback((field: string) => {
+    setHiddenColumns(prev => {
+      const next = new Set(prev);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
+  }, []);
+
+  // Persist bookmarks to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('pdb-bookmarks', JSON.stringify([...bookmarks]));
+    } catch { /* ignore */ }
+  }, [bookmarks]);
+
+  const toggleBookmark = useCallback((pdbId: string) => {
+    setBookmarks(prev => {
+      const next = new Set(prev);
+      const wasBookmarked = next.has(pdbId);
+      if (wasBookmarked) {
+        next.delete(pdbId);
+        toast(`Removed ${pdbId} from bookmarks`);
+      } else {
+        next.add(pdbId);
+        toast(`Bookmarked ${pdbId}`, { description: 'Added to your bookmarked structures' });
+      }
+      return next;
+    });
+  }, []);
+
   // ── Report Modal ──
   const [reportModal, setReportModal] = useState<{ isOpen: boolean; title: string; content: string }>({
     isOpen: false, title: '', content: '',
@@ -684,6 +749,10 @@ export default function PdbTracker() {
       if (isMod && e.key === 'e') {
         e.preventDefault();
         setMode(prev => prev === 'weekly' ? 'evaluation' : 'weekly');
+      }
+      if (isMod && e.key === 'b') {
+        e.preventDefault();
+        setShowBookmarksOnly(prev => !prev);
       }
       if (e.key === 'Escape') {
         if (detailPanelOpen) {
@@ -840,8 +909,12 @@ export default function PdbTracker() {
 
   // ── Sorted Weekly Entries ──
   const sortedEntries = useMemo(() => {
-    if (!entries.length) return [];
-    const sorted = [...entries].sort((a, b) => {
+    let source = entries;
+    if (showBookmarksOnly) {
+      source = entries.filter(e => bookmarks.has(e.pdbId));
+    }
+    if (!source.length) return [];
+    const sorted = [...source].sort((a, b) => {
       let aVal: any, bVal: any;
       switch (sortField) {
         case 'pdbId': aVal = a.pdbId; bVal = b.pdbId; break;
@@ -859,7 +932,7 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir]);
+  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
@@ -983,6 +1056,7 @@ export default function PdbTracker() {
     a.download = `pdb-structures-${selectedWeekId || 'export'}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    toast(`Exported ${sortedEntries.length} structures`, { description: 'Downloaded as CSV file' });
   }, [sortedEntries, selectedWeekId]);
 
   // ── Sort Icon ──
@@ -1044,6 +1118,12 @@ export default function PdbTracker() {
                   <span className="text-[11px] text-claude-text-secondary">Clear search</span>
                   <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
                     Esc
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-claude-text-secondary">Toggle bookmarks</span>
+                  <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
+                    <span className="text-[9px]">⌘</span>B
                   </kbd>
                 </div>
               </div>
@@ -1174,6 +1254,22 @@ export default function PdbTracker() {
 
                   {/* Active Filter Chips */}
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Bookmark Filter Button */}
+                    <button
+                      onClick={() => {
+                        const next = !showBookmarksOnly;
+                        setShowBookmarksOnly(next);
+                        toast(next ? 'Showing bookmarked only' : 'Showing all structures');
+                      }}
+                      className={`inline-flex items-center justify-center h-6 w-6 rounded-md transition-colors duration-200 ${
+                        showBookmarksOnly
+                          ? 'bg-claude-accent-light text-claude-accent border border-claude-accent/30'
+                          : 'text-claude-text-muted/40 hover:text-claude-accent hover:bg-claude-accent-light/50 border border-transparent'
+                      }`}
+                      title="Show bookmarked only (⌘B)"
+                    >
+                      <Bookmark className="h-3.5 w-3.5" />
+                    </button>
                     {methodFilter !== 'all' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
                         Method: {getMethodLabel(methodFilter === 'Cryo-EM' ? 'CRYO-EM' : methodFilter === 'X-RAY DIFFRACTION' ? 'X-RAY DIFFRACTION' : methodFilter === 'SOLUTION NMR' ? 'SOLUTION NMR' : methodFilter)}
@@ -1190,12 +1286,62 @@ export default function PdbTracker() {
                         </button>
                       </span>
                     )}
+                    {showBookmarksOnly && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                        Bookmarked
+                        <button onClick={() => setShowBookmarksOnly(false)} className="hover:text-claude-accent/80 transition-colors">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )}
                   </div>
 
                   {/* Count & Export */}
                   <span className="text-[10px] text-claude-text-muted ml-auto whitespace-nowrap">
                     {entries.length} structures
                   </span>
+
+                  {/* Column Visibility Toggle */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+                      >
+                        <Columns3 className="h-3 w-3" />
+                        Columns
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuLabel className="text-[10px] text-claude-text-muted">Toggle Columns</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuCheckboxItem
+                        checked={true}
+                        disabled
+                        className="text-xs"
+                      >
+                        PDB ID
+                      </DropdownMenuCheckboxItem>
+                      {[
+                        { field: 'method', label: 'Method' },
+                        { field: 'resolution', label: 'Resolution' },
+                        { field: 'journalIf', label: 'IF (Impact Factor)' },
+                        { field: 'organisms', label: 'Organism' },
+                        { field: 'title', label: 'Title' },
+                        { field: 'releaseDate', label: 'Date' },
+                        { field: '_ligands', label: 'Ligands' },
+                      ].map(col => (
+                        <DropdownMenuCheckboxItem
+                          key={col.field}
+                          checked={!hiddenColumns.has(col.field)}
+                          onCheckedChange={() => toggleColumnVisibility(col.field)}
+                          className="text-xs"
+                        >
+                          {col.label}
+                        </DropdownMenuCheckboxItem>
+                      ))}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
                   {sortedEntries.length > 0 && (
                     <button
                       onClick={handleExportCsv}
@@ -1269,6 +1415,11 @@ export default function PdbTracker() {
               </Button>
             </div>
 
+            {/* Weekly Stat Cards */}
+            {mode === 'weekly' && entries.length > 0 && !loadingEntries && (
+              <WeeklyStatCards entries={entries} snapshots={snapshots} selectedSnapshot={selectedSnapshot} />
+            )}
+
             {/* Data Table */}
             <div className="flex-1 overflow-auto custom-scrollbar">
               <AnimatePresence mode="wait" initial={false}>
@@ -1284,15 +1435,27 @@ export default function PdbTracker() {
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
-                        {['PDB ID','Method','Resolution','IF','Organism','Title','Date','Ligands'].map(h => (
-                          <th key={h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
-                            {h}
+                        {[
+                          { h: '', field: '' },
+                          { h: 'PDB ID', field: 'pdbId' },
+                          { h: 'Method', field: 'method' },
+                          { h: 'Resolution', field: 'resolution' },
+                          { h: 'IF', field: 'journalIf' },
+                          { h: 'Organism', field: 'organisms' },
+                          { h: 'Title', field: 'title' },
+                          { h: 'Date', field: 'releaseDate' },
+                          { h: 'Ligands', field: '_ligands' },
+                        ].filter(c => !c.field || !hiddenColumns.has(c.field)).map(c => (
+                          <th key={c.h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
+                            {c.h}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      <TableSkeleton rows={8} cols={8} />
+                      <TableSkeleton rows={8} cols={2 + [
+                        'pdbId','method','resolution','journalIf','organisms','title','releaseDate','_ligands'
+                      ].filter(f => !hiddenColumns.has(f)).length} />
                     </tbody>
                   </table>
                 ) : sortedEntries.length === 0 ? (
@@ -1305,6 +1468,7 @@ export default function PdbTracker() {
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
+                        <th className="px-1.5 py-3.5 w-[32px] table-header-cell"></th>
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: 'method', label: 'Method', w: 'w-[90px]' },
@@ -1314,11 +1478,11 @@ export default function PdbTracker() {
                           { field: 'title', label: 'Title', w: '' },
                           { field: 'releaseDate', label: 'Date', w: 'w-[95px]' },
                           { field: '_ligands', label: 'Ligands', w: 'w-[130px]' },
-                        ].map(col => (
+                        ].filter(col => !hiddenColumns.has(col.field)).map(col => (
                           <th
                             key={col.field}
                             onClick={() => col.field !== '_ligands' && handleSort(col.field)}
-                            className={`px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 ${col.w} ${col.field !== '_ligands' ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
+                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field ? 'sort-active' : ''} ${col.w} ${col.field !== '_ligands' ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
                           >
                             <span className="inline-flex items-center gap-1">
                               {col.label}
@@ -1340,9 +1504,25 @@ export default function PdbTracker() {
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
-                            className="table-row-hover border-b border-claude-border-light hover:shadow-md cursor-pointer"
+                            className={`table-row-hover ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group`}
                             onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
                           >
+                            <td className="px-1.5 py-2 w-[32px]">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); toggleBookmark(entry.pdbId); }}
+                                className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors duration-200 ${
+                                  bookmarks.has(entry.pdbId)
+                                    ? 'text-claude-accent'
+                                    : 'text-claude-text-muted/0 group-hover:text-claude-text-muted/40 hover:!text-claude-accent'
+                                }`}
+                                title={bookmarks.has(entry.pdbId) ? 'Remove bookmark' : 'Add bookmark'}
+                              >
+                                {bookmarks.has(entry.pdbId)
+                                  ? <BookmarkCheck className="h-3.5 w-3.5" />
+                                  : <Bookmark className="h-3.5 w-3.5" />
+                                }
+                              </button>
+                            </td>
                             <td className="px-3 py-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1361,11 +1541,14 @@ export default function PdbTracker() {
                                 </TooltipContent>
                               </Tooltip>
                             </td>
+                            {!hiddenColumns.has('method') && (
                             <td className="px-3 py-2">
                               <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text}`}>
                                 {getMethodLabel(entry.method)}
                               </span>
                             </td>
+                            )}
+                            {!hiddenColumns.has('resolution') && (
                             <td className="px-3 py-2 font-mono">
                               {entry.resolution != null ? (
                                 <span className={`font-medium ${getResolutionColor(entry.resolution)}`}>
@@ -1375,6 +1558,8 @@ export default function PdbTracker() {
                                 <span className="text-claude-text-muted">—</span>
                               )}
                             </td>
+                            )}
+                            {!hiddenColumns.has('journalIf') && (
                             <td className="px-3 py-2">
                               {entry.journalIf != null ? (
                                 <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ifStyle.bg} ${ifStyle.text}`}>
@@ -1384,6 +1569,8 @@ export default function PdbTracker() {
                                 <span className="text-claude-text-muted">—</span>
                               )}
                             </td>
+                            )}
+                            {!hiddenColumns.has('organisms') && (
                             <td className="px-3 py-2">
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -1398,10 +1585,16 @@ export default function PdbTracker() {
                                 )}
                               </Tooltip>
                             </td>
+                            )}
+                            {!hiddenColumns.has('title') && (
                             <td className="px-3 py-2 max-w-xs">
                               <span className="text-claude-text-secondary line-clamp-2 leading-relaxed">{entry.title}</span>
                             </td>
+                            )}
+                            {!hiddenColumns.has('releaseDate') && (
                             <td className="px-3 py-2 text-claude-text-muted whitespace-nowrap">{formatDate(entry.releaseDate)}</td>
+                            )}
+                            {!hiddenColumns.has('_ligands') && (
                             <td className="px-3 py-2">
                               <div className="flex flex-wrap gap-1">
                                 {ligandList.slice(0, 3).map(lig => (
@@ -1442,6 +1635,7 @@ export default function PdbTracker() {
                                 )}
                               </div>
                             </td>
+                            )}
                           </motion.tr>
                         );
                       })}
@@ -1460,15 +1654,25 @@ export default function PdbTracker() {
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
-                        {['PDB ID','Type','Method','Resolution','IF','Title / Description','Date'].map(h => (
-                          <th key={h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
-                            {h}
+                        {[
+                          { h: 'PDB ID', field: 'pdbId' },
+                          { h: 'Type', field: '_type' },
+                          { h: 'Method', field: 'method' },
+                          { h: 'Resolution', field: 'resolution' },
+                          { h: 'IF', field: 'journalIf' },
+                          { h: 'Title / Description', field: 'title' },
+                          { h: 'Date', field: 'releaseDate' },
+                        ].filter(c => !hiddenColumns.has(c.field)).map(c => (
+                          <th key={c.h} className="px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide">
+                            {c.h}
                           </th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      <TableSkeleton rows={5} cols={7} />
+                      <TableSkeleton rows={5} cols={[
+                        'pdbId','_type','method','resolution','journalIf','title','releaseDate'
+                      ].filter(f => !hiddenColumns.has(f)).length} />
                     </tbody>
                   </table>
                 ) : (
@@ -1483,11 +1687,11 @@ export default function PdbTracker() {
                           { field: 'journalIf', label: 'IF', w: 'w-[55px]' },
                           { field: 'title', label: 'Title / Description', w: '' },
                           { field: 'releaseDate', label: 'Date', w: 'w-[95px]' },
-                        ].map(col => (
+                        ].filter(col => !hiddenColumns.has(col.field)).map(col => (
                           <th
                             key={col.field}
                             onClick={() => !['_type', '_ligands'].includes(col.field) && handleSort(col.field)}
-                            className={`px-3 py-3 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
+                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field && !['_type', '_ligands'].includes(col.field) ? 'sort-active' : ''} ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
                           >
                             <span className="inline-flex items-center gap-1">
                               {col.label}
@@ -1506,7 +1710,7 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover border-b border-claude-border-light ${isBlast ? 'bg-claude-border-light/30' : ''}`}>
+                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover border-b border-claude-border-light ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30' : ''}`}>
                             <td className="px-3 py-2">
                               {row.pdbId ? (
                                 <Tooltip>
@@ -1533,6 +1737,7 @@ export default function PdbTracker() {
                                 <span className="text-claude-text-muted">—</span>
                               )}
                             </td>
+                            {!hiddenColumns.has('_type') && (
                             <td className="px-3 py-2">
                               {isBlast ? (
                                 <Tooltip>
@@ -1551,6 +1756,8 @@ export default function PdbTracker() {
                                 </span>
                               )}
                             </td>
+                            )}
+                            {!hiddenColumns.has('method') && (
                             <td className="px-3 py-2">
                               {row.method ? (
                                 <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text}`}>
@@ -1558,6 +1765,8 @@ export default function PdbTracker() {
                                 </span>
                               ) : <span className="text-claude-text-muted">—</span>}
                             </td>
+                            )}
+                            {!hiddenColumns.has('resolution') && (
                             <td className="px-3 py-2 font-mono">
                               {row.resolution != null ? (
                                 <span className={`font-medium ${getResolutionColor(row.resolution)}`}>
@@ -1565,6 +1774,8 @@ export default function PdbTracker() {
                                 </span>
                               ) : <span className="text-claude-text-muted">—</span>}
                             </td>
+                            )}
+                            {!hiddenColumns.has('journalIf') && (
                             <td className="px-3 py-2">
                               {'journalIf' in row && row.journalIf != null ? (
                                 <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ifStyle.bg} ${ifStyle.text}`}>
@@ -1572,12 +1783,17 @@ export default function PdbTracker() {
                                 </span>
                               ) : <span className="text-claude-text-muted">—</span>}
                             </td>
+                            )}
+                            {!hiddenColumns.has('title') && (
                             <td className="px-3 py-2 max-w-xs">
                               <span className="text-claude-text-secondary line-clamp-2 leading-relaxed">
                                 {row.title || (blastResult?.description) || '—'}
                               </span>
                             </td>
+                            )}
+                            {!hiddenColumns.has('releaseDate') && (
                             <td className="px-3 py-2 text-claude-text-muted whitespace-nowrap">{formatDate(row.releaseDate)}</td>
+                            )}
                           </tr>
                         );
                       })}
@@ -1660,7 +1876,16 @@ export default function PdbTracker() {
         {/* ═══════════ FOOTER ═══════════ */}
         <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted relative">
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-claude-accent/30 to-transparent" />
-          <span>PDB Structure Tracker &copy; 2025</span>
+          <span>{snapshots.length} structures</span>
+          <span>·</span>
+          <span>{snapshots.length} weeks</span>
+          <span>·</span>
+          <span>{evaluations.length} evaluations</span>
+          <span>·</span>
+          <span className="inline-flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+          </span>
           <span>·</span>
           <a
             href="https://www.rcsb.org"
@@ -1932,6 +2157,50 @@ export default function PdbTracker() {
                   <ArrowLeft className="h-3 w-3" />
                   Back to all weeks
                 </button>
+              )}
+
+              {/* Bookmarks Section */}
+              {bookmarks.size > 0 && (
+                <Collapsible open={bookmarksExpanded} onOpenChange={setBookmarksExpanded}>
+                  <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150">
+                    <span className="flex items-center gap-1.5">
+                      <Bookmark className="h-3 w-3 text-claude-accent" />
+                      Bookmarks
+                      <span className="text-[9px] bg-claude-accent-light text-claude-accent px-1.5 py-0.5 rounded-full font-mono">({bookmarks.size})</span>
+                    </span>
+                    <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${bookmarksExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-0.5 mt-1 mb-1">
+                      {[...bookmarks].map(pdbId => {
+                        const matchedEntry = entries.find(e => e.pdbId === pdbId);
+                        return (
+                          <button
+                            key={pdbId}
+                            onClick={() => {
+                              if (matchedEntry) {
+                                setSelectedEntry(matchedEntry);
+                                setDetailPanelOpen(true);
+                              }
+                            }}
+                            className="w-full text-left p-2 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 flex items-start gap-2"
+                          >
+                            <BookmarkCheck className="h-3 w-3 text-claude-accent mt-0.5 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <div className="font-mono text-[10px] font-semibold text-claude-accent">{pdbId}</div>
+                              {matchedEntry && (
+                                <div className="text-[10px] text-claude-text-muted line-clamp-1 leading-tight">{matchedEntry.title}</div>
+                              )}
+                              {!matchedEntry && (
+                                <div className="text-[9px] text-claude-text-muted/50 italic">Not in current week</div>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
               )}
 
               {/* Week Cards */}
@@ -2312,6 +2581,47 @@ function ClaudeResTooltip({ active, payload, isDark }: {
 function getChartAxisColor(isDark: boolean) { return isDark ? '#9b9590' : '#7c756e'; }
 function getChartTickColor(isDark: boolean) { return isDark ? '#6b6560' : '#9b9590'; }
 
+// ─── Scatter Plot Tooltip Component ──────────────────────────────────────────
+
+function ClaudeScatterTooltip({ active, payload, isDark }: {
+  active?: boolean; payload?: Array<{ payload?: { pdbId?: string; resolution?: number; journalIf?: number; method?: string; ifTier?: string; title?: string } }>; isDark: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  if (!d) return null;
+  const methodLabel = d.method ? getMethodLabel(d.method) : '';
+  const methodColor = d.method ? (METHOD_COLORS[methodLabel] || METHOD_COLORS['Other']) : METHOD_COLORS['Other'];
+  return (
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}>
+      <div className="flex items-center gap-2 mb-1">
+        <span className={`font-mono font-semibold text-[11px] ${isDark ? 'text-[#d4784f]' : 'text-claude-accent'}`}>{d.pdbId}</span>
+        {methodLabel && (
+          <span className="inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ backgroundColor: methodColor + '20', color: methodColor }}>
+            {methodLabel}
+          </span>
+        )}
+      </div>
+      {d.title && (
+        <p className={`text-[10px] mb-1 line-clamp-2 ${isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'}`}>{d.title}</p>
+      )}
+      <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+        {d.resolution != null && (
+          <div>
+            <span className={isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}>Resolution:</span>{' '}
+            <span className={`font-mono font-medium ${getResolutionColor(d.resolution)}`}>{d.resolution.toFixed(2)}Å</span>
+          </div>
+        )}
+        {d.journalIf != null && (
+          <div>
+            <span className={isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}>IF:</span>{' '}
+            <span className={`font-mono font-medium ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{d.journalIf.toFixed(1)}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnapshot; snapshots: WeeklySnapshot[]; entries: PdbEntry[] }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -2416,6 +2726,26 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
   }, [entries]);
 
   const ORGANISM_COLORS = ['#c4644a', '#2d8f8f', '#7c5cbf', '#c9872e', '#6b7280'];
+
+  // Scatter plot data: Resolution vs IF
+  const scatterData = useMemo(() => {
+    if (!entries || entries.length === 0) return [];
+    return entries
+      .filter(e => e.resolution != null && e.journalIf != null)
+      .map(e => ({
+        pdbId: e.pdbId,
+        resolution: e.resolution!,
+        journalIf: e.journalIf!,
+        method: e.method,
+        ifTier: e.ifTier,
+        title: e.title,
+      }));
+  }, [entries]);
+
+  const scatterMaxIf = useMemo(() => {
+    if (scatterData.length === 0) return 50;
+    return Math.max(...scatterData.map(d => d.journalIf)) + 10;
+  }, [scatterData]);
 
   const methodData = [
     { label: 'Cryo-EM', count: snapshot.cryoemCount, color: '#2d8f8f', bg: '#e8f5f5' },
@@ -2625,6 +2955,78 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
         </div>
       )}
 
+      {/* ─── Chart 6: Resolution vs IF Scatter Plot ─── */}
+      {scatterData.length > 0 && (
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-[10px] p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution vs Impact Factor</h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <ScatterChart margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#3d3832' : '#f0e8df'} />
+              <XAxis
+                type="number"
+                dataKey="resolution"
+                name="Resolution"
+                unit="Å"
+                domain={[0, 5]}
+                tick={{ fontSize: 9, fill: getChartTickColor(isDark) }}
+                axisLine={false}
+                tickLine={false}
+                label={{ value: 'Resolution (Å)', position: 'insideBottomRight', offset: -5, fontSize: 9, fill: getChartAxisColor(isDark) }}
+              />
+              <YAxis
+                type="number"
+                dataKey="journalIf"
+                name="Impact Factor"
+                domain={[0, scatterMaxIf]}
+                tick={{ fontSize: 9, fill: getChartTickColor(isDark) }}
+                axisLine={false}
+                tickLine={false}
+                width={35}
+                label={{ value: 'IF', angle: -90, position: 'insideTopLeft', offset: 10, fontSize: 9, fill: getChartAxisColor(isDark) }}
+              />
+              <ZAxis
+                type="category"
+                dataKey="ifTier"
+                range={[24, 48]}
+              />
+              <RTooltip content={({ active, payload }) => <ClaudeScatterTooltip active={active} payload={payload as any} isDark={isDark} />} />
+              <Scatter
+                data={scatterData}
+                animationDuration={600}
+                style={{ cursor: 'pointer' }}
+              >
+                {scatterData.map((entry, index) => {
+                  const methodLabel = getMethodLabel(entry.method);
+                  const color = METHOD_COLORS[methodLabel] || METHOD_COLORS['Other'];
+                  const size = entry.ifTier === 'top' ? 6 : entry.ifTier === 'high' ? 5 : entry.ifTier === 'mid' ? 4 : 3;
+                  return (
+                    <Cell
+                      key={`scatter-${index}`}
+                      fill={color}
+                      r={size}
+                      className="transition-opacity duration-150 hover:opacity-80"
+                    />
+                  );
+                })}
+              </Scatter>
+            </ScatterChart>
+          </ResponsiveContainer>
+          <div className="flex items-center gap-3 mt-2 flex-wrap">
+            {[
+              { label: 'Cryo-EM', color: '#2d8f8f' },
+              { label: 'X-ray', color: '#7c5cbf' },
+              { label: 'NMR', color: '#c9872e' },
+              { label: 'Other', color: '#6b7280' },
+            ].map(item => (
+              <div key={item.label} className="flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+                <span className="text-[9px] text-claude-text-secondary dark:text-[#9b9590]">{item.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Method Distribution - Bar Chart Style (fallback detail) */}
       <div>
         <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-3">Method Details</h4>
@@ -2764,6 +3166,142 @@ function DeltaIndicator({ value, suffix = '', invertColor = false }: { value: nu
       {isPositive ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
       {isPositive ? '+' : ''}{value.toFixed(value % 1 === 0 ? 0 : 2)}{suffix}
     </span>
+  );
+}
+
+// ─── Weekly Statistics Summary Cards ──────────────────────────────────────────
+
+function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: PdbEntry[]; snapshots: WeeklySnapshot[]; selectedSnapshot: WeeklySnapshot | null }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  // Calculate current week stats
+  const stats = useMemo(() => {
+    const total = entries.length;
+    const withRes = entries.filter(e => e.resolution != null);
+    const avgRes = withRes.length > 0 ? withRes.reduce((s, e) => s + (e.resolution ?? 0), 0) / withRes.length : null;
+    const cryoemCount = entries.filter(e => e.isCryoem === 1).length;
+    const cryoemPct = total > 0 ? (cryoemCount / total) * 100 : 0;
+    const withIf = entries.filter(e => e.journalIf != null);
+    const topIf = withIf.length > 0 ? withIf.reduce((best, e) => (e.journalIf ?? 0) > best.journalIf! ? e : best, withIf[0]) : null;
+
+    return { total, avgRes, cryoemPct, cryoemCount, topIf };
+  }, [entries]);
+
+  // Previous week comparison
+  const prevSnapshot = useMemo(() => {
+    if (!selectedSnapshot || !snapshots.length) return null;
+    const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    const idx = sorted.findIndex(s => s.weekId === selectedSnapshot.weekId);
+    if (idx <= 0) return null;
+    return sorted[idx - 1];
+  }, [selectedSnapshot, snapshots]);
+
+  const totalDelta = prevSnapshot ? stats.total - prevSnapshot.totalStructures : null;
+
+  // Mini sparkline data: last 4 weeks including current
+  const sparklineData = useMemo(() => {
+    if (!snapshots.length) return [];
+    const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
+    const currentIdx = selectedSnapshot ? sorted.findIndex(s => s.weekId === selectedSnapshot.weekId) : sorted.length - 1;
+    const start = Math.max(0, currentIdx - 3);
+    return sorted.slice(start, currentIdx + 1).map(s => s.totalStructures);
+  }, [snapshots, selectedSnapshot]);
+
+  // Avg resolution color
+  const resColor = stats.avgRes != null
+    ? (stats.avgRes <= 2.0 ? 'text-green-600 dark:text-green-400' : stats.avgRes <= 3.0 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400')
+    : '';
+
+  return (
+    <div className="px-4 py-2">
+      <div className="flex gap-3">
+        {/* Total Structures Card */}
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Total Structures</div>
+              <div className="text-lg font-semibold text-claude-text mt-0.5">{stats.total}</div>
+            </div>
+            <Database className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
+          </div>
+          {/* Mini sparkline */}
+          {sparklineData.length >= 2 && (
+            <div className="mt-1.5 flex items-end gap-[2px] h-4">
+              {sparklineData.map((v, i) => {
+                const max = Math.max(...sparklineData);
+                const min = Math.min(...sparklineData);
+                const range = max - min || 1;
+                const h = Math.max(3, ((v - min) / range) * 14);
+                return (
+                  <div
+                    key={i}
+                    className={`w-[6px] rounded-sm ${i === sparklineData.length - 1 ? 'bg-claude-accent' : isDark ? 'bg-[#4a4540]' : 'bg-claude-border'}`}
+                    style={{ height: `${h}px` }}
+                  />
+                );
+              })}
+            </div>
+          )}
+          {totalDelta !== null && <DeltaIndicator value={totalDelta} />}
+        </div>
+
+        {/* Avg Resolution Card */}
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Resolution</div>
+              <div className={`text-lg font-semibold mt-0.5 ${resColor || 'text-claude-text'}`}>
+                {stats.avgRes != null ? `${stats.avgRes.toFixed(2)}Å` : '—'}
+              </div>
+            </div>
+            <Eye className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
+          </div>
+          {stats.avgRes != null && (
+            <div className="text-[9px] text-claude-text-muted mt-1">
+              {stats.avgRes <= 1.5 ? 'Excellent' : stats.avgRes <= 2.0 ? 'High' : stats.avgRes <= 3.0 ? 'Medium' : 'Low'} quality
+            </div>
+          )}
+        </div>
+
+        {/* Cryo-EM % Card */}
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Cryo-EM %</div>
+              <div className="text-lg font-semibold text-claude-text mt-0.5">{stats.cryoemPct.toFixed(0)}%</div>
+            </div>
+            <FlaskConical className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
+          </div>
+          {/* Mini circular progress */}
+          <div className="flex items-center gap-2 mt-1.5">
+            <div className="relative w-5 h-5">
+              <svg viewBox="0 0 20 20" className="w-5 h-5 -rotate-90">
+                <circle cx="10" cy="10" r="8" fill="none" stroke={isDark ? '#3d3832' : '#f0e8df'} strokeWidth="2.5" />
+                <circle cx="10" cy="10" r="8" fill="none" stroke="#2d8f8f" strokeWidth="2.5" strokeLinecap="round" strokeDasharray={`${(stats.cryoemPct / 100) * 50.27} 50.27`} />
+              </svg>
+            </div>
+            <span className="text-[9px] text-claude-cryoem">{stats.cryoemCount} structures</span>
+          </div>
+        </div>
+
+        {/* Top IF Card */}
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3">
+          <div className="flex items-start justify-between">
+            <div>
+              <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Top IF</div>
+              <div className="text-lg font-semibold text-claude-text mt-0.5">
+                {stats.topIf?.journalIf != null ? stats.topIf.journalIf.toFixed(1) : '—'}
+              </div>
+            </div>
+            <Star className="h-4 w-4 text-claude-text-muted/30 mt-0.5" />
+          </div>
+          {stats.topIf?.journal && (
+            <div className="text-[9px] text-claude-text-muted mt-1 line-clamp-1">{stats.topIf.journal}</div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
