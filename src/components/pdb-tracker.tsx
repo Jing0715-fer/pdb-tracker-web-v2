@@ -31,6 +31,9 @@ import {
   Sun,
   Download,
   Keyboard,
+  GitCompareArrows,
+  TrendingUp,
+  TrendingDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -39,7 +42,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
-import { Skeleton } from '@/components/ui/skeleton';
 import {
   Tooltip,
   TooltipContent,
@@ -59,7 +61,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useTheme } from 'next-themes';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend } from 'recharts';
+import dynamic from 'next/dynamic';
+
+const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -435,6 +440,7 @@ function BlastHomologTooltipContent({ result }: { result: EvalBlastResult }) {
 function ScoreBar({ label, score, maxScore = 10 }: { label: string; score: number; maxScore?: number }) {
   const pct = Math.min((score / maxScore) * 100, 100);
   const color = getScoreColor(score);
+  const isHigh = score >= 8;
 
   return (
     <div className="space-y-1">
@@ -444,8 +450,13 @@ function ScoreBar({ label, score, maxScore = 10 }: { label: string; score: numbe
       </div>
       <div className="h-2 bg-claude-border-light rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full score-bar-fill transition-all duration-500"
-          style={{ width: `${pct}%`, backgroundColor: color, '--score-width': `${pct}%` } as React.CSSProperties}
+          className={`h-full rounded-full score-bar-fill transition-all duration-500 ${isHigh ? 'shadow-sm' : ''}`}
+          style={{
+            width: `${pct}%`,
+            backgroundColor: color,
+            '--score-width': `${pct}%`,
+            ...(isHigh ? { boxShadow: `0 0 6px ${color}40` } : {}),
+          } as React.CSSProperties}
         />
       </div>
     </div>
@@ -579,13 +590,15 @@ function Pagination({
 // ─── Table Skeleton Component ────────────────────────────────────────────────
 
 function TableSkeleton({ rows = 10, cols = 8 }: { rows?: number; cols?: number }) {
+  // Varying widths per column to look more realistic
+  const colWidths = ['w-[60%]', 'w-[45%]', 'w-[55%]', 'w-[40%]', 'w-[70%]', 'w-[80%]', 'w-[60%]', 'w-[50%]'];
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
         <tr key={`skel-${i}`} className="border-b border-claude-border-light">
           {Array.from({ length: cols }).map((_, j) => (
             <td key={`skel-${i}-${j}`} className="px-3 py-2.5">
-              <Skeleton className="h-3.5 w-full rounded-sm bg-claude-border-light" />
+              <div className={`h-3 rounded-md shimmer-skeleton ${colWidths[j % colWidths.length]}`} />
             </td>
           ))}
         </tr>
@@ -625,9 +638,18 @@ export default function PdbTracker() {
   const [previewOpen, setPreviewOpen] = useState(true);
   const [previewTab, setPreviewTab] = useState<string>('summary');
 
+  // ── Compare Mode ──
+  const [compareMode, setCompareMode] = useState(false);
+  const [compareWeekId, setCompareWeekId] = useState<string | null>(null);
+  const [compareEntries, setCompareEntries] = useState<PdbEntry[]>([]);
+
   // ── Mobile State ──
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+
+  // ── Detail Panel (Row Detail Slide-over) ──
+  const [selectedEntry, setSelectedEntry] = useState<PdbEntry | null>(null);
+  const [detailPanelOpen, setDetailPanelOpen] = useState(false);
 
   // ── Report Modal ──
   const [reportModal, setReportModal] = useState<{ isOpen: boolean; title: string; content: string }>({
@@ -664,7 +686,10 @@ export default function PdbTracker() {
         setMode(prev => prev === 'weekly' ? 'evaluation' : 'weekly');
       }
       if (e.key === 'Escape') {
-        if (searchQuery) {
+        if (detailPanelOpen) {
+          setDetailPanelOpen(false);
+          setSelectedEntry(null);
+        } else if (searchQuery) {
           setSearchQuery('');
           searchInputRef.current?.blur();
         }
@@ -748,6 +773,31 @@ export default function PdbTracker() {
     }
     load();
   }, [mode, selectedWeekId]);
+
+  // ── Compare Snapshot ──
+  const compareSnapshot = useMemo(
+    () => snapshots.find(s => s.weekId === compareWeekId) || null,
+    [snapshots, compareWeekId]
+  );
+
+  // ── Fetch Compare Entries ──
+  useEffect(() => {
+    if (!compareMode || !compareWeekId) { setCompareEntries([]); return; }
+    let cancelled = false;
+    async function load() {
+      try {
+        const params = new URLSearchParams();
+        params.set('week', compareWeekId);
+        const res = await fetch(`/api/entries?${params}`);
+        if (!cancelled) {
+          const data = await res.json();
+          setCompareEntries(data);
+        }
+      } catch (e) { console.error('Failed to fetch compare entries:', e); }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [compareMode, compareWeekId]);
 
   // ── Fetch Evaluation Detail ──
   useEffect(() => {
@@ -954,7 +1004,7 @@ export default function PdbTracker() {
         {/* ═══════════ HEADER BAR ═══════════ */}
         <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20">
           {/* Gradient border at bottom */}
-          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-claude-cryoem via-claude-accent to-claude-xray" />
+          <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-claude-cryoem via-claude-accent to-claude-xray bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-claude-accent-light">
               <Dna className="h-4.5 w-4.5 text-claude-accent" />
@@ -1155,6 +1205,41 @@ export default function PdbTracker() {
                       Export
                     </button>
                   )}
+
+                  {/* Compare Button */}
+                  <button
+                    onClick={() => {
+                      if (compareMode) { setCompareMode(false); setCompareWeekId(null); }
+                      else setCompareMode(true);
+                    }}
+                    className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 ${
+                      compareMode
+                        ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                        : 'border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                    }`}
+                  >
+                    <GitCompareArrows className="h-3 w-3" />
+                    Compare
+                  </button>
+
+                  {/* Compare Week Selector */}
+                  {compareMode && (
+                    <Select value={compareWeekId || ''} onValueChange={setCompareWeekId}>
+                      <SelectTrigger className="w-[140px] h-7 text-[11px]">
+                        <SelectValue placeholder="Compare with..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {snapshots
+                          .filter(s => s.weekId !== selectedWeekId)
+                          .map(s => (
+                            <SelectItem key={s.weekId} value={s.weekId}>
+                              <span className="font-mono">{s.weekId}</span>
+                              <span className="text-claude-text-muted ml-2">({s.totalStructures})</span>
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </>
               ) : (
                 <>
@@ -1186,6 +1271,14 @@ export default function PdbTracker() {
 
             {/* Data Table */}
             <div className="flex-1 overflow-auto custom-scrollbar">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.div
+                  key={`${mode}-${selectedWeekId || 'no-week'}-${selectedEvalId || 'no-eval'}`}
+                  initial={{ opacity: 0, x: 10 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -10 }}
+                  transition={{ duration: 0.2, ease: "easeInOut" }}
+                >
               {mode === 'weekly' ? (
                 loadingEntries ? (
                   <table className="w-full text-xs">
@@ -1204,7 +1297,7 @@ export default function PdbTracker() {
                   </table>
                 ) : sortedEntries.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted">
-                    <Database className="h-10 w-10 mb-3 opacity-30" />
+                    <Database className="h-10 w-10 mb-3 opacity-30 animate-float" />
                     <p className="text-sm">No structures found</p>
                     <p className="text-xs mt-1">Try adjusting filters or selecting a different week</p>
                   </div>
@@ -1247,7 +1340,8 @@ export default function PdbTracker() {
                             initial={{ opacity: 0, y: 4 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
-                            className="table-row-hover border-b border-claude-border-light hover:shadow-md"
+                            className="table-row-hover border-b border-claude-border-light hover:shadow-md cursor-pointer"
+                            onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
                           >
                             <td className="px-3 py-2">
                               <Tooltip>
@@ -1358,7 +1452,7 @@ export default function PdbTracker() {
                 /* Evaluation Table */
                 !selectedEval ? (
                   <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted">
-                    <Microscope className="h-10 w-10 mb-3 opacity-30" />
+                    <Microscope className="h-10 w-10 mb-3 opacity-30 animate-float" />
                     <p className="text-sm">Select a protein evaluation</p>
                     <p className="text-xs mt-1">Choose from the sidebar to view structures and BLAST results</p>
                   </div>
@@ -1491,6 +1585,8 @@ export default function PdbTracker() {
                   </table>
                 )
               )}
+                </motion.div>
+              </AnimatePresence>
             </div>
 
             {/* Pagination */}
@@ -1562,7 +1658,8 @@ export default function PdbTracker() {
         </div>
 
         {/* ═══════════ FOOTER ═══════════ */}
-        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted">
+        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted relative">
+          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-claude-accent/30 to-transparent" />
           <span>PDB Structure Tracker &copy; 2025</span>
           <span>·</span>
           <a
@@ -1584,6 +1681,209 @@ export default function PdbTracker() {
         title={reportModal.title}
         content={reportModal.content}
       />
+
+      {/* ═══════════ ROW DETAIL SLIDE-OVER PANEL ═══════════ */}
+      <AnimatePresence>
+        {detailPanelOpen && selectedEntry && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+              onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
+            />
+            <motion.aside
+              initial={{ x: 420 }}
+              animate={{ x: 0 }}
+              exit={{ x: 420 }}
+              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+              className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col shadow-2xl"
+            >
+              {/* Detail Header */}
+              <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-claude-border">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="font-mono text-lg font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
+                    {getMethodLabel(selectedEntry.method)}
+                  </span>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Detail Content */}
+              <ScrollArea className="flex-1">
+                <div className="p-4 space-y-5">
+                  {/* 3D Structure Viewer */}
+                  <div>
+                    <MoleculeViewer pdbId={selectedEntry.pdbId} />
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h3>
+                    <p className="text-sm text-claude-text leading-relaxed">{selectedEntry.title}</p>
+                  </div>
+
+                  {/* Resolution */}
+                  {selectedEntry.resolution != null && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
+                      <div className="flex items-center gap-3">
+                        <span className={`text-2xl font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
+                          {selectedEntry.resolution.toFixed(2)}Å
+                        </span>
+                        <div className="flex-1 h-2.5 bg-claude-border-light rounded-full overflow-hidden">
+                          <div
+                            className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
+                              backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
+                            }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-claude-text-muted">
+                          {selectedEntry.resolution <= 1.5 ? 'Excellent' : selectedEntry.resolution <= 2.0 ? 'High' : selectedEntry.resolution <= 3.0 ? 'Medium' : selectedEntry.resolution <= 3.5 ? 'Low' : 'Very Low'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Journal */}
+                  {selectedEntry.journal && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Journal</h3>
+                      <div className="flex items-start gap-2">
+                        <span className="text-sm text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
+                        {selectedEntry.journalIf != null && (
+                          <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
+                            IF {selectedEntry.journalIf.toFixed(1)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Authors */}
+                  {selectedEntry.authors && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Authors</h3>
+                      <p className="text-xs text-claude-text-secondary leading-relaxed">{selectedEntry.authors.replace(/\|/g, ', ')}</p>
+                    </div>
+                  )}
+
+                  {/* Organisms */}
+                  {selectedEntry.organisms && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Organisms</h3>
+                      <div className="flex flex-wrap gap-1">
+                        {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
+                          <span key={`org-${i}`} className="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-claude-border-light text-claude-text-secondary italic">
+                            {org.trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Ligands */}
+                  {parseLigands(selectedEntry.ligands).length > 0 && (
+                    <div>
+                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
+                      <div className="flex flex-wrap gap-1">
+                        {parseLigands(selectedEntry.ligands).map((lig, i) => (
+                          <Popover key={`detail-lig-${i}-${lig}`}>
+                            <PopoverTrigger asChild>
+                              <span
+                                className="ligand-chip cursor-pointer"
+                                onMouseEnter={() => fetchLigandInfo(lig)}
+                              >
+                                {lig}
+                              </span>
+                            </PopoverTrigger>
+                            <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
+                              {ligandCache[lig] ? (
+                                <LigandTooltipContent ligand={ligandCache[lig]} />
+                              ) : (
+                                <div className="p-3 flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
+                                  <span className="text-xs text-claude-text-muted">Loading...</span>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Links */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Links</h3>
+                    <div className="flex flex-wrap gap-2">
+                      <a
+                        href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-claude-accent-light text-claude-accent hover:bg-claude-accent/15 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        RCSB PDB
+                      </a>
+                      {selectedEntry.doi && (
+                        <a
+                          href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/15 transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          DOI
+                        </a>
+                      )}
+                      {selectedEntry.pubmedId && (
+                        <a
+                          href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/15 transition-colors"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          PubMed
+                        </a>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dates */}
+                  <div>
+                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Dates</h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-2.5 rounded-lg bg-claude-border-light/50">
+                        <div className="text-[10px] text-claude-text-muted">Release Date</div>
+                        <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-claude-border-light/50">
+                        <div className="text-[10px] text-claude-text-muted">Fetch Date</div>
+                        <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.fetchDate)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Week Info */}
+                  <div className="p-3 rounded-lg bg-claude-border-light/30">
+                    <div className="text-[10px] text-claude-text-muted mb-0.5">Week</div>
+                    <div className="text-sm font-mono font-medium text-claude-text-secondary">{selectedEntry.weekId}</div>
+                  </div>
+                </div>
+              </ScrollArea>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </TooltipProvider>
   );
 
@@ -1638,7 +1938,19 @@ export default function PdbTracker() {
               {loadingSnapshots ? (
                 <div className="space-y-2">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="h-20 rounded-lg bg-claude-border-light animate-pulse" />
+                    <div key={i} className="p-3 rounded-[10px] border border-claude-border space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <div className="h-3 w-16 rounded-md shimmer-skeleton" />
+                        <div className="h-2.5 w-20 rounded shimmer-skeleton" />
+                      </div>
+                      <div className="h-2.5 w-3/4 rounded shimmer-skeleton" />
+                      <div className="flex gap-1.5">
+                        <div className="h-4 w-12 rounded shimmer-skeleton" />
+                        <div className="h-4 w-10 rounded shimmer-skeleton" />
+                        <div className="h-4 w-11 rounded shimmer-skeleton" />
+                      </div>
+                      <div className="h-1.5 w-full rounded-full shimmer-skeleton" />
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -1760,7 +2072,17 @@ export default function PdbTracker() {
               {loadingEvals ? (
                 <div className="space-y-2">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="h-16 rounded-lg bg-claude-border-light animate-pulse" />
+                    <div key={i} className="p-3 rounded-[10px] border border-claude-border space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="h-3 w-14 rounded-md shimmer-skeleton" />
+                        <div className="h-4 w-8 rounded shimmer-skeleton" />
+                      </div>
+                      <div className="h-2.5 w-[80%] rounded shimmer-skeleton" />
+                      <div className="flex gap-2">
+                        <div className="h-2.5 w-16 rounded shimmer-skeleton" />
+                        <div className="h-2.5 w-12 rounded shimmer-skeleton" />
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : (
@@ -1828,9 +2150,27 @@ export default function PdbTracker() {
         </div>
 
         <ScrollArea className="flex-1">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={previewTab}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.15 }}
+            >
           {previewTab === 'summary' ? (
             mode === 'weekly' && selectedSnapshot ? (
-              <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} />
+              compareMode && compareWeekId && compareSnapshot ? (
+                <WeekComparisonView
+                  snapshotA={selectedSnapshot}
+                  snapshotB={compareSnapshot}
+                  entriesA={entries}
+                  entriesB={compareEntries}
+                  snapshots={snapshots}
+                />
+              ) : (
+                <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} entries={entries} />
+              )
             ) : mode === 'evaluation' && selectedEval ? (
               <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
             ) : (
@@ -1870,6 +2210,8 @@ export default function PdbTracker() {
               </div>
             )
           )}
+            </motion.div>
+          </AnimatePresence>
         </ScrollArea>
       </Tabs>
     );
@@ -1902,7 +2244,77 @@ const IF_TIER_COLORS: Record<string, string> = {
   unknown: '#9b9590',
 };
 
-function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snapshots: WeeklySnapshot[] }) {
+// ─── Custom Recharts Tooltip Components ──────────────────────────────────────
+
+function ClaudeChartTooltip({ active, payload, label, isDark }: {
+  active?: boolean; payload?: Array<{ name: string; value: number; payload?: { color?: string; range?: string; tier?: string; name?: string }; fill?: string }>; label?: string; isDark: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const total = payload.reduce((s, p) => s + p.value, 0);
+  return (
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}>
+      {label && <div className={`font-semibold mb-1 text-[11px] ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{label}</div>}
+      {payload.map((p, i) => {
+        const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0';
+        const name = p.name || p.payload?.name || p.payload?.tier || p.payload?.range || '';
+        const color = p.fill || p.payload?.color || '#c4644a';
+        return (
+          <div key={i} className="flex items-center gap-2 py-0.5">
+            <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
+            <span className={isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'}>{name}</span>
+            <span className={`font-mono font-medium ml-auto ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{p.value}</span>
+            <span className={isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}>({pct}%)</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function ClaudeTrendTooltip({ active, payload, label, isDark }: {
+  active?: boolean; payload?: Array<{ value: number; dataKey?: string }>; label?: string; isDark: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}>
+      <div className={`font-semibold mb-0.5 text-[11px] ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{label}</div>
+      {payload.map((p, i) => (
+        <div key={i} className="flex items-center gap-2 py-0.5">
+          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: '#c4644a' }} />
+          <span className={isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'}>{p.dataKey === 'total' ? 'Structures' : p.dataKey}</span>
+          <span className={`font-mono font-medium ml-auto ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{p.value}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ClaudeResTooltip({ active, payload, isDark }: {
+  active?: boolean; payload?: Array<{ value: number; payload?: { range?: string; color?: string } }>; isDark: boolean;
+}) {
+  if (!active || !payload?.length) return null;
+  const p = payload[0];
+  const range = p.payload?.range || '';
+  return (
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}>
+      <div className={`font-semibold mb-0.5 text-[11px] ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{range}</div>
+      <div className="flex items-center gap-2 py-0.5">
+        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.payload?.color || '#7c5cbf' }} />
+        <span className={isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'}>Count</span>
+        <span className={`font-mono font-medium ml-auto ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{p.value}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Chart Color Helpers (dark-mode aware) ───────────────────────────────────
+
+function getChartAxisColor(isDark: boolean) { return isDark ? '#9b9590' : '#7c756e'; }
+function getChartTickColor(isDark: boolean) { return isDark ? '#6b6560' : '#9b9590'; }
+
+function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnapshot; snapshots: WeeklySnapshot[]; entries: PdbEntry[] }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const topJournals = useMemo(() => {
     try { return snapshot.topJournals ? JSON.parse(snapshot.topJournals) : []; }
     catch { return []; }
@@ -1981,6 +2393,30 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
       }));
   }, [snapshots]);
 
+  // Organism distribution data for horizontal bar chart
+  const organismBarData = useMemo(() => {
+    if (!entries || entries.length === 0) return [];
+    const organismCounts: Record<string, number> = {};
+    entries.forEach(e => {
+      if (!e.organisms) return;
+      e.organisms.split('|').filter(Boolean).forEach(org => {
+        const trimmed = org.trim();
+        if (trimmed) organismCounts[trimmed] = (organismCounts[trimmed] || 0) + 1;
+      });
+    });
+    const total = entries.length;
+    return Object.entries(organismCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([name, count]) => ({
+        name: name.length > 22 ? name.slice(0, 21) + '…' : name,
+        count,
+        pct: total > 0 ? ((count / total) * 100).toFixed(1) : '0',
+      }));
+  }, [entries]);
+
+  const ORGANISM_COLORS = ['#c4644a', '#2d8f8f', '#7c5cbf', '#c9872e', '#6b7280'];
+
   const methodData = [
     { label: 'Cryo-EM', count: snapshot.cryoemCount, color: '#2d8f8f', bg: '#e8f5f5' },
     { label: 'X-ray', count: snapshot.xrayCount, color: '#7c5cbf', bg: '#f0ebf8' },
@@ -2022,8 +2458,8 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
 
       {/* ─── Chart 1: Method Distribution Donut Chart ─── */}
       {methodPieData.length > 0 && (
-        <div className="bg-claude-bg/50 rounded-lg p-3">
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Method Distribution</h4>
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Method Distribution</h4>
           <div className="flex items-center gap-3">
             <div className="w-[120px] h-[120px] flex-shrink-0">
               <ResponsiveContainer width="100%" height={120}>
@@ -2039,15 +2475,13 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
                     stroke="none"
                     animationBegin={0}
                     animationDuration={600}
+                    style={{ cursor: 'pointer' }}
                   >
                     {methodPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                      <Cell key={`cell-${index}`} fill={entry.color} className="transition-opacity duration-150 hover:opacity-80" />
                     ))}
                   </Pie>
-                  <RTooltip
-                    formatter={(value: number, name: string) => [`${value} structures`, name]}
-                    contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-                  />
+                  <RTooltip content={({ active, payload }) => <ClaudeChartTooltip active={active} payload={payload as any} isDark={isDark} />} />
                 </PieChart>
               </ResponsiveContainer>
             </div>
@@ -2057,9 +2491,9 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
                 return (
                   <div key={item.name} className="flex items-center gap-2">
                     <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
-                    <span className="text-[10px] text-claude-text-secondary flex-1">{item.name}</span>
-                    <span className="text-[10px] font-mono text-claude-text-muted">{item.value}</span>
-                    <span className="text-[9px] text-claude-text-muted">({pct.toFixed(0)}%)</span>
+                    <span className="text-[10px] text-claude-text-secondary dark:text-[#9b9590] flex-1">{item.name}</span>
+                    <span className="text-[10px] font-mono text-claude-text-muted dark:text-[#6b6560]">{item.value}</span>
+                    <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560]">({pct.toFixed(0)}%)</span>
                   </div>
                 );
               })}
@@ -2070,19 +2504,16 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
 
       {/* ─── Chart 2: Resolution Distribution Bar Chart ─── */}
       {resolutionBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 rounded-lg p-3">
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution Distribution</h4>
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution Distribution</h4>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={resolutionBarData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
-              <XAxis type="number" tick={{ fontSize: 9, fill: '#9b9590' }} axisLine={false} tickLine={false} />
-              <YAxis type="category" dataKey="range" tick={{ fontSize: 9, fill: '#7c756e' }} axisLine={false} tickLine={false} width={52} />
-              <RTooltip
-                formatter={(value: number) => [`${value} structures`, 'Count']}
-                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-              />
-              <Bar dataKey="count" radius={[0, 4, 4, 0]} animationDuration={600}>
+              <XAxis type="number" tick={{ fontSize: 9, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="range" tick={{ fontSize: 9, fill: getChartAxisColor(isDark) }} axisLine={false} tickLine={false} width={52} />
+              <RTooltip content={({ active, payload }) => <ClaudeResTooltip active={active} payload={payload as any} isDark={isDark} />} />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} animationDuration={600} style={{ cursor: 'pointer' }}>
                 {resolutionBarData.map((entry, index) => (
-                  <Cell key={`res-cell-${index}`} fill={entry.color} />
+                  <Cell key={`res-cell-${index}`} fill={entry.color} className="transition-opacity duration-150 hover:opacity-80" />
                 ))}
               </Bar>
             </BarChart>
@@ -2093,34 +2524,64 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
       {/* Average Resolution */}
       <div className="grid grid-cols-2 gap-2">
         {snapshot.cryoemAvgRes != null && (
-          <div className="p-3 rounded-lg bg-claude-cryoem-bg/30">
+          <div className="p-3 rounded-lg bg-claude-cryoem-bg/30 dark:bg-[#1a1917]/50">
             <div className="text-[10px] text-claude-cryoem/70 mb-0.5">Cryo-EM Avg Res</div>
             <div className="text-sm font-mono font-semibold text-claude-cryoem">{snapshot.cryoemAvgRes.toFixed(2)}Å</div>
           </div>
         )}
         {snapshot.xrayAvgRes != null && (
-          <div className="p-3 rounded-lg bg-claude-xray-bg/30">
+          <div className="p-3 rounded-lg bg-claude-xray-bg/30 dark:bg-[#1a1917]/50">
             <div className="text-[10px] text-claude-xray/70 mb-0.5">X-ray Avg Res</div>
             <div className="text-sm font-mono font-semibold text-claude-xray">{snapshot.xrayAvgRes.toFixed(2)}Å</div>
           </div>
         )}
       </div>
 
+      {/* ─── Chart 5: Organism Distribution Horizontal Bar Chart ─── */}
+      {organismBarData.length > 0 && (
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Top Organisms</h4>
+          <ResponsiveContainer width="100%" height={130}>
+            <BarChart data={organismBarData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
+              <XAxis type="number" tick={{ fontSize: 8, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} />
+              <YAxis type="category" dataKey="name" tick={{ fontSize: 8, fill: getChartAxisColor(isDark) }} axisLine={false} tickLine={false} width={85} />
+              <RTooltip content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const d = payload[0].payload;
+                return (
+                  <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}>
+                    <div className={`font-semibold mb-0.5 text-[11px] ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{d.name}</div>
+                    <div className="flex items-center gap-2 py-0.5">
+                      <span className={isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'}>Count</span>
+                      <span className={`font-mono font-medium ml-auto ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{d.count}</span>
+                      <span className={isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}>({d.pct}%)</span>
+                    </div>
+                  </div>
+                );
+              }} />
+              <Bar dataKey="count" radius={[0, 4, 4, 0]} animationDuration={600} style={{ cursor: 'pointer' }}>
+                {organismBarData.map((_, index) => (
+                  <Cell key={`org-cell-${index}`} fill={ORGANISM_COLORS[index % ORGANISM_COLORS.length]} className="transition-opacity duration-150 hover:opacity-80" />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* ─── Chart 3: Impact Factor Tier Distribution ─── */}
       {ifTierBarData.length > 0 && ifTierBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 rounded-lg p-3">
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Impact Factor Tiers</h4>
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Impact Factor Tiers</h4>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={ifTierBarData} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
-              <XAxis dataKey="tier" tick={{ fontSize: 9, fill: '#7c756e' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: '#9b9590' }} axisLine={false} tickLine={false} width={24} />
-              <RTooltip
-                formatter={(value: number) => [`${value} structures`, 'Count']}
-                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-              />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]} animationDuration={600}>
+              <XAxis dataKey="tier" tick={{ fontSize: 9, fill: getChartAxisColor(isDark) }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 9, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} width={24} />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#3d3832' : '#f0e8df'} vertical={false} />
+              <RTooltip content={({ active, payload, label }) => <ClaudeChartTooltip active={active} payload={payload as any} label={label} isDark={isDark} />} />
+              <Bar dataKey="count" radius={[4, 4, 0, 0]} animationDuration={600} style={{ cursor: 'pointer' }}>
                 {ifTierBarData.map((entry, index) => (
-                  <Cell key={`if-cell-${index}`} fill={entry.color} />
+                  <Cell key={`if-cell-${index}`} fill={entry.color} className="transition-opacity duration-150 hover:opacity-80" />
                 ))}
               </Bar>
             </BarChart>
@@ -2130,36 +2591,34 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
 
       {/* ─── Chart 4: Weekly Trends Mini Area Chart ─── */}
       {weeklyTrendData.length > 1 && (
-        <div className="bg-claude-bg/50 rounded-lg p-3">
-          <h4 className="text-xs font-semibold text-claude-text mb-2">Weekly Trends</h4>
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Weekly Trends</h4>
           <ResponsiveContainer width="100%" height={100}>
             <AreaChart data={weeklyTrendData} margin={{ top: 2, right: 10, bottom: 0, left: 0 }}>
               <defs>
                 <linearGradient id="trendGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#c4644a" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#c4644a" stopOpacity={0.02} />
+                  <stop offset="5%" stopColor={isDark ? '#d4784f' : '#c4644a'} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={isDark ? '#d4784f' : '#c4644a'} stopOpacity={0.02} />
                 </linearGradient>
               </defs>
               <XAxis
                 dataKey="week"
-                tick={{ fontSize: 8, fill: '#9b9590' }}
+                tick={{ fontSize: 8, fill: getChartTickColor(isDark) }}
                 axisLine={false}
                 tickLine={false}
                 interval={Math.max(0, Math.floor(weeklyTrendData.length / 4) - 1)}
               />
-              <YAxis tick={{ fontSize: 8, fill: '#9b9590' }} axisLine={false} tickLine={false} width={28} />
-              <RTooltip
-                formatter={(value: number) => [`${value} structures`, 'Total']}
-                labelFormatter={(label: string) => `Week ${label}`}
-                contentStyle={{ fontSize: '11px', borderRadius: '6px', border: '1px solid #e5ddd4', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}
-              />
+              <YAxis tick={{ fontSize: 8, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} width={28} />
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#3d3832' : '#f0e8df'} vertical={false} />
+              <RTooltip content={({ active, payload, label }) => <ClaudeTrendTooltip active={active} payload={payload as any} label={label} isDark={isDark} />} />
               <Area
                 type="monotone"
                 dataKey="total"
-                stroke="#c4644a"
+                stroke={isDark ? '#d4784f' : '#c4644a'}
                 strokeWidth={1.5}
                 fill="url(#trendGradient)"
                 animationDuration={600}
+                style={{ cursor: 'pointer' }}
               />
             </AreaChart>
           </ResponsiveContainer>
@@ -2168,7 +2627,7 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
 
       {/* Method Distribution - Bar Chart Style (fallback detail) */}
       <div>
-        <h4 className="text-xs font-semibold text-claude-text mb-3">Method Details</h4>
+        <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-3">Method Details</h4>
         <div className="space-y-2">
           {methodData.map(item => {
             const pct = snapshot.totalStructures > 0 ? (item.count / snapshot.totalStructures) * 100 : 0;
@@ -2288,6 +2747,224 @@ function WeeklySummary({ snapshot, snapshots }: { snapshot: WeeklySnapshot; snap
               </div>
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Week Comparison View Sub-Component ──────────────────────────────────────
+
+function DeltaIndicator({ value, suffix = '', invertColor = false }: { value: number | null; suffix?: string; invertColor?: boolean }) {
+  if (value === null || value === 0) return <span className="text-[9px] text-claude-text-muted">—</span>;
+  const isPositive = value > 0;
+  const isGood = invertColor ? !isPositive : isPositive;
+  return (
+    <span className={`inline-flex items-center gap-0.5 text-[9px] font-mono font-semibold ${isGood ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}`}>
+      {isPositive ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+      {isPositive ? '+' : ''}{value.toFixed(value % 1 === 0 ? 0 : 2)}{suffix}
+    </span>
+  );
+}
+
+function WeekComparisonView({
+  snapshotA,
+  snapshotB,
+  entriesA,
+  entriesB,
+  snapshots,
+}: {
+  snapshotA: WeeklySnapshot;
+  snapshotB: WeeklySnapshot;
+  entriesA: PdbEntry[];
+  entriesB: PdbEntry[];
+  snapshots: WeeklySnapshot[];
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  // Method data for both weeks
+  const methodDataA = useMemo(() => [
+    { name: 'Cryo-EM', value: snapshotA.cryoemCount, color: METHOD_COLORS['Cryo-EM'] },
+    { name: 'X-ray', value: snapshotA.xrayCount, color: METHOD_COLORS['X-ray'] },
+    { name: 'NMR', value: snapshotA.nmrCount, color: METHOD_COLORS['NMR'] },
+    { name: 'Other', value: snapshotA.otherCount, color: METHOD_COLORS['Other'] },
+  ].filter(d => d.value > 0), [snapshotA]);
+
+  const methodDataB = useMemo(() => [
+    { name: 'Cryo-EM', value: snapshotB.cryoemCount, color: METHOD_COLORS['Cryo-EM'] },
+    { name: 'X-ray', value: snapshotB.xrayCount, color: METHOD_COLORS['X-ray'] },
+    { name: 'NMR', value: snapshotB.nmrCount, color: METHOD_COLORS['NMR'] },
+    { name: 'Other', value: snapshotB.otherCount, color: METHOD_COLORS['Other'] },
+  ].filter(d => d.value > 0), [snapshotB]);
+
+  // Resolution distribution for both weeks
+  const resDataA = useMemo(() => {
+    const combined: Record<string, number> = {};
+    try {
+      const xd = snapshotA.xrayResDist ? JSON.parse(snapshotA.xrayResDist) : null;
+      const cd = snapshotA.cryoemResDist ? JSON.parse(snapshotA.cryoemResDist) : null;
+      if (xd) Object.entries(xd).forEach(([r, c]) => { combined[r] = (combined[r] || 0) + (c as number); });
+      if (cd) Object.entries(cd).forEach(([r, c]) => { combined[r] = (combined[r] || 0) + (c as number); });
+    } catch { /* ignore */ }
+    return RESOLUTION_RANGES.map(r => ({
+      range: r.label,
+      weekA: combined[r.label.replace('Å', '')] || combined[r.label] || 0,
+      weekB: 0,
+    }));
+  }, [snapshotA]);
+
+  const resDataB = useMemo(() => {
+    const combined: Record<string, number> = {};
+    try {
+      const xd = snapshotB.xrayResDist ? JSON.parse(snapshotB.xrayResDist) : null;
+      const cd = snapshotB.cryoemResDist ? JSON.parse(snapshotB.cryoemResDist) : null;
+      if (xd) Object.entries(xd).forEach(([r, c]) => { combined[r] = (combined[r] || 0) + (c as number); });
+      if (cd) Object.entries(cd).forEach(([r, c]) => { combined[r] = (combined[r] || 0) + (c as number); });
+    } catch { /* ignore */ }
+    return resDataA.map(d => ({
+      ...d,
+      weekB: combined[d.range.replace('Å', '')] || combined[d.range] || 0,
+    }));
+  }, [snapshotB, resDataA]);
+
+  // Delta calculations
+  const deltas = useMemo(() => {
+    const totalDelta = snapshotB.totalStructures - snapshotA.totalStructures;
+    const cryoemDelta = snapshotB.cryoemCount - snapshotA.cryoemCount;
+    const xrayDelta = snapshotB.xrayCount - snapshotA.xrayCount;
+    const nmrDelta = snapshotB.nmrCount - snapshotA.nmrCount;
+    const avgResA = snapshotA.cryoemAvgRes != null && snapshotA.xrayAvgRes != null
+      ? ((snapshotA.cryoemAvgRes * snapshotA.cryoemCount + snapshotA.xrayAvgRes * snapshotA.xrayCount) / (snapshotA.cryoemCount + snapshotA.xrayCount || 1))
+      : snapshotA.cryoemAvgRes ?? snapshotA.xrayAvgRes ?? null;
+    const avgResB = snapshotB.cryoemAvgRes != null && snapshotB.xrayAvgRes != null
+      ? ((snapshotB.cryoemAvgRes * snapshotB.cryoemCount + snapshotB.xrayAvgRes * snapshotB.xrayCount) / (snapshotB.cryoemCount + snapshotB.xrayCount || 1))
+      : snapshotB.cryoemAvgRes ?? snapshotB.xrayAvgRes ?? null;
+    const resDelta = avgResA != null && avgResB != null ? avgResB - avgResA : null;
+    return { totalDelta, cryoemDelta, xrayDelta, nmrDelta, resDelta };
+  }, [snapshotA, snapshotB]);
+
+  return (
+    <div className="p-4 space-y-5">
+      {/* Comparison Header */}
+      <div className="flex items-center gap-2">
+        <span className="font-mono text-xs font-semibold text-claude-accent">{snapshotA.weekId}</span>
+        <span className="text-[10px] text-claude-text-muted">vs</span>
+        <span className="font-mono text-xs font-semibold text-claude-xray">{snapshotB.weekId}</span>
+      </div>
+
+      {/* Delta Summary Card */}
+      <div className="grid grid-cols-2 gap-2">
+        <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#2b2926]' : 'bg-claude-border-light/50'}`}>
+          <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-0.5">Structures</div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-claude-text dark:text-[#e8e4dd]">{snapshotA.totalStructures}→{snapshotB.totalStructures}</span>
+            <DeltaIndicator value={deltas.totalDelta} />
+          </div>
+        </div>
+        <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#2b2926]' : 'bg-claude-border-light/50'}`}>
+          <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-0.5">Avg Resolution</div>
+          <div className="flex items-center gap-2">
+            {deltas.resDelta !== null ? (
+              <>
+                <span className="text-sm font-semibold text-claude-text dark:text-[#e8e4dd]">
+                  {((snapshotB.cryoemAvgRes ?? snapshotB.xrayAvgRes) ?? 0).toFixed(2)}Å
+                </span>
+                <DeltaIndicator value={deltas.resDelta} suffix="Å" invertColor />
+              </>
+            ) : (
+              <span className="text-sm text-claude-text-muted">—</span>
+            )}
+          </div>
+        </div>
+        <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#2b2926]' : 'bg-claude-cryoem-bg/30'}`}>
+          <div className="text-[9px] text-claude-cryoem/70 mb-0.5">Cryo-EM</div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-claude-cryoem">{snapshotA.cryoemCount}→{snapshotB.cryoemCount}</span>
+            <DeltaIndicator value={deltas.cryoemDelta} />
+          </div>
+        </div>
+        <div className={`p-2.5 rounded-lg ${isDark ? 'bg-[#2b2926]' : 'bg-claude-xray-bg/30'}`}>
+          <div className="text-[9px] text-claude-xray/70 mb-0.5">X-ray</div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-claude-xray">{snapshotA.xrayCount}→{snapshotB.xrayCount}</span>
+            <DeltaIndicator value={deltas.xrayDelta} />
+          </div>
+        </div>
+      </div>
+
+      {/* Side-by-Side Method Donut Charts */}
+      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+        <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Method Distribution</h4>
+        <div className="flex items-center gap-1">
+          {/* Week A Donut */}
+          <div className="flex-1 min-w-0">
+            <div className="text-center text-[9px] font-mono font-semibold text-claude-accent mb-1">{snapshotA.weekId}</div>
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={methodDataA} cx="50%" cy="50%" innerRadius={20} outerRadius={40} paddingAngle={2} dataKey="value" stroke="none" animationDuration={600}>
+                  {methodDataA.map((entry, index) => (
+                    <Cell key={`cell-a-${index}`} fill={entry.color} className="transition-opacity duration-150 hover:opacity-80" />
+                  ))}
+                </Pie>
+                <RTooltip content={({ active, payload }) => <ClaudeChartTooltip active={active} payload={payload as any} isDark={isDark} />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* VS Divider */}
+          <div className="flex-shrink-0 flex flex-col items-center justify-center px-1">
+            <div className={`w-px h-8 ${isDark ? 'bg-[#4a4540]' : 'bg-claude-border'}`} />
+            <span className={`text-[8px] font-bold my-1 ${isDark ? 'text-[#6b6560]' : 'text-claude-text-muted'}`}>VS</span>
+            <div className={`w-px h-8 ${isDark ? 'bg-[#4a4540]' : 'bg-claude-border'}`} />
+          </div>
+
+          {/* Week B Donut */}
+          <div className="flex-1 min-w-0">
+            <div className="text-center text-[9px] font-mono font-semibold text-claude-xray mb-1">{snapshotB.weekId}</div>
+            <ResponsiveContainer width="100%" height={100}>
+              <PieChart>
+                <Pie data={methodDataB} cx="50%" cy="50%" innerRadius={20} outerRadius={40} paddingAngle={2} dataKey="value" stroke="none" animationDuration={600}>
+                  {methodDataB.map((entry, index) => (
+                    <Cell key={`cell-b-${index}`} fill={entry.color} className="transition-opacity duration-150 hover:opacity-80" />
+                  ))}
+                </Pie>
+                <RTooltip content={({ active, payload }) => <ClaudeChartTooltip active={active} payload={payload as any} isDark={isDark} />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Grouped Bar Chart: Resolution Distribution */}
+      {resDataB.some(d => d.weekA > 0 || d.weekB > 0) && (
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3">
+          <h4 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] mb-2">Resolution Comparison</h4>
+          <ResponsiveContainer width="100%" height={140}>
+            <BarChart data={resDataB} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#3d3832' : '#f0e8df'} vertical={false} />
+              <XAxis dataKey="range" tick={{ fontSize: 8, fill: getChartAxisColor(isDark) }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 8, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} width={24} />
+              <RTooltip content={({ active, payload, label }) => {
+                if (!active || !payload?.length) return null;
+                return (
+                  <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border ${isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text'}`}>
+                    <div className={`font-semibold mb-1 text-[11px] ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{label}</div>
+                    {payload.map((p: any, i: number) => (
+                      <div key={i} className="flex items-center gap-2 py-0.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.fill }} />
+                        <span className={isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary'}>{p.name}</span>
+                        <span className={`font-mono font-medium ml-auto ${isDark ? 'text-[#e8e4dd]' : 'text-claude-text'}`}>{p.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              }} />
+              <Legend wrapperStyle={{ fontSize: '9px', color: isDark ? '#9b9590' : '#7c756e' }} />
+              <Bar dataKey="weekA" name={snapshotA.weekId} fill="#c4644a" radius={[3, 3, 0, 0]} animationDuration={600} style={{ cursor: 'pointer' }} />
+              <Bar dataKey="weekB" name={snapshotB.weekId} fill="#2d8f8f" radius={[3, 3, 0, 0]} animationDuration={600} style={{ cursor: 'pointer' }} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
       )}
     </div>

@@ -419,3 +419,38 @@
   color: #e8e4dd;
   border-color: #4a4540;
 }
+
+/* Shimmer skeleton loading */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.shimmer-skeleton {
+  background: linear-gradient(90deg, #f0ece5 25%, #faf8f5 50%, #f0ece5 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.dark .shimmer-skeleton {
+  background: linear-gradient(90deg, #2b2926 25%, #3d3832 50%, #2b2926 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Header gradient animation */
+@keyframes gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Empty state float animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float 2.5s ease-in-out infinite;
+}

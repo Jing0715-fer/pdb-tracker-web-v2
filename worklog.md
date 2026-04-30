@@ -253,3 +253,271 @@ The PDB Structure Tracker application is a full-featured protein structure track
 6. Performance optimization for large datasets (virtual scrolling)
 7. Add more chart types (scatter plots for resolution vs IF correlation)
 8. Add comparison view between weeks
+
+---
+Task ID: 2
+Agent: Molecular Viewer & Detail Panel Agent
+Task: Add 3D Molecular Structure Viewer and Row Detail Slide-Over Panel
+
+Work Log:
+- Installed molstar package (v5.8.0) for professional molecular visualization
+- Created `/home/z/my-project/src/components/molecule-viewer.tsx` component:
+  - Uses dynamic import (`next/dynamic` with `ssr: false`) since molstar is browser-only
+  - Uses `createPluginUI` from molstar/lib/mol-plugin-ui with `DefaultPluginUISpec`
+  - Hides all UI panels (top, left, right, bottom) for clean viewer
+  - Sets dark background (0x1a1917) matching Claude dark theme
+  - Loads mmCIF structure from RCSB PDB: `https://files.rcsb.org/download/${pdbId}.cif`
+  - Applies default preset with model representation
+  - Shows loading spinner while structure loads
+  - Shows error state with AlertCircle icon if loading fails
+  - 300px tall with rounded corners, dark background, border
+  - Properly disposes plugin on unmount or pdbId change
+- Added detail panel state to PdbTracker component:
+  - `selectedEntry: PdbEntry | null` and `detailPanelOpen: boolean`
+  - Escape key closes detail panel before clearing search
+- Added row click handler on weekly table `motion.tr`:
+  - `onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}`
+  - Added `cursor-pointer` class to table rows
+- Created slide-over detail panel with AnimatePresence:
+  - Smooth slide-in from right (x: 420 → 0) with custom ease curve
+  - Backdrop overlay with blur effect
+  - Width 420px, max 90vw for mobile
+  - Claude aesthetic: `bg-white dark:bg-[#242220]`, `border-l border-claude-border`
+  - Close button (X) in header
+- Detail panel content includes:
+  - PDB ID as header with method badge (Cryo-EM/X-ray/NMR)
+  - 3D MoleculeViewer component showing the structure
+  - Full title (not truncated)
+  - Resolution with visual progress bar and quality label (Excellent/High/Medium/Low/Very Low)
+  - Journal info with IF tier badge
+  - Authors list (pipe-separated → comma-separated)
+  - Organisms as individual badges
+  - Ligands with popover tooltips (fetching info on hover)
+  - Links section: RCSB PDB, DOI, PubMed (each with colored badges)
+  - Dates section: Release Date and Fetch Date in cards
+  - Week info card
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Added Molstar-based 3D molecular structure viewer
+- Row detail slide-over panel with comprehensive PDB entry information
+- Smooth animations with Framer Motion
+- Proper dark mode support throughout
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 3
+Agent: Chart Enhancement Agent
+Task: Add Week Comparison View and Enhanced Statistics/Charts
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx (~2444 lines) to understand current structure
+- **Part 1: Week-over-Week Comparison View**
+  - Added state: `compareMode`, `compareWeekId`, `compareEntries`
+  - Added `compareSnapshot` useMemo to find the comparison snapshot
+  - Added `useEffect` to fetch compare entries when compare mode is active and week is selected
+  - Added "Compare" button in weekly mode toolbar (next to Export button) with `GitCompareArrows` icon
+  - When compare mode is active, shows second week selector dropdown (filters out current week)
+  - Added `WeekComparisonView` component with:
+    - Comparison header showing "weekA vs weekB"
+    - Delta summary card: Structures, Avg Resolution, Cryo-EM, X-ray with before→after values and delta indicators
+    - Side-by-side method distribution donut charts with "VS" divider between them
+    - Grouped bar chart comparing resolution distributions for both weeks with Legend
+    - `DeltaIndicator` component (moved outside render for lint compliance) showing ↑/↓ with green/red color coding
+  - Modified `renderPreviewPanel` to show `WeekComparisonView` when compare mode is active with both weeks selected
+- **Part 2: Organism Distribution Chart**
+  - Passed `entries` prop to `WeeklySummary` component
+  - Added `organismBarData` useMemo that computes organism counts from entries (splits by `|`, counts occurrences)
+  - Shows top 5 organisms as horizontal bar chart using recharts `BarChart` with warm Claude color palette (#c4644a, #2d8f8f, #7c5cbf, #c9872e, #6b7280)
+  - Shows count and percentage in custom tooltip
+- **Part 3: Enhanced Chart Tooltips and Interactivity**
+  - Created 3 custom tooltip components:
+    - `ClaudeChartTooltip`: Shows method name, count, percentage with colored dot for donut/IF charts
+    - `ClaudeTrendTooltip`: Shows week label and structure count for area chart
+    - `ClaudeResTooltip`: Shows resolution range and count for resolution bar chart
+  - All tooltips styled with Claude aesthetic: rounded corners, subtle shadow, claude text colors
+  - Dark mode support in all tooltips (bg-[#2b2926], border-[#4a4540], text-[#e8e4dd])
+  - Added `cursor: 'pointer'` style to all chart bars/pies
+  - Added `className="transition-opacity duration-150 hover:opacity-80"` to all Cell components
+- **Part 4: Chart Dark Mode Polish**
+  - Added `useTheme` hook in `WeeklySummary` and `WeekComparisonView` components
+  - Created `getChartAxisColor(isDark)` and `getChartTickColor(isDark)` helper functions
+  - Applied dark mode axis text colors in all charts (YAxis, XAxis)
+  - Added `CartesianGrid` with `strokeDasharray="3 3"` and dark/light stroke colors
+  - Chart containers: `dark:bg-[#1a1917]/50` class added
+  - Chart headers: `dark:text-[#e8e4dd]` class added
+  - Legend items: `dark:text-[#9b9590]` color
+  - Weekly trends area: gradient uses `#d4784f` stroke in dark mode
+  - Average resolution cards: `dark:bg-[#1a1917]/50` class added
+  - Method details text: `dark:text-[#9b9590]` and `dark:text-[#6b6560]` classes added
+- Added new recharts imports: `CartesianGrid`, `Legend`
+- Added new lucide-react imports: `GitCompareArrows`, `TrendingUp`, `TrendingDown`
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Week-over-week comparison view with side-by-side donut charts, grouped bar chart, and delta indicators
+- Organism distribution horizontal bar chart showing top 5 organisms in WeeklySummary
+- Custom Claude-styled tooltips on all 5 charts (method donut, resolution bar, IF tiers, weekly trends, organisms)
+- Full dark mode support for all charts with proper axis colors, grid lines, and tooltip backgrounds
+- Hover effects on chart elements with opacity transitions
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 8
+Agent: Animation & Style Polish Agent
+Task: Add Loading Shimmer Effects, Page Transition Animations, and Final Style Polish
+
+Work Log:
+- Read worklog.md and full pdb-tracker.tsx (~3071 lines) to understand current structure
+- **Part 1: Enhanced Skeleton/Shimmer Loading Effects**
+  - Added CSS keyframes and utility classes to globals.css: `shimmer`, `gradient-shift`, `float` animations
+  - Added `.shimmer-skeleton` class with light mode gradient (cream tones: #f0ece5 → #faf8f5 → #f0ece5)
+  - Added `.dark .shimmer-skeleton` with dark mode gradient (warm tones: #2b2926 → #3d3832 → #2b2926)
+  - Updated `TableSkeleton` component: replaced `<Skeleton>` with `shimmer-skeleton` divs with varying widths per column (w-[60%], w-[45%], w-[55%], w-[40%], w-[70%], w-[80%], w-[60%], w-[50%]) and `rounded-md` corners
+  - Updated weekly sidebar loading: replaced simple `animate-pulse` divs with structured shimmer cards matching week card layout (header, date, badges, progress bar lines)
+  - Updated evaluation sidebar loading: replaced simple `animate-pulse` divs with structured shimmer cards matching eval card layout (uniprot ID, protein name, coverage/PDB/BLAST lines)
+  - Removed unused `Skeleton` import from `@/components/ui/skeleton`
+- **Part 2: Mode Switch Transition Animation**
+  - Wrapped data table section in `AnimatePresence` with `mode="wait"` and `initial={false}`
+  - Added `motion.div` with `key={mode-weekId-evalId}` for re-render on mode/week/eval change
+  - Transition: opacity 0→1, x 10→0 (enter) and opacity 0, x -10 (exit), 200ms easeInOut
+- **Part 3: Preview Panel Tab Transition**
+  - Added `AnimatePresence` with `mode="wait"` and `initial={false}` around tab content in `renderPreviewPanel`
+  - Added `motion.div` with `key={previewTab}` for re-render on tab change
+  - Transition: opacity 0→1, y 6→0 (enter) and opacity 0, y -6 (exit), 150ms
+- **Part 4: Additional Style Polish**
+  - Header gradient: added `bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]` for subtle animated gradient line
+  - Footer: added subtle top gradient line `from-transparent via-claude-accent/30 to-transparent` at top of footer
+  - Empty states: added `animate-float` class to Database icon (weekly) and Microscope icon (evaluation) with 2.5s ease-in-out float animation
+  - Score bar glow: added `isHigh` flag (score >= 8) with `shadow-sm` class and `boxShadow: 0 0 6px ${color}40` for subtle glow
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Shimmer skeleton loading effects for table rows, sidebar week cards, and sidebar eval cards
+- Mode/week switch transition animation with horizontal slide + fade (200ms)
+- Preview panel tab transition with vertical slide + fade (150ms)
+- Header gradient animation (3s infinite shift)
+- Footer subtle gradient accent line
+- Empty state icons float animation
+- Score bar glow effect for high scores (≥8)
+- Removed unused Skeleton import
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 9
+Agent: Main Agent (QA & Coordination - Round 3)
+Task: Assess project state, perform QA testing, coordinate new feature development
+
+Work Log:
+- Read worklog.md to understand prior work (Tasks 1-8)
+- Performed comprehensive QA testing with agent-browser
+- Verified all existing features: Weekly mode, Evaluation mode, sidebar, tables, tooltips, reports, pagination, search, method filtering, charts, dark mode
+- Tested dark mode in desktop and evaluation mode
+- Tested mobile viewport (375x812) for responsive layout
+- Checked for errors: none found, console clean
+- Lint passes cleanly
+- Coordinated 3 new feature sub-agents:
+  1. Task 2: Molstar 3D molecular viewer + row detail slide-over panel
+  2. Task 3: Week comparison view + organism chart + chart tooltips + dark mode chart polish
+  3. Task 8: Shimmer loading + mode/tab transitions + gradient animations + style polish
+- Final QA: All features verified, no errors, mobile responsive, dark mode complete
+
+Stage Summary:
+- 3D molecular structure viewing with Molstar integration
+- Week-over-week comparison with delta indicators
+- Row detail panel with comprehensive PDB entry info
+- Organism distribution visualization
+- Custom Claude-styled chart tooltips
+- Full dark mode chart polish
+- Shimmer loading animations
+- Page/tab/mode transition animations
+- All features stable and tested
+
+## Project Current State (Round 3)
+
+**Status: Feature-Rich & Production-Ready**
+
+### Complete Feature List:
+
+**Core Application:**
+- Weekly browsing mode (12 weeks, 684 structures)
+- Evaluation mode (8 protein evaluations with BLAST)
+- Sortable data tables with method/resolution/IF color coding
+- Tooltips for PDB entries, ligands, BLAST homologs
+- Report modal with Markdown rendering
+- Preview panel with Summary/Full Report tabs
+- Debounced search, method filtering, week selection
+- Pagination, mobile responsive design
+
+**Data Visualization (7 charts):**
+- Method Distribution donut chart
+- Resolution Distribution horizontal bar chart
+- Impact Factor Tier bar chart
+- Weekly Trends area chart
+- Organism Distribution horizontal bar chart
+- Side-by-side comparison donut charts
+- Comparison resolution grouped bar chart
+
+**3D Molecular Viewer:**
+- Molstar-based 3D structure viewer
+- Loads mmCIF from RCSB PDB
+- Dark background, clean UI, 300px height
+- Loading spinner and error states
+
+**Row Detail Panel:**
+- Slide-over panel when clicking a PDB row
+- Full structure details, resolution quality bar
+- 3D viewer integration, links to RCSB/DOI/PubMed
+- Ligand tooltips, author/organism info
+
+**Week Comparison:**
+- Side-by-side week comparison view
+- Delta indicators (↑/↓) with color coding
+- Compare structures, methods, resolution changes
+
+**UI/UX Enhancements:**
+- Dark mode toggle with warm Claude aesthetic
+- CSV export for weekly data
+- Filter chips for active filters
+- Keyboard shortcuts (⌘K, ⌘E, Esc)
+- Staggered row animations
+- Shimmer loading skeletons
+- Mode/tab transition animations
+- Header gradient animation
+- Footer gradient accent
+- Empty state float animation
+- Score bar glow for high scores
+- Enhanced hover states and micro-interactions
+
+### Technical Stack:
+- Next.js 16 with App Router + TypeScript
+- Prisma ORM with SQLite
+- recharts for data visualization
+- molstar for 3D molecular viewing
+- framer-motion for animations
+- next-themes for dark mode
+- Tailwind CSS 4 with shadcn/ui
+- react-markdown with remark-gfm
+
+## Unresolved Issues / Risks
+- None identified during QA testing
+- All API endpoints responding correctly
+- No console errors or page errors
+- Lint passes cleanly
+- Molstar viewer requires internet access to load structures from RCSB
+
+## Recommended Next Steps
+1. Add virtual scrolling for large datasets (performance)
+2. Add user bookmarking/favorites for PDB entries
+3. Add notification system for new weekly data
+4. Add batch comparison (3+ weeks)
+5. Add scatter plot for resolution vs impact factor correlation
+6. Add PDB structure similarity search
+7. Add protein sequence alignment view
+8. Add data import/sync from live RCSB PDB API
