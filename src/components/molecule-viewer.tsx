@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2, AlertCircle } from 'lucide-react';
+import { Loader2, ExternalLink } from 'lucide-react';
 
 interface MoleculeViewerProps {
   pdbId: string;
@@ -121,10 +121,44 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
       )}
       {error && (
         <div className="absolute inset-0 flex items-center justify-center bg-[#1a1917] z-10">
-          <div className="flex flex-col items-center gap-2 text-center px-4">
-            <AlertCircle className="h-6 w-6 text-amber-500" />
-            <span className="text-[11px] text-claude-text-muted">Failed to load 3D structure</span>
-            <span className="text-[10px] text-claude-text-muted/60">{error}</span>
+          <div className="flex flex-col items-center gap-3 text-center px-6">
+            {/* Stylized molecule SVG placeholder */}
+            <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-70">
+              {/* Central atom */}
+              <circle cx="32" cy="32" r="8" fill="#d4784f" opacity="0.9" />
+              {/* Top-right atom and bond */}
+              <line x1="38" y1="27" x2="50" y2="16" stroke="#c9872e" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="52" cy="14" r="5" fill="#c9872e" opacity="0.7" />
+              {/* Bottom-right atom and bond */}
+              <line x1="38" y1="37" x2="52" y2="46" stroke="#2d8f8f" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="54" cy="48" r="5" fill="#2d8f8f" opacity="0.7" />
+              {/* Left atom and bond */}
+              <line x1="24" y1="32" x2="12" y2="32" stroke="#7c5cbf" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="10" cy="32" r="5" fill="#7c5cbf" opacity="0.7" />
+              {/* Top-left atom and bond */}
+              <line x1="27" y1="26" x2="16" y2="14" stroke="#c4644a" strokeWidth="2" strokeLinecap="round" />
+              <circle cx="14" cy="12" r="4" fill="#c4644a" opacity="0.6" />
+              {/* Bottom-left atom and bond */}
+              <line x1="27" y1="38" x2="18" y2="50" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" />
+              <circle cx="16" cy="52" r="3.5" fill="#6b7280" opacity="0.5" />
+              {/* Double bond indicator on top-right */}
+              <line x1="39" y1="25" x2="51" y2="14" stroke="#c9872e" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
+            </svg>
+            <div className="flex flex-col items-center gap-1.5">
+              <span className="text-[13px] font-medium text-[#e8e4dd]">3D structure not available</span>
+              <span className="text-[11px] text-[#9b9590] max-w-[220px] leading-relaxed">
+                PDB structure data is available for real RCSB entries
+              </span>
+            </div>
+            <a
+              href={`https://www.rcsb.org/structure/${pdbId}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#2b2926] hover:bg-[#3d3832] border border-[#4a4540] text-[11px] font-medium text-[#d4784f] transition-colors duration-200"
+            >
+              View on RCSB PDB
+              <ExternalLink className="h-3 w-3" />
+            </a>
           </div>
         </div>
       )}

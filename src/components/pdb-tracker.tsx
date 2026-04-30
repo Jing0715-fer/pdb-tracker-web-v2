@@ -65,6 +65,8 @@ import {
   EyeOff,
   PanelRightOpen,
   Layers,
+  FileDiff,
+  StickyNote,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -116,10 +118,11 @@ import {
 
 const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
 
-// ─── useCountUp Hook ─────────────────────────────────────────────────────────
+// ─── useAnimatedValue Hook ─────────────────────────────────────────────────
 
-function useCountUp(target: number, duration: number = 400): number {
+function useAnimatedValue(target: number, duration: number = 800): { current: number; isAnimating: boolean } {
   const [current, setCurrent] = useState(target);
+  const [isAnimating, setIsAnimating] = useState(false);
   const prevTargetRef = useRef(target);
   const rafRef = useRef<number | null>(null);
 
@@ -128,11 +131,16 @@ function useCountUp(target: number, duration: number = 400): number {
     const start = prevTargetRef.current;
     const diff = target - start;
     const startTime = performance.now();
+    let started = false;
 
     function tick(now: number) {
+      if (!started) {
+        started = true;
+        setIsAnimating(true);
+      }
       const elapsed = now - startTime;
       const progress = Math.min(elapsed / duration, 1);
-      // easeOutCubic
+      // easeOutCubic for natural deceleration
       const eased = 1 - Math.pow(1 - progress, 3);
       setCurrent(Math.round(start + diff * eased));
       if (progress < 1) {
@@ -140,6 +148,7 @@ function useCountUp(target: number, duration: number = 400): number {
       } else {
         prevTargetRef.current = target;
         setCurrent(target);
+        setIsAnimating(false);
       }
     }
 
@@ -156,15 +165,24 @@ function useCountUp(target: number, duration: number = 400): number {
     prevTargetRef.current = target;
   }, []);
 
-  return current;
+  return { current, isAnimating };
 }
 
 // ─── Animated Number Component ───────────────────────────────────────────────
 
 function AnimatedNumber({ value, decimals = 0, suffix = '' }: { value: number; decimals?: number; suffix?: string }) {
-  const animated = useCountUp(Math.round(value * Math.pow(10, decimals)), 400);
+  const scaledTarget = Math.round(value * Math.pow(10, decimals));
+  const { current: animated, isAnimating } = useAnimatedValue(scaledTarget, 800);
   const display = (animated / Math.pow(10, decimals)).toFixed(decimals);
-  return <span className="tabular-nums">{display}{suffix}</span>;
+  return (
+    <motion.span
+      className="tabular-nums inline-block"
+      animate={{ scale: isAnimating ? 1.05 : 1 }}
+      transition={{ duration: 0.4, ease: 'easeOut' }}
+    >
+      {display}{suffix}
+    </motion.span>
+  );
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -1230,6 +1248,10 @@ export default function PdbTracker() {
   // ── Timeline Highlight ──
   const [highlightedEntry, setHighlightedEntry] = useState<string | null>(null);
 
+  // ── Row Pulse Animation ──
+  const [pulsingRowId, setPulsingRowId] = useState<string | null>(null);
+  const pulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // ── Bookmarks ──
   const [bookmarks, setBookmarks] = useState<Set<string>>(() => {
     try {
@@ -1240,6 +1262,42 @@ export default function PdbTracker() {
   });
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
+
+  // ── Entry Notes (localStorage) ──
+  const [entryNotes, setEntryNotes] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-tracker-notes');
+      if (saved) return JSON.parse(saved) as Record<string, string>;
+    } catch { /* ignore */ }
+    return {};
+  });
+  const [noteSavedIndicator, setNoteSavedIndicator] = useState<string | null>(null);
+
+  // Persist notes to localStorage on change
+  useEffect(() => {
+    try {
+      localStorage.setItem('pdb-tracker-notes', JSON.stringify(entryNotes));
+    } catch { /* ignore */ }
+  }, [entryNotes]);
+
+  const updateNote = useCallback((pdbId: string, note: string) => {
+    setEntryNotes(prev => {
+      const next = { ...prev };
+      if (note.trim()) {
+        next[pdbId] = note;
+      } else {
+        delete next[pdbId];
+      }
+      return next;
+    });
+    setNoteSavedIndicator(pdbId);
+    setTimeout(() => setNoteSavedIndicator(prev => prev === pdbId ? null : prev), 2000);
+    toast('Note saved');
+  }, []);
+
+  // ── Diff Mode (Week Diff View) ──
+  const [diffMode, setDiffMode] = useState(false);
+  const [prevWeekEntries, setPrevWeekEntries] = useState<PdbEntry[]>([]);
 
   // ── Row Selection (Batch Operations) ──
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
@@ -1772,7 +1830,7 @@ export default function PdbTracker() {
         const params = new URLSearchParams();
         if (selectedWeekId) params.set('week', selectedWeekId);
         if (methodFilter !== 'all') params.set('method', methodFilter);
-        if (debouncedSearch) params.set('q', debouncedSearch);
+        // Note: search query not sent to API — we filter client-side to support notes search
         const res = await fetch(`/api/entries?${params}`);
         if (!cancelled) {
           const data = await res.json();
@@ -1783,7 +1841,7 @@ export default function PdbTracker() {
     }
     load();
     return () => { cancelled = true; };
-  }, [mode, selectedWeekId, methodFilter, debouncedSearch]);
+  }, [mode, selectedWeekId, methodFilter]);
 
   // ── Fetch Weekly Reports ──
   useEffect(() => {
@@ -1822,6 +1880,48 @@ export default function PdbTracker() {
     load();
     return () => { cancelled = true; };
   }, [compareMode, compareWeekId]);
+
+  // ── Find previous week for Diff Mode ──
+  const prevWeekId = useMemo(() => {
+    if (!diffMode || !selectedWeekId || snapshots.length === 0) return null;
+    const sorted = [...snapshots].sort((a, b) => a.weekId.localeCompare(b.weekId));
+    const currentIdx = sorted.findIndex(s => s.weekId === selectedWeekId);
+    if (currentIdx <= 0) return null; // No previous week
+    return sorted[currentIdx - 1].weekId;
+  }, [diffMode, selectedWeekId, snapshots]);
+
+  // ── Fetch Previous Week Entries for Diff Mode ──
+  useEffect(() => {
+    if (!diffMode || !prevWeekId) { setPrevWeekEntries([]); return; }
+    let cancelled = false;
+    async function load() {
+      try {
+        const params = new URLSearchParams();
+        params.set('week', prevWeekId);
+        const res = await fetch(`/api/entries?${params}`);
+        if (!cancelled) {
+          const data = await res.json();
+          setPrevWeekEntries(data);
+        }
+      } catch (e) { console.error('Failed to fetch previous week entries for diff:', e); }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [diffMode, prevWeekId]);
+
+  // ── Diff Computation ──
+  const diffResult = useMemo(() => {
+    if (!diffMode || !selectedWeekId || prevWeekEntries.length === 0 && entries.length === 0) {
+      return { newIds: new Set<string>(), removedIds: new Set<string>(), unchangedIds: new Set<string>(), removedEntries: [] as PdbEntry[] };
+    }
+    const currentIds = new Set(entries.map(e => e.pdbId));
+    const prevIds = new Set(prevWeekEntries.map(e => e.pdbId));
+    const newIds = new Set([...currentIds].filter(id => !prevIds.has(id)));
+    const removedIds = new Set([...prevIds].filter(id => !currentIds.has(id)));
+    const unchangedIds = new Set([...currentIds].filter(id => prevIds.has(id)));
+    const removedEntries = prevWeekEntries.filter(e => removedIds.has(e.pdbId));
+    return { newIds, removedIds, unchangedIds, removedEntries };
+  }, [diffMode, selectedWeekId, entries, prevWeekEntries]);
 
   // ── Fetch Evaluation Detail ──
   useEffect(() => {
@@ -1867,6 +1967,24 @@ export default function PdbTracker() {
     let source = entries;
     if (showBookmarksOnly) {
       source = entries.filter(e => bookmarks.has(e.pdbId));
+    }
+    // Client-side search filtering (includes notes search)
+    if (debouncedSearch) {
+      const q = debouncedSearch.toLowerCase();
+      source = source.filter(e => {
+        // Match entry fields
+        const fieldMatch =
+          e.pdbId.toLowerCase().includes(q) ||
+          e.title.toLowerCase().includes(q) ||
+          (e.organisms || '').toLowerCase().includes(q) ||
+          (e.journal || '').toLowerCase().includes(q) ||
+          (e.authors || '').toLowerCase().includes(q) ||
+          (e.ligands || '').toLowerCase().includes(q) ||
+          (e.doi || '').toLowerCase().includes(q);
+        // Match notes
+        const noteMatch = entryNotes[e.pdbId]?.toLowerCase().includes(q) ?? false;
+        return fieldMatch || noteMatch;
+      });
     }
     // Apply advanced filters
     if (resolutionRange[0] !== 0 || resolutionRange[1] !== 5) {
@@ -1925,7 +2043,7 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter]);
+  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, debouncedSearch, entryNotes]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
@@ -2485,6 +2603,8 @@ export default function PdbTracker() {
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar */}
           <aside className={`hidden md:flex flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
+            {/* Sidebar gradient mesh overlay */}
+            <div className="sidebar-mesh-overlay" />
             {renderSidebar()}
             {/* Sidebar resize handle */}
             <div
@@ -2499,7 +2619,8 @@ export default function PdbTracker() {
             open={mobileSidebarOpen}
             onOpenChange={setMobileSidebarOpen}
           >
-            <DrawerContent className="left-0 right-auto top-0 bottom-0 w-[280px] max-w-[85vw] h-full rounded-none border-r border-claude-border bg-white dark:bg-[#242220] mobile-drawer-shadow sidebar-gradient">
+            <DrawerContent className="left-0 right-auto top-0 bottom-0 w-[280px] max-w-[85vw] h-full rounded-none border-r border-claude-border bg-white dark:bg-[#242220] mobile-drawer-shadow sidebar-gradient relative">
+              <div className="sidebar-mesh-overlay" />
               <div className="mobile-drawer-handle" />
               <DrawerHeader className="p-3 border-b border-claude-border">
                 <div className="flex items-center justify-between">
@@ -2668,6 +2789,21 @@ export default function PdbTracker() {
                         </button>
                       </span>
                     )}
+                    {diffMode && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/30">
+                        <FileDiff className="h-2.5 w-2.5" />
+                        Diff
+                        <button onClick={() => setDiffMode(false)} className="hover:text-green-600 dark:hover:text-green-300 transition-colors">
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </span>
+                    )}
+                    {Object.keys(entryNotes).length > 0 && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/30">
+                        <StickyNote className="h-2.5 w-2.5" />
+                        {Object.keys(entryNotes).length} note{Object.keys(entryNotes).length !== 1 ? 's' : ''}
+                      </span>
+                    )}
                     {selectedRows.size > 0 && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
                         {selectedRows.size} selected
@@ -2793,6 +2929,27 @@ export default function PdbTracker() {
                   >
                     <GitCompareArrows className="h-3 w-3" />
                     Compare
+                  </button>
+
+                  {/* Diff Button */}
+                  <button
+                    onClick={() => {
+                      const nextDiff = !diffMode;
+                      setDiffMode(nextDiff);
+                      if (nextDiff) {
+                        toast('Diff mode enabled', { description: prevWeekId ? `Comparing with previous week (${prevWeekId})` : 'No previous week available for comparison' });
+                      } else {
+                        toast('Diff mode disabled');
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
+                      diffMode
+                        ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                        : 'border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                    }`}
+                  >
+                    <FileDiff className="h-3 w-3" />
+                    Diff
                   </button>
 
                   {/* Advanced Filters Button */}
@@ -3099,6 +3256,36 @@ export default function PdbTracker() {
               <WeeklyStatCards entries={entries} snapshots={snapshots} selectedSnapshot={selectedSnapshot} />
             )}
 
+            {/* Diff Mode Summary */}
+            {mode === 'weekly' && diffMode && selectedWeekId && (
+              <div className="px-4 py-2 flex items-center gap-4 text-[11px] border-b border-claude-border bg-white dark:bg-[#242220]">
+                <div className="flex items-center gap-4">
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
+                    {diffResult.newIds.size} new
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+                    {diffResult.removedIds.size} removed
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-gray-400 dark:bg-gray-500" />
+                    {diffResult.unchangedIds.size} unchanged
+                  </span>
+                </div>
+                {prevWeekId && (
+                  <span className="text-claude-text-muted">
+                    Comparing with previous week: <span className="font-mono font-medium">{prevWeekId}</span>
+                  </span>
+                )}
+                {!prevWeekId && (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    No previous week available for comparison
+                  </span>
+                )}
+              </div>
+            )}
+
             {/* Print-only header */}
             <div className="hidden print:block print-header">
               <h1>PDB Structure Tracker</h1>
@@ -3172,6 +3359,7 @@ export default function PdbTracker() {
                     </div>
                   </div>
                 ) : (
+                  <>
                   <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border">
                       <tr className="bg-[#faf8f5] dark:bg-[#1a1917]">
@@ -3228,8 +3416,15 @@ export default function PdbTracker() {
                                 initial={{ opacity: 0, y: 4 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
-                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-[#d4784f]/5' : ''}`}
-                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
+                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-[#d4784f]/5' : ''} ${pulsingRowId === entry.pdbId ? 'row-pulse' : ''} ${detailPanelOpen && selectedEntry?.pdbId === entry.pdbId ? 'row-selected' : ''} ${diffMode && diffResult.newIds.has(entry.pdbId) ? 'border-l-[3px] border-l-green-500' : ''}`}
+                                onClick={() => {
+                                  setSelectedEntry(entry);
+                                  setDetailPanelOpen(true);
+                                  // Trigger pulse animation
+                                  if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+                                  setPulsingRowId(entry.pdbId);
+                                  pulseTimeoutRef.current = setTimeout(() => setPulsingRowId(null), 400);
+                                }}
                               >
                                 <td className="px-1.5 py-2 w-[32px]" onClick={(e) => e.stopPropagation()}>
                                   <Checkbox
@@ -3264,6 +3459,12 @@ export default function PdbTracker() {
                                     className="font-mono font-semibold text-claude-accent pdb-link external-link-hover link-animated inline-flex items-center gap-0.5"
                                   >
                                     {entry.pdbId}
+                                    {diffMode && diffResult.newIds.has(entry.pdbId) && (
+                                      <span className="inline-flex items-center px-1 py-0 rounded text-[8px] font-bold bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 ml-0.5">NEW</span>
+                                    )}
+                                    {entryNotes[entry.pdbId] && (
+                                      <StickyNote className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 ml-0.5 flex-shrink-0" />
+                                    )}
                                     <span
                                       className="inline-flex h-2 w-2 rounded-full ml-1 flex-shrink-0"
                                       style={{ backgroundColor: computeQualityScore(entry).color }}
@@ -3333,8 +3534,8 @@ export default function PdbTracker() {
                             {!hiddenColumns.has('_ligands') && (
                             <td className="px-3 py-2">
                               <div className="flex flex-wrap gap-1">
-                                {ligandList.slice(0, 3).map(lig => (
-                                  <Popover key={lig}>
+                                {ligandList.slice(0, 3).map((lig, i) => (
+                                  <Popover key={`tbl-lig-pop-${i}-${lig}`}>
                                     <PopoverTrigger asChild>
                                       <span
                                         className="ligand-chip"
@@ -3419,6 +3620,50 @@ export default function PdbTracker() {
                       })}
                     </tbody>
                   </table>
+
+                  {/* Diff Mode: Removed Entries Section */}
+                  {diffMode && diffResult.removedEntries.length > 0 && (
+                    <div className="mt-4 border-t-2 border-red-200 dark:border-red-900/40 pt-4 px-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <span className="inline-flex h-3 w-3 rounded-full bg-red-500" />
+                        <h3 className="text-sm font-semibold text-red-600 dark:text-red-400">Removed Entries</h3>
+                        <span className="text-[10px] text-claude-text-muted">({diffResult.removedEntries.length} entries not in current week)</span>
+                      </div>
+                      <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar">
+                        {diffResult.removedEntries.map((entry) => {
+                          const mc = getMethodColor(entry.method);
+                          return (
+                            <div
+                              key={`removed-${entry.pdbId}`}
+                              className="flex items-center gap-3 px-3 py-2 rounded-lg bg-red-50/50 dark:bg-red-900/10 border-l-[3px] border-l-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
+                            >
+                              <span className="inline-flex items-center px-1 py-0 rounded text-[8px] font-bold bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400">REMOVED</span>
+                              <a
+                                href={`https://www.rcsb.org/structure/${entry.pdbId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="font-mono font-semibold text-claude-accent text-xs"
+                              >
+                                {entry.pdbId}
+                              </a>
+                              <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text}`}>
+                                {getMethodLabel(entry.method)}
+                              </span>
+                              {entry.resolution != null && (
+                                <span className={`text-[10px] font-mono ${getResolutionColor(entry.resolution)}`}>
+                                  {entry.resolution.toFixed(2)}Å
+                                </span>
+                              )}
+                              <span className="text-[10px] text-claude-text-secondary line-clamp-1 flex-1 min-w-0">
+                                {entry.title}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  </>
                 )
               ) : (
                 /* Evaluation Table */
@@ -3622,7 +3867,7 @@ export default function PdbTracker() {
                 animate={{ width: previewWidth, opacity: hasLoaded ? 1 : 0 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, delay: hasLoaded ? 0 : 0.3 }}
-                className={`hidden md:flex flex-shrink-0 bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border relative ${hasLoaded ? 'animate-load-preview' : ''}`}
+                className={`hidden md:flex flex-shrink-0 bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
               >
                 {/* Preview panel resize handle */}
                 <div
@@ -3651,7 +3896,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: 380 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl border-l border-claude-border flex flex-col md:hidden no-print glassmorphism-panel"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl border-l border-claude-border flex flex-col md:hidden no-print glassmorphism-panel preview-inner-glow"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border">
                     <span className="text-xs font-semibold text-claude-text">Details</span>
@@ -3823,6 +4068,9 @@ export default function PdbTracker() {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
                     {getMethodLabel(selectedEntry.method)}
                   </span>
+                  {entryNotes[selectedEntry.pdbId] && (
+                    <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                  )}
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
                   <X className="h-4 w-4" />
@@ -4063,6 +4311,38 @@ export default function PdbTracker() {
                   <div className="p-3 rounded-lg bg-claude-border-light/30">
                     <div className="text-[10px] text-claude-text-muted mb-0.5">Week</div>
                     <div className="text-sm font-mono font-medium text-claude-text-secondary">{selectedEntry.weekId}</div>
+                  </div>
+
+                  {/* Notes Section */}
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider">Notes</h3>
+                      <StickyNote className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                    </div>
+                    <div className="relative">
+                      <textarea
+                        rows={3}
+                        placeholder="Add your notes about this structure..."
+                        defaultValue={entryNotes[selectedEntry.pdbId] || ''}
+                        onBlur={(e) => {
+                          const note = e.target.value;
+                          if (note !== (entryNotes[selectedEntry.pdbId] || '')) {
+                            updateNote(selectedEntry.pdbId, note);
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-xs rounded-lg border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
+                      />
+                      {noteSavedIndicator === selectedEntry.pdbId && (
+                        <motion.span
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0 }}
+                          className="absolute bottom-2 right-2 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded"
+                        >
+                          ✓ Saved
+                        </motion.span>
+                      )}
+                    </div>
                   </div>
                 </div>
               </ScrollArea>
@@ -4328,9 +4608,18 @@ export default function PdbTracker() {
                       <HoverCardTrigger asChild>
                         <button
                           onClick={() => setSelectedWeekId(snap.weekId)}
-                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
+                          onMouseMove={(e) => {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const x = (e.clientX - rect.left) / rect.width - 0.5;
+                            const y = (e.clientY - rect.top) / rect.height - 0.5;
+                            e.currentTarget.style.transform = `translate3d(${-x * 2}px, ${-y * 2}px, 0)`;
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translate3d(0, 0, 0)';
+                          }}
+                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] week-card-parallax ${
                             isSelected
-                              ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
+                              ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe week-card-active-border'
                               : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                           }`}
                         >

@@ -815,7 +815,7 @@
   background: linear-gradient(180deg, #242220 0%, #1f1e1c 100%);
 }
 
-.sidebar-gradient > * {
+.sidebar-gradient > *:not(.sidebar-mesh-overlay) {
   position: relative;
   z-index: 1;
 }
@@ -1396,4 +1396,136 @@
 
 .link-animated:hover::after {
   width: 100%;
+}
+
+/* ─── Row Pulse Animation ─────────────────────────────────────────────────── */
+
+@keyframes row-pulse {
+  0% { background-color: rgba(253, 240, 235, 0.9); }
+  100% { background-color: transparent; }
+}
+
+.row-pulse {
+  animation: row-pulse 400ms ease-out;
+}
+
+.dark .row-pulse {
+  animation-name: row-pulse-dark;
+}
+
+@keyframes row-pulse-dark {
+  0% { background-color: rgba(61, 42, 34, 0.9); }
+  100% { background-color: transparent; }
+}
+
+/* ─── Selected Row State ──────────────────────────────────────────────────── */
+
+.row-selected {
+  border-left: 3px solid #c96442 !important;
+  background-color: rgba(253, 240, 235, 0.2);
+  transition: border-left-color 0.2s ease, background-color 0.2s ease;
+}
+
+.dark .row-selected {
+  border-left-color: #d4784f !important;
+  background-color: rgba(61, 42, 34, 0.4);
+}
+
+/* ─── Sidebar Gradient Mesh Overlay ───────────────────────────────────────── */
+
+.sidebar-mesh-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+
+.sidebar-mesh-overlay::before {
+  content: '';
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  top: 10%;
+  right: -40px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 100, 66, 0.04) 0%, transparent 70%);
+}
+
+.sidebar-mesh-overlay::after {
+  content: '';
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  bottom: 15%;
+  left: -60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(201, 142, 78, 0.03) 0%, transparent 70%);
+}
+
+.dark .sidebar-mesh-overlay::before {
+  background: radial-gradient(circle, rgba(212, 120, 79, 0.06) 0%, transparent 70%);
+}
+
+.dark .sidebar-mesh-overlay::after {
+  background: radial-gradient(circle, rgba(217, 162, 78, 0.04) 0%, transparent 70%);
+}
+
+/* ─── Preview Panel Inner Glow ────────────────────────────────────────────── */
+
+.preview-inner-glow {
+  position: relative;
+}
+
+.preview-inner-glow::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  box-shadow: inset 0 30px 30px -20px rgba(201, 100, 66, 0.05);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.dark .preview-inner-glow::after {
+  box-shadow: inset 0 30px 30px -20px rgba(212, 120, 79, 0.04);
+}
+
+/* ─── Week Card Parallax ──────────────────────────────────────────────────── */
+
+.week-card-parallax {
+  transition: transform 0.15s ease-out;
+}
+
+/* ─── Animated Gradient Border on Active Week Card ────────────────────────── */
+
+@keyframes gradient-border-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.week-card-active-border {
+  position: relative;
+}
+
+.week-card-active-border::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #c96442, #fdf0eb, #c96442);
+  background-size: 100% 200%;
+  animation: gradient-border-shift 3s ease-in-out infinite;
+  border-radius: 3px 0 0 3px;
+}
+
+.dark .week-card-active-border::before {
+  background: linear-gradient(180deg, #d4784f, #3d2a22, #d4784f);
+  background-size: 100% 200%;
+  animation: gradient-border-shift 3s ease-in-out infinite;
 }
