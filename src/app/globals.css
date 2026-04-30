@@ -459,22 +459,58 @@
   border-color: #4a4540;
 }
 
-/* Shimmer skeleton loading */
+/* Shimmer skeleton loading - enhanced light sweep */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
 
 .shimmer-skeleton {
-  background: linear-gradient(90deg, #f0ece5 25%, #faf8f5 50%, #f0ece5 75%);
+  background: linear-gradient(
+    90deg,
+    #f0ece5 0%,
+    #f0ece5 30%,
+    rgba(255, 255, 255, 0.4) 50%,
+    #f0ece5 70%,
+    #f0ece5 100%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.shimmer-skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  animation: shimmer-sweep 2s ease-in-out infinite;
+}
+
+@keyframes shimmer-sweep {
+  0% { left: -100%; }
+  100% { left: 100%; }
 }
 
 .dark .shimmer-skeleton {
-  background: linear-gradient(90deg, #2b2926 25%, #3d3832 50%, #2b2926 75%);
+  background: linear-gradient(
+    90deg,
+    #2b2926 0%,
+    #2b2926 30%,
+    rgba(255, 255, 255, 0.06) 50%,
+    #2b2926 70%,
+    #2b2926 100%
+  );
   background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+.dark .shimmer-skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.04), transparent);
 }
 
 /* Header gradient animation */
@@ -1129,4 +1165,235 @@
     padding-top: 4px;
     margin-top: 8px;
   }
+}
+
+/* ─── Enhanced Sonner Toast Styling ──────────────────────────────────────── */
+
+[data-sonner-toaster] [data-sonner-toast] {
+  border-radius: 0.75rem;
+  border: 1px solid #e8e4dd;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  padding: 0.5rem 0.75rem;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast] {
+  border-color: #3d3832;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  background: #2b2926;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-weight: 500;
+  font-size: 0.875rem;
+  color: #1a1a1a;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast] [data-title] {
+  color: #e8e4dd;
+}
+
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-size: 0.75rem;
+  color: #6b6560;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast] [data-description] {
+  color: #9b9590;
+}
+
+/* Success toast: left border accent green */
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  border-left: 3px solid #16a34a;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  border-left-color: #3dbb5e;
+}
+
+/* Info toast: left border accent claude */
+[data-sonner-toaster] [data-sonner-toast][data-type="info"] {
+  border-left: 3px solid #c96442;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="info"] {
+  border-left-color: #d4784f;
+}
+
+/* Error toast: left border accent red */
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  border-left: 3px solid #dc2626;
+}
+
+.dark [data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  border-left-color: #ef4444;
+}
+
+/* ─── Status Bar Gradient Animation ──────────────────────────────────────── */
+
+@keyframes status-bar-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ─── Tooltip Animation Enhancement ──────────────────────────────────────── */
+
+.tooltip-animate-enter {
+  animation: tooltip-enter 150ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tooltip-animate-exit {
+  animation: tooltip-exit 100ms cubic-bezier(0.4, 0, 1, 1);
+}
+
+@keyframes tooltip-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tooltip-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+/* ─── Page Load Animation Utilities ──────────────────────────────────────── */
+
+@keyframes page-load-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-load-slide-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes page-load-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes page-load-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes page-load-stagger {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-load-header {
+  animation: page-load-slide-down 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 0ms;
+}
+
+.animate-load-sidebar {
+  animation: page-load-slide-left 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 100ms;
+}
+
+.animate-load-main {
+  animation: page-load-slide-up 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 200ms;
+}
+
+.animate-load-preview {
+  animation: page-load-fade 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: 300ms;
+}
+
+.animate-load-stat-card {
+  animation: page-load-stagger 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ─── Empty State Enhancement ────────────────────────────────────────────── */
+
+.empty-state-pattern {
+  background-image: radial-gradient(circle, #e8e4dd 0.5px, transparent 0.5px);
+  background-size: 12px 12px;
+}
+
+.dark .empty-state-pattern {
+  background-image: radial-gradient(circle, #3d3832 0.5px, transparent 0.5px);
+}
+
+/* ─── Button Press Feedback ──────────────────────────────────────────────── */
+
+.btn-press {
+  transition: transform 100ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn-press:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+/* ─── Sortable Header Cursor ─────────────────────────────────────────────── */
+
+.sortable-header {
+  cursor: ns-resize;
+  user-select: none;
+}
+
+/* ─── Link Underline Animation ───────────────────────────────────────────── */
+
+.link-animated {
+  position: relative;
+  text-decoration: none;
+}
+
+.link-animated::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 0;
+  height: 1px;
+  background: currentColor;
+  transition: width 200ms ease;
+}
+
+.link-animated:hover::after {
+  width: 100%;
 }

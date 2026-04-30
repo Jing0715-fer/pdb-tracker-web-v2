@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -54,6 +54,17 @@ import {
   BookOpen,
   AlignJustify,
   AlignVerticalSpaceAround,
+  Bell,
+  Trash2,
+  CheckCheck,
+  Terminal,
+  Share2,
+  ZoomIn,
+  ZoomOut,
+  Compass,
+  EyeOff,
+  PanelRightOpen,
+  Layers,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -81,8 +92,10 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { useTheme } from 'next-themes';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
+import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { Slider } from '@/components/ui/slider';
@@ -91,6 +104,15 @@ import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, C
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RTooltip, ResponsiveContainer, AreaChart, Area, CartesianGrid, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
 import dynamic from 'next/dynamic';
 import { createPortal } from 'react-dom';
+import {
+  CommandDialog,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandShortcut,
+} from '@/components/ui/command';
 
 const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
 
@@ -282,6 +304,15 @@ type Mode = 'weekly' | 'evaluation';
 type SortField = string;
 type SortDir = 'asc' | 'desc';
 
+interface AppNotification {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  timestamp: Date;
+  read: boolean;
+}
+
 const PAGE_SIZE = 50;
 
 // ─── Helper Functions ────────────────────────────────────────────────────────
@@ -367,6 +398,91 @@ function truncateOrganism(organisms: string | null, maxLen: number = 24): string
   const first = organisms.split('|')[0]?.trim() || organisms;
   if (first.length <= maxLen) return first;
   return first.slice(0, maxLen - 1) + '…';
+}
+
+// ─── Quality Score Calculation ────────────────────────────────────────────────
+
+interface QualityScoreResult {
+  total: number;
+  resolutionScore: number;
+  methodScore: number;
+  ifScore: number;
+  label: string;
+  color: string;
+}
+
+function computeQualityScore(entry: PdbEntry | EvalPdbStructure): QualityScoreResult {
+  // Resolution score (max 35)
+  let resolutionScore: number;
+  const res = entry.resolution;
+  if (res === null || res === undefined) {
+    resolutionScore = 8;
+  } else if (res <= 1.5) {
+    resolutionScore = 35;
+  } else if (res <= 2.0) {
+    resolutionScore = 30;
+  } else if (res <= 2.5) {
+    resolutionScore = 25;
+  } else if (res <= 3.0) {
+    resolutionScore = 18;
+  } else if (res <= 3.5) {
+    resolutionScore = 12;
+  } else {
+    resolutionScore = 5;
+  }
+
+  // Method bonus (max 25)
+  let methodScore: number;
+  const m = (entry.method || '').toUpperCase();
+  if (m.includes('X-RAY') || m.includes('XRAY')) {
+    methodScore = 25;
+  } else if (m.includes('CRYO') || m.includes('ELECTRON MICROSCOPY')) {
+    methodScore = 22;
+  } else if (m.includes('NMR')) {
+    methodScore = 15;
+  } else {
+    methodScore = 10;
+  }
+
+  // Impact Factor bonus (max 30)
+  let ifScore: number;
+  const jif = 'journalIf' in entry ? entry.journalIf : null;
+  if (jif === null || jif === undefined) {
+    ifScore = 3;
+  } else if (jif >= 20) {
+    ifScore = 30;
+  } else if (jif >= 10) {
+    ifScore = 25;
+  } else if (jif >= 5) {
+    ifScore = 18;
+  } else if (jif >= 2) {
+    ifScore = 10;
+  } else {
+    ifScore = 5;
+  }
+
+  // Total: 0-90 range, normalized to 0-100
+  const rawTotal = resolutionScore + methodScore + ifScore;
+  const total = Math.round((rawTotal / 90) * 100);
+
+  // Label & color
+  let label: string;
+  let color: string;
+  if (total >= 80) {
+    label = 'Excellent';
+    color = '#22c55e';
+  } else if (total >= 60) {
+    label = 'Good';
+    color = '#14b8a6';
+  } else if (total >= 40) {
+    label = 'Fair';
+    color = '#f59e0b';
+  } else {
+    label = 'Low';
+    color = '#ef4444';
+  }
+
+  return { total, resolutionScore, methodScore, ifScore, label, color };
 }
 
 // ─── PDB Tooltip Component ───────────────────────────────────────────────────
@@ -631,7 +747,7 @@ function Pagination({
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page <= 1}
-          className="pagination-btn inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] disabled:opacity-40 disabled:cursor-not-allowed claude-focus-ring"
+          className="pagination-btn btn-press inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] disabled:opacity-40 disabled:cursor-not-allowed claude-focus-ring"
         >
           <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
           Prev
@@ -643,7 +759,7 @@ function Pagination({
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`pagination-btn inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium claude-focus-ring ${
+              className={`pagination-btn btn-press inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium claude-focus-ring ${
                 page === p
                   ? 'bg-claude-accent text-white shadow-sm pagination-active'
                   : 'border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
@@ -656,7 +772,7 @@ function Pagination({
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page >= totalPages}
-          className="pagination-btn inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] disabled:opacity-40 disabled:cursor-not-allowed claude-focus-ring"
+          className="pagination-btn btn-press inline-flex items-center justify-center h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] disabled:opacity-40 disabled:cursor-not-allowed claude-focus-ring"
         >
           Next
           <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
@@ -1153,6 +1269,13 @@ export default function PdbTracker() {
     } catch { /* ignore */ }
   }, [compactMode]);
 
+  // ── Command Palette ──
+  const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
+
+  // ── URL Search Params (Share View) ──
+  const searchParams = useSearchParams();
+  const urlParamsApplied = useRef(false);
+
   // Persist hidden columns to localStorage
   useEffect(() => {
     try {
@@ -1167,6 +1290,104 @@ export default function PdbTracker() {
       else next.add(field);
       return next;
     });
+  }, []);
+
+  // ── Resizable Panels ──
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-sidebar-width');
+      if (saved) return Math.min(400, Math.max(200, Number(saved)));
+    } catch { /* ignore */ }
+    return 280;
+  });
+  const [previewWidth, setPreviewWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('pdb-preview-width');
+      if (saved) return Math.min(600, Math.max(280, Number(saved)));
+    } catch { /* ignore */ }
+    return 380;
+  });
+  const [resizingSidebar, setResizingSidebar] = useState(false);
+  const [resizingPreview, setResizingPreview] = useState(false);
+
+  // Persist panel widths to localStorage
+  useEffect(() => {
+    try { localStorage.setItem('pdb-sidebar-width', String(sidebarWidth)); } catch { /* ignore */ }
+  }, [sidebarWidth]);
+  useEffect(() => {
+    try { localStorage.setItem('pdb-preview-width', String(previewWidth)); } catch { /* ignore */ }
+  }, [previewWidth]);
+
+  // ── Notifications ──
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+
+  const addNotification = useCallback((icon: string, title: string, description: string) => {
+    const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    setNotifications(prev => {
+      const next = [{ id, icon, title, description, timestamp: new Date(), read: false }, ...prev];
+      return next.slice(0, 20);
+    });
+  }, []);
+
+  const markAllNotificationsRead = useCallback(() => {
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  }, []);
+
+  const clearAllNotifications = useCallback(() => {
+    setNotifications([]);
+  }, []);
+
+  const unreadCount = useMemo(() => notifications.filter(n => !n.read).length, [notifications]);
+
+  // ── Resize Drag Handlers ──
+  const sidebarDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const previewDragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+
+  const handleSidebarMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    sidebarDragRef.current = { startX: e.clientX, startWidth: sidebarWidth };
+    setResizingSidebar(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  }, [sidebarWidth]);
+
+  const handlePreviewMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    previewDragRef.current = { startX: e.clientX, startWidth: previewWidth };
+    setResizingPreview(true);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  }, [previewWidth]);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (sidebarDragRef.current) {
+        const delta = e.clientX - sidebarDragRef.current.startX;
+        const newWidth = Math.min(400, Math.max(200, sidebarDragRef.current.startWidth + delta));
+        setSidebarWidth(newWidth);
+      }
+      if (previewDragRef.current) {
+        const delta = sidebarDragRef.current ? 0 : (previewDragRef.current.startX - e.clientX);
+        const newWidth = Math.min(600, Math.max(280, previewDragRef.current.startWidth + delta));
+        setPreviewWidth(newWidth);
+      }
+    };
+    const handleMouseUp = () => {
+      if (sidebarDragRef.current || previewDragRef.current) {
+        sidebarDragRef.current = null;
+        previewDragRef.current = null;
+        setResizingSidebar(false);
+        setResizingPreview(false);
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
   }, []);
 
   // ── Search Dropdown ──
@@ -1186,6 +1407,7 @@ export default function PdbTracker() {
   const [ifRange, setIfRange] = useState<[number, number]>([0, 50]);
   const [selectedOrganisms, setSelectedOrganisms] = useState<Set<string>>(new Set());
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  const [qualityFilter, setQualityFilter] = useState<string>('all');
 
   // Organism list from current week's entries
   const organismOptions = useMemo(() => {
@@ -1210,14 +1432,16 @@ export default function PdbTracker() {
     if (ifRange[0] !== 0 || ifRange[1] !== 50) count++;
     if (selectedOrganisms.size > 0) count++;
     if (dateRange.from || dateRange.to) count++;
+    if (qualityFilter !== 'all') count++;
     return count;
-  }, [resolutionRange, ifRange, selectedOrganisms, dateRange]);
+  }, [resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter]);
 
   const clearAdvancedFilters = useCallback(() => {
     setResolutionRange([0, 5]);
     setIfRange([0, 50]);
     setSelectedOrganisms(new Set());
     setDateRange({ from: '', to: '' });
+    setQualityFilter('all');
   }, []);
 
   const toggleOrganism = useCallback((organism: string) => {
@@ -1267,20 +1491,89 @@ export default function PdbTracker() {
     toast('Search history cleared');
   }, []);
 
+  // ── Share View: Build URL ──
+  const buildShareUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    if (mode !== 'weekly') params.set('mode', mode);
+    if (selectedWeekId) params.set('week', selectedWeekId);
+    if (selectedEvalId) params.set('eval', selectedEvalId);
+    if (methodFilter !== 'all') params.set('method', methodFilter);
+    if (searchQuery) params.set('q', searchQuery);
+    if (compareMode) {
+      params.set('compare', '1');
+      if (compareWeekId) params.set('compareWeek', compareWeekId);
+    }
+    if (previewTab !== 'summary') params.set('tab', previewTab);
+    if (compactMode) params.set('compact', '1');
+    if (showBookmarksOnly) params.set('bookmarks', '1');
+    const qs = params.toString();
+    return `${window.location.origin}${window.location.pathname}${qs ? '?' + qs : ''}`;
+  }, [mode, selectedWeekId, selectedEvalId, methodFilter, searchQuery, compareMode, compareWeekId, previewTab, compactMode, showBookmarksOnly]);
+
+  // ── Share View: Copy URL to Clipboard ──
+  const handleShareView = useCallback(() => {
+    const url = buildShareUrl();
+    navigator.clipboard.writeText(url).then(() => {
+      toast('Link copied to clipboard', { description: 'Share this view with others' });
+    }).catch(() => {
+      toast('Failed to copy link', { description: 'Please copy the URL manually' });
+    });
+  }, [buildShareUrl]);
+
+  // ── Share View: Apply URL Params on Mount ──
+  useEffect(() => {
+    if (urlParamsApplied.current) return;
+    if (!searchParams) return;
+    urlParamsApplied.current = true;
+
+    const modeParam = searchParams.get('mode');
+    const weekParam = searchParams.get('week');
+    const evalParam = searchParams.get('eval');
+    const methodParam = searchParams.get('method');
+    const qParam = searchParams.get('q');
+    const compareParam = searchParams.get('compare');
+    const compareWeekParam = searchParams.get('compareWeek');
+    const tabParam = searchParams.get('tab');
+    const compactParam = searchParams.get('compact');
+    const bookmarksParam = searchParams.get('bookmarks');
+
+    if (modeParam === 'evaluation' || modeParam === 'weekly') setMode(modeParam);
+    if (weekParam) setSelectedWeekId(weekParam);
+    if (evalParam) setSelectedEvalId(evalParam);
+    if (methodParam && methodParam !== 'all') setMethodFilter(methodParam);
+    if (qParam) { setSearchQuery(qParam); setDebouncedSearch(qParam); }
+    if (compareParam === '1') setCompareMode(true);
+    if (compareWeekParam) setCompareWeekId(compareWeekParam);
+    if (tabParam) setPreviewTab(tabParam);
+    if (compactParam === '1') setCompactMode(true);
+    if (bookmarksParam === '1') setShowBookmarksOnly(true);
+  }, [searchParams]);
+
   const toggleBookmark = useCallback((pdbId: string) => {
+    let wasAdded = false;
     setBookmarks(prev => {
       const next = new Set(prev);
       const wasBookmarked = next.has(pdbId);
       if (wasBookmarked) {
         next.delete(pdbId);
         toast(`Removed ${pdbId} from bookmarks`);
+        wasAdded = false;
       } else {
         next.add(pdbId);
         toast(`Bookmarked ${pdbId}`, { description: 'Added to your bookmarked structures' });
+        wasAdded = true;
       }
       return next;
     });
-  }, []);
+    // Use setTimeout to ensure addNotification reads the latest state
+    setTimeout(() => {
+      if (wasAdded) {
+        addNotification('bookmark', `Bookmarked ${pdbId}`, 'Added to your bookmarked structures');
+      } else {
+        addNotification('bookmark', `Removed ${pdbId} from bookmarks`, 'Removed from your bookmarked structures');
+      }
+    }, 0);
+  }, [addNotification]);
 
   // ── Report Modal ──
   const [reportModal, setReportModal] = useState<{ isOpen: boolean; title: string; content: string }>({
@@ -1303,6 +1596,13 @@ export default function PdbTracker() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // ── Page Load Animation ──
+  const [hasLoaded, setHasLoaded] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setHasLoaded(true), 50);
+    return () => clearTimeout(timer);
+  }, []);
 
   // ── Tour State ──
   const [tourActive, setTourActive] = useState(false);
@@ -1352,6 +1652,11 @@ export default function PdbTracker() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const isMod = e.metaKey || e.ctrlKey;
+      if (isMod && e.shiftKey && e.key === 'p') {
+        e.preventDefault();
+        setCommandPaletteOpen(prev => !prev);
+        return;
+      }
       if (isMod && e.key === 'k') {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -1366,7 +1671,9 @@ export default function PdbTracker() {
         setShowBookmarksOnly(prev => !prev);
       }
       if (e.key === 'Escape') {
-        if (searchDropdownOpen) {
+        if (commandPaletteOpen) {
+          setCommandPaletteOpen(false);
+        } else if (searchDropdownOpen) {
           setSearchDropdownOpen(false);
           setSearchHighlightIndex(-1);
         } else if (detailPanelOpen) {
@@ -1380,10 +1687,41 @@ export default function PdbTracker() {
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchQuery, searchDropdownOpen]);
+  }, [searchQuery, searchDropdownOpen, commandPaletteOpen]);
 
   // ── Reset page on filter/sort change ──
-  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange]);
+  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter]);
+
+  // ── Notifications for week switching ──
+  const prevWeekIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (selectedWeekId && selectedWeekId !== prevWeekIdRef.current) {
+      prevWeekIdRef.current = selectedWeekId;
+      const snapshot = snapshots.find(s => s.weekId === selectedWeekId);
+      if (snapshot) {
+        addNotification('week', `Viewing Week ${selectedWeekId}`, `${snapshot.totalStructures} structures in this week`);
+      }
+    }
+  }, [selectedWeekId, snapshots, addNotification]);
+
+  // ── Notification for filter changes ──
+  const prevFilterCountRef = useRef(0);
+  useEffect(() => {
+    const filterCount = activeAdvancedFilterCount + (methodFilter !== 'all' ? 1 : 0) + (debouncedSearch ? 1 : 0);
+    if (filterCount > 0 && filterCount !== prevFilterCountRef.current) {
+      prevFilterCountRef.current = filterCount;
+      addNotification('filter', `Applied ${filterCount} filter${filterCount > 1 ? 's' : ''}`, 'Results updated with active filters');
+    } else if (filterCount === 0) {
+      prevFilterCountRef.current = 0;
+    }
+  }, [activeAdvancedFilterCount, methodFilter, debouncedSearch, addNotification]);
+
+  // ── Notification for compare week selection ──
+  useEffect(() => {
+    if (compareMode && compareWeekId && selectedWeekId) {
+      addNotification('compare', `Comparing ${selectedWeekId} vs ${compareWeekId}`, 'Side-by-side comparison view active');
+    }
+  }, [compareWeekId, compareMode, selectedWeekId, addNotification]);
 
   // ── Clear row selection on week/mode change ──
   useEffect(() => { setSelectedRows(new Set()); }, [selectedWeekId, mode]);
@@ -1556,6 +1894,18 @@ export default function PdbTracker() {
     if (dateRange.to) {
       source = source.filter(e => e.releaseDate <= dateRange.to);
     }
+    if (qualityFilter !== 'all') {
+      source = source.filter(e => {
+        const qs = computeQualityScore(e);
+        switch (qualityFilter) {
+          case 'excellent': return qs.total >= 80;
+          case 'good': return qs.total >= 60 && qs.total < 80;
+          case 'fair': return qs.total >= 40 && qs.total < 60;
+          case 'low': return qs.total < 40;
+          default: return true;
+        }
+      });
+    }
     if (!source.length) return [];
     const sorted = [...source].sort((a, b) => {
       let aVal: any, bVal: any;
@@ -1575,7 +1925,7 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange]);
+  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
@@ -1782,7 +2132,8 @@ export default function PdbTracker() {
     a.click();
     URL.revokeObjectURL(url);
     toast(`Exported ${sortedEntries.length} structures`, { description: 'Downloaded as CSV file' });
-  }, [sortedEntries, selectedWeekId]);
+    addNotification('export', `Exported ${sortedEntries.length} structures as CSV`, 'Downloaded as CSV file');
+  }, [sortedEntries, selectedWeekId, addNotification]);
 
   // ── Batch Row Operations ──
   const toggleRowSelection = useCallback((pdbId: string) => {
@@ -1929,7 +2280,7 @@ export default function PdbTracker() {
       <div className="flex flex-col h-full w-full overflow-hidden">
 
         {/* ═══════════ HEADER BAR ═══════════ */}
-        <header className="flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20 no-print">
+        <header className={`flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20 no-print ${hasLoaded ? 'animate-load-header' : 'opacity-0'}`}>
           {/* Gradient border at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-claude-accent/20 to-transparent bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
           <div ref={tourTitleRef} className="flex items-center gap-3">
@@ -1942,12 +2293,28 @@ export default function PdbTracker() {
             </div>
           </div>
 
+          {/* Command Palette Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => setCommandPaletteOpen(true)}
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                aria-label="Command palette"
+              >
+                <Terminal className="h-4 w-4 text-claude-text-secondary" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <span className="text-[10px]">Command Palette <kbd className="ml-1 px-1 py-0.5 rounded text-[9px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">⌘⇧P</kbd></span>
+            </TooltipContent>
+          </Tooltip>
+
           {/* Keyboard Shortcuts Popover */}
           <Popover>
             <PopoverTrigger asChild>
               <button
                 ref={tourShortcutsRef}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
                 aria-label="Keyboard shortcuts"
               >
                 <Keyboard className="h-4 w-4 text-claude-text-secondary" />
@@ -1956,6 +2323,12 @@ export default function PdbTracker() {
             <PopoverContent side="bottom" align="end" className="w-56 p-3">
               <div className="text-xs font-semibold text-claude-text mb-2">Keyboard Shortcuts</div>
               <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-claude-text-secondary">Command palette</span>
+                  <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
+                    <span className="text-[9px]">⌘⇧</span>P
+                  </kbd>
+                </div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] text-claude-text-secondary">Focus search</span>
                   <kbd className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono bg-claude-border-light text-claude-text-muted border border-claude-border">
@@ -1987,16 +2360,100 @@ export default function PdbTracker() {
           {/* Help / Restart Tour Button */}
           <button
             onClick={startTour}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
             aria-label="Help"
           >
             <HelpCircle className="h-4 w-4 text-claude-text-secondary" />
           </button>
 
+          {/* Notification Center */}
+          <Popover
+            onOpenChange={(open) => {
+              if (open) markAllNotificationsRead();
+            }}
+          >
+            <PopoverTrigger asChild>
+              <button
+                className="relative inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                aria-label="Notifications"
+              >
+                <Bell className="h-4 w-4 text-claude-text-secondary" />
+                {unreadCount > 0 && (
+                  <span className="h-2 w-2 rounded-full bg-red-500 absolute top-1 right-1" />
+                )}
+              </button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-0 bg-white dark:bg-[#242220] border border-claude-border shadow-xl rounded-lg">
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-claude-border">
+                <span className="text-xs font-semibold text-claude-text">Notifications</span>
+                <div className="flex items-center gap-1">
+                  {notifications.length > 0 && (
+                    <>
+                      <button
+                        onClick={markAllNotificationsRead}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-claude-text-muted hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
+                        title="Mark all as read"
+                      >
+                        <CheckCheck className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={clearAllNotifications}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-claude-text-muted hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
+                        title="Clear all"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-80 overflow-y-auto custom-scrollbar">
+                {notifications.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-8 text-claude-text-muted">
+                    <Bell className="h-6 w-6 mb-2 opacity-30" />
+                    <p className="text-[11px]">No notifications yet</p>
+                  </div>
+                ) : (
+                  notifications.map((notif) => {
+                    const notifIconMap: Record<string, React.ReactNode> = {
+                      week: <Calendar className="h-3.5 w-3.5 text-claude-accent" />,
+                      bookmark: <Bookmark className="h-3.5 w-3.5 text-claude-accent" />,
+                      export: <Download className="h-3.5 w-3.5 text-claude-accent" />,
+                      filter: <SlidersHorizontal className="h-3.5 w-3.5 text-claude-accent" />,
+                      compare: <GitCompareArrows className="h-3.5 w-3.5 text-claude-accent" />,
+                    };
+                    const timeAgo = (() => {
+                      const diff = Date.now() - notif.timestamp.getTime();
+                      if (diff < 60000) return 'just now';
+                      if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+                      if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+                      return `${Math.floor(diff / 86400000)}d ago`;
+                    })();
+                    return (
+                      <div
+                        key={notif.id}
+                        className={`p-2.5 rounded-lg hover:bg-claude-bg/50 dark:hover:bg-[#2b2926]/50 border-l-2 ${notif.read ? 'border-transparent' : 'border-claude-accent'} mx-1.5 my-0.5`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <span className="flex-shrink-0 mt-0.5">{notifIconMap[notif.icon] || <Info className="h-3.5 w-3.5 text-claude-text-muted" />}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-medium text-claude-text leading-tight">{notif.title}</div>
+                            <div className="text-[10px] text-claude-text-secondary mt-0.5 leading-tight">{notif.description}</div>
+                            <div className="text-[9px] text-claude-text-muted mt-1">{timeAgo}</div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           {/* Dark mode toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
             aria-label="Toggle dark mode"
           >
             {mounted && theme === 'dark' ? (
@@ -2009,7 +2466,7 @@ export default function PdbTracker() {
           {/* Mobile hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
           >
             <Menu className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -2017,7 +2474,7 @@ export default function PdbTracker() {
           {/* Mobile preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
           >
             <BarChart3 className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -2027,8 +2484,13 @@ export default function PdbTracker() {
 
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar */}
-          <aside className="hidden md:flex w-[280px] flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print sidebar-gradient">
+          <aside className={`hidden md:flex flex-shrink-0 border-r border-claude-border bg-white dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
             {renderSidebar()}
+            {/* Sidebar resize handle */}
+            <div
+              onMouseDown={handleSidebarMouseDown}
+              className={`absolute top-0 right-0 bottom-0 w-1 hover:bg-claude-accent/30 transition-colors duration-150 cursor-col-resize z-10 ${resizingSidebar ? 'bg-claude-accent/50' : ''}`}
+            />
           </aside>
 
           {/* Mobile sidebar overlay */}
@@ -2054,7 +2516,7 @@ export default function PdbTracker() {
           </Drawer>
 
           {/* ═══════════ MAIN AREA ═══════════ */}
-          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <div className={`flex-1 flex flex-col min-w-0 overflow-hidden ${hasLoaded ? 'animate-load-main' : 'opacity-0'}`}>
             {/* Toolbar */}
             <div className="flex items-center gap-3 px-4 py-3 border-b border-claude-border bg-white/80 dark:bg-[#242220]/80 backdrop-blur-sm no-print">
               {mode === 'weekly' ? (
@@ -2225,7 +2687,7 @@ export default function PdbTracker() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+                        className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
                       >
                         <Columns3 className="h-3 w-3" />
                         Columns
@@ -2285,7 +2747,7 @@ export default function PdbTracker() {
                   {sortedEntries.length > 0 && (
                     <button
                       onClick={handleExportCsv}
-                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring"
+                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
                     >
                       <Download className="h-3 w-3" />
                       Export
@@ -2296,18 +2758,32 @@ export default function PdbTracker() {
                   {sortedEntries.length > 0 && (
                     <button
                       onClick={() => window.print()}
-                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring no-print"
+                      className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press no-print"
                     >
                       <Printer className="h-3 w-3" />
                       Print
                     </button>
                   )}
 
+                  {/* Share View Button */}
+                  <button
+                    onClick={handleShareView}
+                    className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press no-print"
+                  >
+                    <Share2 className="h-3 w-3" />
+                    Share
+                  </button>
+
                   {/* Compare Button */}
                   <button
                     onClick={() => {
                       if (compareMode) { setCompareMode(false); setCompareWeekId(null); }
-                      else setCompareMode(true);
+                      else {
+                        setCompareMode(true);
+                        if (selectedWeekId) {
+                          addNotification('compare', `Compare mode activated`, `Select a week to compare with ${selectedWeekId}`);
+                        }
+                      }
                     }}
                     className={`inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
                       compareMode
@@ -2441,6 +2917,14 @@ export default function PdbTracker() {
                               </button>
                             </span>
                           )}
+                          {qualityFilter !== 'all' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                              Quality: {qualityFilter === 'excellent' ? 'Excellent' : qualityFilter === 'good' ? 'Good' : qualityFilter === 'fair' ? 'Fair' : 'Low'}
+                              <button onClick={() => setQualityFilter('all')} className="hover:text-claude-accent/80 transition-colors">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          )}
                           {activeAdvancedFilterCount === 0 && (
                             <span className="text-[10px] text-claude-text-muted">No filters active</span>
                           )}
@@ -2566,6 +3050,43 @@ export default function PdbTracker() {
                             </span>
                           )}
                         </div>
+
+                        {/* Quality Filter */}
+                        <div className="flex flex-col gap-2 min-w-[200px]">
+                          <label className="text-xs font-semibold text-claude-text-secondary">Quality Score</label>
+                          <Select value={qualityFilter} onValueChange={setQualityFilter}>
+                            <SelectTrigger className="h-8 text-xs">
+                              <SelectValue placeholder="All qualities" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="all">All Qualities</SelectItem>
+                              <SelectItem value="excellent">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#22c55e' }} />
+                                  Excellent (≥80)
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="good">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#14b8a6' }} />
+                                  Good (60–79)
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="fair">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#f59e0b' }} />
+                                  Fair (40–59)
+                                </span>
+                              </SelectItem>
+                              <SelectItem value="low">
+                                <span className="flex items-center gap-1.5">
+                                  <span className="inline-flex h-2 w-2 rounded-full" style={{ backgroundColor: '#ef4444' }} />
+                                  Low (&lt;40)
+                                </span>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
                     </div>
                   </motion.div>
@@ -2632,10 +3153,23 @@ export default function PdbTracker() {
                     </tbody>
                   </table>
                 ) : sortedEntries.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted">
-                    <Database className="h-10 w-10 mb-3 opacity-30 animate-float" />
-                    <p className="text-sm">No structures found</p>
-                    <p className="text-xs mt-1">Try adjusting filters or selecting a different week</p>
+                  <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted relative">
+                    <div className="absolute inset-0 empty-state-pattern opacity-40" />
+                    <div className="relative z-10 flex flex-col items-center">
+                      <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-[#2b2926] flex items-center justify-center mb-4">
+                        <Database className="h-8 w-8 opacity-30 animate-float" />
+                      </div>
+                      <p className="text-sm font-medium text-claude-text">No structures found</p>
+                      <p className="text-xs mt-1 text-claude-text-muted max-w-[200px] text-center">Try adjusting filters or selecting a different week</p>
+                      {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0) && (
+                        <button
+                          onClick={() => { setMethodFilter('all'); setSearchQuery(''); setShowBookmarksOnly(false); clearAdvancedFilters(); }}
+                          className="mt-3 px-3 py-1.5 rounded-md text-xs font-medium bg-claude-accent text-white hover:bg-claude-accent-hover transition-colors btn-press"
+                        >
+                          Clear all filters
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
                   <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
@@ -2670,7 +3204,7 @@ export default function PdbTracker() {
                           <th
                             key={col.field}
                             onClick={() => col.field !== '_ligands' && handleSort(col.field)}
-                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field ? 'sort-active' : ''} ${col.w} ${col.field !== '_ligands' ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
+                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field ? 'sort-active' : ''} ${col.w} ${col.field !== '_ligands' ? 'sortable-header hover:text-claude-text-secondary' : ''}`}
                           >
                             <span className="inline-flex items-center gap-1">
                               {col.label}
@@ -2727,13 +3261,18 @@ export default function PdbTracker() {
                                     href={`https://www.rcsb.org/structure/${entry.pdbId}`}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="font-mono font-semibold text-claude-accent pdb-link external-link-hover inline-flex items-center gap-0.5"
+                                    className="font-mono font-semibold text-claude-accent pdb-link external-link-hover link-animated inline-flex items-center gap-0.5"
                                   >
                                     {entry.pdbId}
+                                    <span
+                                      className="inline-flex h-2 w-2 rounded-full ml-1 flex-shrink-0"
+                                      style={{ backgroundColor: computeQualityScore(entry).color }}
+                                      title={`${computeQualityScore(entry).label} (${computeQualityScore(entry).total})`}
+                                    />
                                     <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                   </a>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg">
+                                <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                   <PdbTooltipContent entry={entry} />
                                 </TooltipContent>
                               </Tooltip>
@@ -2768,7 +3307,7 @@ export default function PdbTracker() {
                             </td>
                             )}
                             {!hiddenColumns.has('organisms') && (
-                            <td className="px-3 py-2">
+                            <td className="px-3 py-2" title={entry.organisms ? entry.organisms.replace(/\|/g, ', ') : undefined}>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <span className="text-claude-text-secondary text-[11px] line-clamp-1 cursor-default italic">
@@ -2776,15 +3315,15 @@ export default function PdbTracker() {
                                   </span>
                                 </TooltipTrigger>
                                 {entry.organisms && (
-                                  <TooltipContent side="top" className="max-w-64">
-                                    <p className="text-xs text-claude-text-secondary">{entry.organisms.replace(/\|/g, ', ')}</p>
+                                  <TooltipContent side="top" className="max-w-64 bg-[#2b2926] text-white text-[11px] rounded px-2 py-1 border-0 shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                    <p className="text-xs">{entry.organisms.replace(/\|/g, ', ')}</p>
                                   </TooltipContent>
                                 )}
                               </Tooltip>
                             </td>
                             )}
                             {!hiddenColumns.has('title') && (
-                            <td className="px-3 py-2 max-w-xs">
+                            <td className="px-3 py-2 max-w-xs" title={entry.title}>
                               <span className="text-claude-text-secondary line-clamp-2 leading-relaxed">{entry.title}</span>
                             </td>
                             )}
@@ -2884,10 +3423,15 @@ export default function PdbTracker() {
               ) : (
                 /* Evaluation Table */
                 !selectedEval ? (
-                  <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted">
-                    <Microscope className="h-10 w-10 mb-3 opacity-30 animate-float" />
-                    <p className="text-sm">Select a protein evaluation</p>
-                    <p className="text-xs mt-1">Choose from the sidebar to view structures and BLAST results</p>
+                  <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted relative">
+                    <div className="absolute inset-0 empty-state-pattern opacity-40" />
+                    <div className="relative z-10 flex flex-col items-center">
+                      <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-[#2b2926] flex items-center justify-center mb-4">
+                        <Microscope className="h-8 w-8 opacity-30 animate-float" />
+                      </div>
+                      <p className="text-sm font-medium text-claude-text">Select a protein evaluation</p>
+                      <p className="text-xs mt-1 text-claude-text-muted max-w-[220px] text-center">Choose from the sidebar to view structures and BLAST results</p>
+                    </div>
                   </div>
                 ) : loadingEvalDetail ? (
                   <table className={`w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
@@ -2930,7 +3474,7 @@ export default function PdbTracker() {
                           <th
                             key={col.field}
                             onClick={() => !['_type', '_ligands'].includes(col.field) && handleSort(col.field)}
-                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field && !['_type', '_ligands'].includes(col.field) ? 'sort-active' : ''} ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'cursor-pointer hover:text-claude-text-secondary' : ''}`}
+                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field && !['_type', '_ligands'].includes(col.field) ? 'sort-active' : ''} ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'sortable-header hover:text-claude-text-secondary' : ''}`}
                           >
                             <span className="inline-flex items-center gap-1">
                               {col.label}
@@ -2958,13 +3502,13 @@ export default function PdbTracker() {
                                       href={`https://www.rcsb.org/structure/${row.pdbId}`}
                                       target="_blank"
                                       rel="noopener noreferrer"
-                                      className="font-mono font-semibold text-claude-accent pdb-link external-link-hover inline-flex items-center gap-0.5"
+                                      className="font-mono font-semibold text-claude-accent pdb-link external-link-hover link-animated inline-flex items-center gap-0.5"
                                     >
                                       {row.pdbId}
                                       <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                     </a>
                                   </TooltipTrigger>
-                                  <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg">
+                                  <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                     {structResult ? (
                                       <PdbTooltipContent entry={structResult} />
                                     ) : blastResult ? (
@@ -3075,11 +3619,16 @@ export default function PdbTracker() {
               <motion.aside
                 ref={tourPreviewRef as React.RefObject<HTMLElement>}
                 initial={{ width: 0, opacity: 0 }}
-                animate={{ width: 380, opacity: 1 }}
+                animate={{ width: previewWidth, opacity: hasLoaded ? 1 : 0 }}
                 exit={{ width: 0, opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="hidden md:flex flex-shrink-0 bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border"
+                transition={{ duration: 0.2, delay: hasLoaded ? 0 : 0.3 }}
+                className={`hidden md:flex flex-shrink-0 bg-white/80 dark:bg-[#242220]/80 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border relative ${hasLoaded ? 'animate-load-preview' : ''}`}
               >
+                {/* Preview panel resize handle */}
+                <div
+                  onMouseDown={handlePreviewMouseDown}
+                  className={`absolute top-0 left-0 bottom-0 w-1 hover:bg-claude-accent/30 transition-colors duration-150 cursor-col-resize z-10 ${resizingPreview ? 'bg-claude-accent/50' : ''}`}
+                />
                 {renderPreviewPanel()}
               </motion.aside>
             )}
@@ -3117,29 +3666,65 @@ export default function PdbTracker() {
           </AnimatePresence>
         </div>
 
-        {/* ═══════════ FOOTER ═══════════ */}
-        <footer className="flex-shrink-0 h-8 flex items-center justify-center gap-2 border-t border-claude-border bg-white dark:bg-[#242220] text-[10px] text-claude-text-muted relative no-print">
-          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-claude-accent/30 to-transparent" />
-          <span>{entries.length} structures</span>
-          <span>·</span>
-          <span>{snapshots.length} weeks</span>
-          <span>·</span>
-          <span>{evaluations.length} evaluations</span>
-          <span>·</span>
-          <span className="inline-flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-breathe" />
-            Last updated: {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-          </span>
-          <span>·</span>
-          <a
-            href="https://www.rcsb.org"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-claude-accent pdb-link external-link-hover inline-flex items-center gap-0.5"
-          >
-            RCSB PDB
-            <ExternalLink className="h-2.5 w-2.5 ext-arrow" />
-          </a>
+        {/* ═══════════ STATUS BAR (VS Code-style) ═══════════ */}
+        <footer className="flex-shrink-0 h-6 flex items-center border-t border-claude-border bg-[#f5f0eb] dark:bg-[#1a1917] text-[10px] text-claude-text-muted relative no-print select-none">
+          {/* Animated gradient line at top */}
+          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-claude-accent/40 to-transparent bg-[length:200%_100%] animate-[status-bar-gradient_4s_ease-in-out_infinite]" />
+
+          {/* Left section */}
+          <div className="flex items-center h-full">
+            <span className="inline-flex items-center gap-1 px-2 border-r border-claude-border/50">
+              {mode === 'weekly' ? <Database className="h-3 w-3 text-claude-accent" /> : <Microscope className="h-3 w-3 text-claude-accent" />}
+              <span className="font-medium text-claude-text-secondary">{mode === 'weekly' ? 'Weekly' : 'Evaluation'}</span>
+            </span>
+            {mode === 'weekly' && selectedWeekId && (
+              <span className="inline-flex items-center gap-1 px-2 border-r border-claude-border/50">
+                <Calendar className="h-3 w-3" />
+                <span className="font-mono">{selectedWeekId}</span>
+              </span>
+            )}
+            <span className="inline-flex items-center gap-1 px-2 border-r border-claude-border/50">
+              <Activity className="h-3 w-3" />
+              <span>{mode === 'weekly' ? entries.length : evaluations.length} items</span>
+            </span>
+          </div>
+
+          {/* Center section */}
+          <div className="flex-1 flex items-center justify-center h-full">
+            {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0) && (
+              <span className="inline-flex items-center gap-1 px-2">
+                <SlidersHorizontal className="h-3 w-3" />
+                Filters: {[methodFilter !== 'all' ? 1 : 0, searchQuery ? 1 : 0, showBookmarksOnly ? 1 : 0, activeAdvancedFilterCount].reduce((a, b) => a + b, 0)} active
+              </span>
+            )}
+            {sortField && (
+              <span className="inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
+                <ArrowUpDown className="h-3 w-3" />
+                Sort: {sortField} {sortDir === 'asc' ? '↑' : '↓'}
+              </span>
+            )}
+          </div>
+
+          {/* Right section */}
+          <div className="flex items-center h-full">
+            <span className="inline-flex items-center gap-1.5 px-2 border-l border-claude-border/50">
+              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-[#2b2926] border border-claude-border/40 font-mono">⌘</kbd>
+              <span>K</span>
+              <span className="text-claude-text-muted/40">·</span>
+              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-[#2b2926] border border-claude-border/40 font-mono">⌘</kbd>
+              <span>E</span>
+              <span className="text-claude-text-muted/40">·</span>
+              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-[#2b2926] border border-claude-border/40 font-mono">⌘</kbd>
+              <span>B</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
+              {mounted && theme === 'dark' ? <Moon className="h-3 w-3" /> : <Sun className="h-3 w-3" />}
+            </span>
+            <span className="inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-breathe" />
+              <span>{snapshots.length}w · {evaluations.length}e</span>
+            </span>
+          </div>
         </footer>
       </div>
 
@@ -3257,6 +3842,77 @@ export default function PdbTracker() {
                     <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h3>
                     <p className="text-sm text-claude-text leading-relaxed">{selectedEntry.title}</p>
                   </div>
+
+                  {/* Quality Score Card */}
+                  {(() => {
+                    const qs = computeQualityScore(selectedEntry);
+                    const circumference = 2 * Math.PI * 40;
+                    const offset = circumference - (qs.total / 100) * circumference;
+                    return (
+                      <div>
+                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Quality Score</h3>
+                        <div className="flex items-center gap-4 p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/40">
+                          {/* SVG Circular Gauge */}
+                          <div className="relative flex-shrink-0">
+                            <svg width="88" height="88" viewBox="0 0 88 88">
+                              {/* Background circle */}
+                              <circle
+                                cx="44" cy="44" r="40"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="6"
+                                className="text-claude-border-light dark:text-[#3d3832]"
+                              />
+                              {/* Score arc */}
+                              <circle
+                                cx="44" cy="44" r="40"
+                                fill="none"
+                                stroke={qs.color}
+                                strokeWidth="6"
+                                strokeLinecap="round"
+                                strokeDasharray={circumference}
+                                strokeDashoffset={offset}
+                                transform="rotate(-90 44 44)"
+                                className="transition-all duration-700"
+                              />
+                            </svg>
+                            {/* Score number in center */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                              <span className="text-xl font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
+                            </div>
+                          </div>
+                          {/* Score details */}
+                          <div className="flex-1 min-w-0 space-y-1.5">
+                            <div className="text-sm font-semibold" style={{ color: qs.color }}>{qs.label}</div>
+                            <div className="text-[10px] text-claude-text-muted leading-relaxed">
+                              Resolution: {qs.resolutionScore}/35 · Method: {qs.methodScore}/25 · IF: {qs.ifScore}/30
+                            </div>
+                            {/* Mini score bars */}
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] text-claude-text-muted w-16">Resolution</span>
+                                <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${(qs.resolutionScore / 35) * 100}%`, backgroundColor: '#c96442' }} />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] text-claude-text-muted w-16">Method</span>
+                                <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${(qs.methodScore / 25) * 100}%`, backgroundColor: '#2d8f8f' }} />
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] text-claude-text-muted w-16">IF</span>
+                                <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
+                                  <div className="h-full rounded-full" style={{ width: `${(qs.ifScore / 30) * 100}%`, backgroundColor: '#7c5cbf' }} />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Resolution */}
                   {selectedEntry.resolution != null && (
@@ -3415,6 +4071,110 @@ export default function PdbTracker() {
         )}
       </AnimatePresence>
 
+      {/* ═══════════ COMMAND PALETTE ═══════════ */}
+      <CommandDialog
+        open={commandPaletteOpen}
+        onOpenChange={setCommandPaletteOpen}
+        title="Command Palette"
+        description="Search for a command to run..."
+        className="sm:max-w-lg"
+      >
+        <CommandInput placeholder="Type a command or search..." />
+        <CommandList className="max-h-[360px]">
+          <CommandEmpty>No commands found.</CommandEmpty>
+          <CommandGroup heading="Navigation">
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); if (snapshots.length > 0) setSelectedWeekId(snapshots[0].weekId); }}>
+              <Calendar className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Go to First Week</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); if (snapshots.length > 0) setSelectedWeekId(snapshots[snapshots.length - 1].weekId); }}>
+              <Calendar className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Go to Latest Week</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setMode('evaluation'); }}>
+              <Microscope className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Switch to Evaluation Mode</span>
+              <CommandShortcut>⌘E</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setMode('weekly'); }}>
+              <Calendar className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Switch to Weekly Mode</span>
+              <CommandShortcut>⌘E</CommandShortcut>
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Data">
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); handleExportCsv(); }}>
+              <Download className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Export Current View as CSV</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); window.print(); }}>
+              <Printer className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Print Report</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); if (compareMode) { setCompareMode(false); setCompareWeekId(null); } else setCompareMode(true); }}>
+              <GitCompareArrows className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Toggle Compare Mode</span>
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Filters">
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setMethodFilter('all'); setSearchQuery(''); clearAdvancedFilters(); setShowBookmarksOnly(false); }}>
+              <RotateCcw className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Clear All Filters</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setShowBookmarksOnly(prev => !prev); }}>
+              <Bookmark className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Show Bookmarked Only</span>
+              <CommandShortcut>⌘B</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setCompactMode(prev => !prev); }}>
+              <AlignJustify className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Toggle Compact Mode</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setAdvancedFiltersOpen(prev => !prev); }}>
+              <SlidersHorizontal className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Open Advanced Filters</span>
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="View">
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setPreviewOpen(prev => !prev); }}>
+              {previewOpen ? <EyeOff className="h-4 w-4 mr-2 text-claude-text-muted" /> : <Eye className="h-4 w-4 mr-2 text-claude-text-muted" />}
+              <span>Toggle Preview Panel</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); if (selectedEntry) setDetailPanelOpen(true); else toast('Select a row first', { description: 'Click a PDB entry row to open the detail panel' }); }}>
+              <PanelRightOpen className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Open Detail Panel</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setTheme(theme === 'dark' ? 'light' : 'dark'); }}>
+              {mounted && theme === 'dark' ? <Sun className="h-4 w-4 mr-2 text-claude-text-muted" /> : <Moon className="h-4 w-4 mr-2 text-claude-text-muted" />}
+              <span>Toggle Dark Mode</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); toast('Zoomed in! 🔍', { description: '(Just for fun — no actual zoom)' }); }}>
+              <ZoomIn className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Zoom In</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); toast('Zoomed out! 👀', { description: '(Just for fun — no actual zoom)' }); }}>
+              <ZoomOut className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Zoom Out</span>
+            </CommandItem>
+          </CommandGroup>
+          <CommandGroup heading="Help">
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); searchInputRef.current?.focus(); }}>
+              <Search className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Show Keyboard Shortcuts</span>
+              <CommandShortcut>⌘K</CommandShortcut>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); startTour(); }}>
+              <Compass className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Start Tour</span>
+            </CommandItem>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); toast('PDB Structure Tracker', { description: 'Track and evaluate protein structures from the PDB database. Use ⌘⇧P to open this palette anytime.' }); }}>
+              <HelpCircle className="h-4 w-4 mr-2 text-claude-text-muted" />
+              <span>Show Help</span>
+            </CommandItem>
+          </CommandGroup>
+        </CommandList>
+      </CommandDialog>
+
       {/* ═══════════ ONBOARDING TOUR OVERLAY ═══════════ */}
       {mounted && <TourOverlay
         tourActive={tourActive}
@@ -3551,61 +4311,144 @@ export default function PdbTracker() {
                   const xrayPct = (snap.xrayCount / total) * 100;
                   const nmrPct = (snap.nmrCount / total) * 100;
 
+                  // Compute hover card data from snapshot
+                  const avgRes = snap.cryoemAvgRes != null && snap.xrayAvgRes != null
+                    ? ((snap.cryoemAvgRes * snap.cryoemCount + snap.xrayAvgRes * snap.xrayCount) / (snap.cryoemCount + snap.xrayCount))
+                    : snap.cryoemAvgRes ?? snap.xrayAvgRes ?? null;
+                  const resQualityLabel = avgRes != null
+                    ? (avgRes <= 2.0 ? 'Excellent' : avgRes <= 3.0 ? 'Good' : avgRes <= 4.0 ? 'Fair' : 'Low')
+                    : null;
+                  const resQualityColor = avgRes != null
+                    ? (avgRes <= 2.0 ? '#22c55e' : avgRes <= 3.0 ? '#14b8a6' : avgRes <= 4.0 ? '#f59e0b' : '#ef4444')
+                    : null;
+                  const topJournals = snap.topJournals ? snap.topJournals.split('|').filter(Boolean).slice(0, 2) : [];
+
                   return (
-                    <button
-                      key={snap.weekId}
-                      onClick={() => setSelectedWeekId(snap.weekId)}
-                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
-                        isSelected
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
-                          : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-semibold text-claude-text font-mono">{snap.weekId}</span>
-                        <span className="text-[10px] text-claude-text-muted">{snap.totalStructures} structures</span>
-                      </div>
-                      <div className="text-[10px] text-claude-text-muted mb-2">
-                        {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
-                      </div>
-                      <div className="flex gap-1.5 flex-wrap mb-2">
-                        {snap.cryoemCount > 0 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-cryoem-bg text-claude-cryoem">
-                            EM {snap.cryoemCount}
-                          </span>
+                    <HoverCard key={snap.weekId} openDelay={500} closeDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <button
+                          onClick={() => setSelectedWeekId(snap.weekId)}
+                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
+                            isSelected
+                              ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
+                              : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-xs font-semibold text-claude-text font-mono">{snap.weekId}</span>
+                            <span className="text-[10px] text-claude-text-muted">{snap.totalStructures} structures</span>
+                          </div>
+                          <div className="text-[10px] text-claude-text-muted mb-2">
+                            {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
+                          </div>
+                          <div className="flex gap-1.5 flex-wrap mb-2">
+                            {snap.cryoemCount > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-cryoem-bg text-claude-cryoem">
+                                EM {snap.cryoemCount}
+                              </span>
+                            )}
+                            {snap.xrayCount > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-xray-bg text-claude-xray">
+                                XR {snap.xrayCount}
+                              </span>
+                            )}
+                            {snap.nmrCount > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-nmr-bg text-claude-nmr">
+                                NMR {snap.nmrCount}
+                              </span>
+                            )}
+                            {snap.otherCount > 0 && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-other-bg text-claude-other">
+                                Other {snap.otherCount}
+                              </span>
+                            )}
+                          </div>
+                          {/* Method ratio progress bar */}
+                          <div className="flex h-1.5 rounded-full overflow-hidden bg-claude-border-light">
+                            {snap.cryoemCount > 0 && (
+                              <div className="h-full bg-claude-cryoem transition-all duration-300" style={{ width: `${cryoemPct}%` }} />
+                            )}
+                            {snap.xrayCount > 0 && (
+                              <div className="h-full bg-claude-xray transition-all duration-300" style={{ width: `${xrayPct}%` }} />
+                            )}
+                            {snap.nmrCount > 0 && (
+                              <div className="h-full bg-claude-nmr transition-all duration-300" style={{ width: `${nmrPct}%` }} />
+                            )}
+                            {snap.otherCount > 0 && (
+                              <div className="h-full bg-claude-other transition-all duration-300" style={{ width: `${(snap.otherCount / total) * 100}%` }} />
+                            )}
+                          </div>
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="right"
+                        align="start"
+                        className="w-64 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border rounded-xl shadow-xl"
+                      >
+                        {/* Header - Week date range */}
+                        <div className="text-xs font-semibold text-claude-text">
+                          {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
+                        </div>
+
+                        {/* Mini method distribution bars */}
+                        <div>
+                          <div className="text-[10px] text-claude-text-muted mb-1">Method Distribution</div>
+                          <div className="flex items-center gap-1">
+                            {snap.cryoemCount > 0 && (
+                              <div className="h-1.5 rounded-full bg-[#2d8f8f]" style={{ width: `${Math.max(8, cryoemPct)}%` }} title={`Cryo-EM: ${snap.cryoemCount}`} />
+                            )}
+                            {snap.xrayCount > 0 && (
+                              <div className="h-1.5 rounded-full bg-[#7c5cbf]" style={{ width: `${Math.max(8, xrayPct)}%` }} title={`X-ray: ${snap.xrayCount}`} />
+                            )}
+                            {snap.nmrCount > 0 && (
+                              <div className="h-1.5 rounded-full bg-[#c9872e]" style={{ width: `${Math.max(8, nmrPct)}%` }} title={`NMR: ${snap.nmrCount}`} />
+                            )}
+                            {snap.otherCount > 0 && (
+                              <div className="h-1.5 rounded-full bg-[#6b7280]" style={{ width: `${Math.max(8, (snap.otherCount / total) * 100)}%` }} title={`Other: ${snap.otherCount}`} />
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[9px] text-claude-text-muted">
+                            {snap.cryoemCount > 0 && <span className="text-[#2d8f8f]">EM {snap.cryoemCount}</span>}
+                            {snap.xrayCount > 0 && <span className="text-[#7c5cbf]">XR {snap.xrayCount}</span>}
+                            {snap.nmrCount > 0 && <span className="text-[#c9872e]">NMR {snap.nmrCount}</span>}
+                          </div>
+                        </div>
+
+                        {/* Average resolution with quality indicator */}
+                        {avgRes != null && (
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-claude-text-muted">Avg Resolution</span>
+                            <span className="font-mono font-medium">
+                              <span style={{ color: resQualityColor || undefined }}>{avgRes.toFixed(2)}Å</span>
+                              {resQualityLabel && (
+                                <span className="ml-1 text-[9px]" style={{ color: resQualityColor || undefined }}>{resQualityLabel}</span>
+                              )}
+                            </span>
+                          </div>
                         )}
-                        {snap.xrayCount > 0 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-xray-bg text-claude-xray">
-                            XR {snap.xrayCount}
-                          </span>
+
+                        {/* Highest IF journal */}
+                        {topJournals.length > 0 && (
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-claude-text-muted">Top Journal</span>
+                            <span className="text-claude-text-secondary truncate ml-2 max-w-[140px]">{topJournals[0]}</span>
+                          </div>
                         )}
-                        {snap.nmrCount > 0 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-nmr-bg text-claude-nmr">
-                            NMR {snap.nmrCount}
-                          </span>
+
+                        {/* Reports count */}
+                        {selectedWeekId === snap.weekId && weeklyReports.length > 0 && (
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-claude-text-muted">Reports</span>
+                            <span className="text-claude-text-secondary">{weeklyReports.length} available</span>
+                          </div>
                         )}
-                        {snap.otherCount > 0 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-other-bg text-claude-other">
-                            Other {snap.otherCount}
-                          </span>
-                        )}
-                      </div>
-                      {/* Method ratio progress bar */}
-                      <div className="flex h-1.5 rounded-full overflow-hidden bg-claude-border-light">
-                        {snap.cryoemCount > 0 && (
-                          <div className="h-full bg-claude-cryoem transition-all duration-300" style={{ width: `${cryoemPct}%` }} />
-                        )}
-                        {snap.xrayCount > 0 && (
-                          <div className="h-full bg-claude-xray transition-all duration-300" style={{ width: `${xrayPct}%` }} />
-                        )}
-                        {snap.nmrCount > 0 && (
-                          <div className="h-full bg-claude-nmr transition-all duration-300" style={{ width: `${nmrPct}%` }} />
-                        )}
-                        {snap.otherCount > 0 && (
-                          <div className="h-full bg-claude-other transition-all duration-300" style={{ width: `${(snap.otherCount / total) * 100}%` }} />
-                        )}
-                      </div>
-                    </button>
+
+                        {/* Click to view hint */}
+                        <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
+                          Click to view
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
                   );
                 })
               )}
@@ -3741,7 +4584,7 @@ export default function PdbTracker() {
                     <button
                       key={ev.uniprotId}
                       onClick={() => setSelectedEvalId(ev.uniprotId)}
-                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover active:scale-[0.98] ${
+                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                         selectedEvalId === ev.uniprotId
                           ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
                           : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
@@ -5046,7 +5889,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
     <div className="px-4 py-2">
       <div className="flex gap-3">
         {/* Total Structures Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '400ms' }}>
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Total Structures</div>
@@ -5076,7 +5919,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </div>
 
         {/* Avg Resolution Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '450ms' }}>
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Resolution</div>
@@ -5094,7 +5937,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </div>
 
         {/* Cryo-EM % Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '500ms' }}>
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Cryo-EM %</div>
@@ -5115,7 +5958,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </div>
 
         {/* Top IF Card */}
-        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow">
+        <div className="flex-1 bg-white dark:bg-[#242220] border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" style={{ animationDelay: '550ms' }}>
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Top IF</div>
