@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Suspense } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import {
@@ -74,6 +74,9 @@ import {
   Columns,
   Sparkles,
   GitMerge,
+  Tag,
+  RefreshCw,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -189,6 +192,114 @@ function AnimatedNumber({ value, decimals = 0, suffix = '' }: { value: number; d
     >
       {display}{suffix}
     </motion.span>
+  );
+}
+
+// ─── useMagneticEffect Hook ──────────────────────────────────────────────────
+
+function useMagneticEffect<T extends HTMLElement>(strength: number = 0.3) {
+  const ref = useRef<T>(null);
+  const isDesktop = useRef(false);
+  const rafRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    isDesktop.current = window.matchMedia('(hover: hover)').matches;
+  }, []);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !isDesktop.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        const rect = el.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        const dx = e.clientX - centerX;
+        const dy = e.clientY - centerY;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const radius = 50;
+
+        if (distance < radius) {
+          el.style.transform = `translate(${dx * strength}px, ${dy * strength}px)`;
+          el.classList.add('magnetic-element-active');
+          el.classList.remove('magnetic-element');
+        }
+      });
+    };
+
+    const handleMouseLeave = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      el.style.transform = '';
+      el.classList.remove('magnetic-element-active');
+      el.classList.add('magnetic-element');
+    };
+
+    el.classList.add('magnetic-element');
+    el.addEventListener('mousemove', handleMouseMove);
+    el.addEventListener('mouseleave', handleMouseLeave);
+    return () => {
+      el.removeEventListener('mousemove', handleMouseMove);
+      el.removeEventListener('mouseleave', handleMouseLeave);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [strength]);
+
+  return ref;
+}
+
+// ─── HeaderParticles Component ──────────────────────────────────────────────
+
+function HeaderParticles() {
+  const particles = useMemo(() => {
+    const count = 18;
+    return Array.from({ length: count }, (_, i) => {
+      const size = 2 + Math.random() * 1;
+      const duration = 8 + Math.random() * 7;
+      const delay = Math.random() * -15;
+      const left = Math.random() * 100;
+      const top = Math.random() * 100;
+      const minOpacity = 0.05 + Math.random() * 0.08;
+      const maxOpacity = 0.2 + Math.random() * 0.2;
+      const dx1 = -20 + Math.random() * 40;
+      const dy1 = -20 + Math.random() * 40;
+      const dx2 = -20 + Math.random() * 40;
+      const dy2 = -20 + Math.random() * 40;
+      const dx3 = -20 + Math.random() * 40;
+      const dy3 = -20 + Math.random() * 40;
+      // Alternate between accent and muted colors
+      const color = i % 3 === 0 ? 'rgba(201, 100, 66, 0.15)' : i % 3 === 1 ? 'rgba(155, 149, 144, 0.12)' : 'rgba(201, 100, 66, 0.1)';
+      return { size, duration, delay, left, top, minOpacity, maxOpacity, dx1, dy1, dx2, dy2, dx3, dy3, color, key: `hp-${i}` };
+    });
+  }, []);
+
+  return (
+    <>
+      {particles.map((p) => (
+        <div
+          key={p.key}
+          className="header-particle"
+          style={{
+            width: `${p.size}px`,
+            height: `${p.size}px`,
+            left: `${p.left}%`,
+            top: `${p.top}%`,
+            backgroundColor: p.color,
+            '--particle-duration': `${p.duration}s`,
+            '--particle-delay': `${p.delay}s`,
+            '--particle-min-opacity': p.minOpacity,
+            '--particle-max-opacity': p.maxOpacity,
+            '--particle-dx1': `${p.dx1}px`,
+            '--particle-dy1': `${p.dy1}px`,
+            '--particle-dx2': `${p.dx2}px`,
+            '--particle-dy2': `${p.dy2}px`,
+            '--particle-dx3': `${p.dx3}px`,
+            '--particle-dy3': `${p.dy3}px`,
+          } as React.CSSProperties}
+        />
+      ))}
+    </>
   );
 }
 
@@ -560,6 +671,122 @@ function truncateOrganism(organisms: string | null, maxLen: number = 24): string
   const first = organisms.split('|')[0]?.trim() || organisms;
   if (first.length <= maxLen) return first;
   return first.slice(0, maxLen - 1) + '…';
+}
+
+// ─── Smart Tag System ────────────────────────────────────────────────────────
+
+type TagCategory = 'method' | 'resolution' | 'if' | 'quality' | 'date' | 'organism' | 'ligand' | 'special';
+
+interface TagInfo {
+  label: string;
+  category: TagCategory;
+}
+
+const TAG_CATEGORY_STYLES: Record<TagCategory, { bg: string; text: string; border: string; darkBg: string; darkText: string }> = {
+  method:     { bg: 'bg-teal-50',      text: 'text-teal-700',     border: 'border-teal-200',      darkBg: 'dark:bg-teal-900/20',     darkText: 'dark:text-teal-400' },
+  resolution: { bg: 'bg-green-50',     text: 'text-green-700',    border: 'border-green-200',     darkBg: 'dark:bg-green-900/20',    darkText: 'dark:text-green-400' },
+  if:         { bg: 'bg-amber-50',     text: 'text-amber-700',    border: 'border-amber-200',     darkBg: 'dark:bg-amber-900/20',    darkText: 'dark:text-amber-400' },
+  quality:    { bg: 'bg-purple-50',    text: 'text-purple-700',   border: 'border-purple-200',    darkBg: 'dark:bg-purple-900/20',   darkText: 'dark:text-purple-400' },
+  date:       { bg: 'bg-gray-50',      text: 'text-gray-600',     border: 'border-gray-200',      darkBg: 'dark:bg-gray-800/30',     darkText: 'dark:text-gray-400' },
+  organism:   { bg: 'bg-sky-50',       text: 'text-sky-700',      border: 'border-sky-200',       darkBg: 'dark:bg-sky-900/20',      darkText: 'dark:text-sky-400' },
+  ligand:     { bg: 'bg-rose-50',      text: 'text-rose-700',     border: 'border-rose-200',      darkBg: 'dark:bg-rose-900/20',     darkText: 'dark:text-rose-400' },
+  special:    { bg: 'bg-emerald-50',   text: 'text-emerald-700',  border: 'border-emerald-200',   darkBg: 'dark:bg-emerald-900/20',  darkText: 'dark:text-emerald-400' },
+};
+
+function generateTags(entry: PdbEntry, isNewEntry: boolean = false): TagInfo[] {
+  const tags: TagInfo[] = [];
+  const method = (entry.method || '').toUpperCase();
+
+  // Method tags
+  if (method.includes('CRYO') || method.includes('ELECTRON MICROSCOPY')) {
+    tags.push({ label: 'Cryo-EM', category: 'method' });
+  } else if (method.includes('X-RAY') || method.includes('XRAY')) {
+    tags.push({ label: 'X-ray', category: 'method' });
+  } else if (method.includes('NMR')) {
+    tags.push({ label: 'NMR', category: 'method' });
+  }
+
+  // Resolution tags
+  if (entry.resolution != null) {
+    if (entry.resolution <= 1.5) {
+      tags.push({ label: 'Ultra-high', category: 'resolution' });
+    } else if (entry.resolution <= 2.0) {
+      tags.push({ label: 'High Resolution', category: 'resolution' });
+    } else if (entry.resolution > 3.0) {
+      tags.push({ label: 'Low Resolution', category: 'resolution' });
+    }
+  }
+
+  // IF tags
+  if (entry.journalIf != null) {
+    if (entry.journalIf >= 25) {
+      tags.push({ label: 'Top Journal', category: 'if' });
+    } else if (entry.journalIf >= 10) {
+      tags.push({ label: 'High Impact', category: 'if' });
+    }
+  }
+
+  // Quality tags
+  const qs = computeQualityScore(entry);
+  if (qs.total >= 85) {
+    tags.push({ label: 'Excellent', category: 'quality' });
+  } else if (qs.total >= 70) {
+    tags.push({ label: 'Good', category: 'quality' });
+  }
+
+  // Organism tag
+  if (entry.organisms) {
+    const firstOrg = entry.organisms.split('|')[0]?.trim();
+    if (firstOrg) {
+      const shortOrg = firstOrg.length > 15 ? firstOrg.slice(0, 14) + '…' : firstOrg;
+      tags.push({ label: shortOrg, category: 'organism' });
+    }
+  }
+
+  // Ligand tag
+  if (entry.ligands) {
+    const ligandList = parseLigands(entry.ligands);
+    if (ligandList.length > 0 && !ligandList.every(l => l === 'N/A')) {
+      tags.push({ label: 'With Ligands', category: 'ligand' });
+    }
+  }
+
+  // Date tags
+  if (entry.releaseDate) {
+    const releaseDate = new Date(entry.releaseDate);
+    const now = new Date();
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - now.getDay());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (releaseDate >= weekStart) {
+      tags.push({ label: 'This Week', category: 'date' });
+    } else if (releaseDate >= monthStart) {
+      tags.push({ label: 'This Month', category: 'date' });
+    }
+  }
+
+  // Special tags
+  if (isNewEntry) {
+    tags.push({ label: 'New Entry', category: 'special' });
+  }
+
+  return tags;
+}
+
+function TagPill({ tag, onClick, size = 'sm' }: { tag: TagInfo; onClick?: () => void; size?: 'sm' | 'xs' }) {
+  const style = TAG_CATEGORY_STYLES[tag.category];
+  const sizeClasses = size === 'xs' ? 'px-1.5 py-0 text-[9px]' : 'px-2 py-0.5 text-[10px]';
+  return (
+    <span
+      className={`inline-flex items-center rounded-md font-medium border ${style.bg} ${style.text} ${style.border} ${style.darkBg} ${style.darkText} ${sizeClasses} ${onClick ? 'cursor-pointer hover:opacity-80 transition-opacity' : ''}`}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') onClick(); } : undefined}
+    >
+      {tag.label}
+    </span>
+  );
 }
 
 // ─── Quality Score Calculation ────────────────────────────────────────────────
@@ -1578,6 +1805,15 @@ export default function PdbTracker() {
   const [sortField, setSortField] = useState<SortField>('releaseDate');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
+  // ── Tag Filter ──
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string | null>(null);
+  const [tagFilterDropdownOpen, setTagFilterDropdownOpen] = useState(false);
+
+  // ── AI Summaries Cache ──
+  const [aiSummaries, setAiSummaries] = useState<Record<string, string>>({});
+  const [aiSummaryLoading, setAiSummaryLoading] = useState<string | null>(null);
+  const [aiSummaryError, setAiSummaryError] = useState<string | null>(null);
+
   // ── Pagination ──
   const [currentPage, setCurrentPage] = useState(1);
 
@@ -1627,6 +1863,30 @@ export default function PdbTracker() {
   // ── Detail Panel (Row Detail Slide-over) ──
   const [selectedEntry, setSelectedEntry] = useState<PdbEntry | null>(null);
   const [detailPanelOpen, setDetailPanelOpen] = useState(false);
+
+  // ── Mobile Detection ──
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // ── Bottom Sheet Snap State ──
+  const [bottomSheetSnap, setBottomSheetSnap] = useState<number>(0.5);
+
+  // ── Detail Panel Swipe Navigation (mobile) ──
+  const detailSwipeX = useMotionValue(0);
+  const [detailSlideDirection, setDetailSlideDirection] = useState<'left' | 'right' | null>(null);
+
+  // ── Keyboard Navigation ──
+  const [focusedRowIndex, setFocusedRowIndex] = useState<number | null>(null);
+  const [keyboardNavActive, setKeyboardNavActive] = useState(false);
+  const [keyboardNavHintVisible, setKeyboardNavHintVisible] = useState(false);
+  const keyboardActivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const focusedRowRef = useRef<HTMLTableRowElement | null>(null);
+  const paginatedEntriesRef = useRef<PdbEntry[]>([]);
 
   // ── Timeline Highlight ──
   const [highlightedEntry, setHighlightedEntry] = useState<string | null>(null);
@@ -1689,6 +1949,40 @@ export default function PdbTracker() {
     setTimeout(() => setNoteSavedIndicator(prev => prev === pdbId ? null : prev), 2000);
     toast('Note saved');
   }, []);
+
+  // ── AI Summary Generation ──
+  const generateAiSummary = useCallback(async (entry: PdbEntry) => {
+    if (aiSummaryLoading === entry.pdbId) return;
+    setAiSummaryLoading(entry.pdbId);
+    setAiSummaryError(null);
+    try {
+      const response = await fetch('/api/ai-summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdbId: entry.pdbId,
+          title: entry.title,
+          method: entry.method,
+          resolution: entry.resolution,
+          journal: entry.journal,
+          journalIf: entry.journalIf,
+          organisms: entry.organisms,
+          ligands: entry.ligands,
+        }),
+      });
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to generate summary');
+      }
+      const data = await response.json();
+      setAiSummaries(prev => ({ ...prev, [entry.pdbId]: data.summary }));
+    } catch (err: any) {
+      setAiSummaryError(err?.message || 'Failed to generate AI summary');
+      toast('AI Summary Error', { description: err?.message || 'Failed to generate summary' });
+    } finally {
+      setAiSummaryLoading(null);
+    }
+  }, [aiSummaryLoading]);
 
   // ── Diff Mode (Week Diff View) ──
   const [diffMode, setDiffMode] = useState(false);
@@ -2072,6 +2366,11 @@ export default function PdbTracker() {
   const tourPreviewRef = useRef<HTMLDivElement>(null);
   const tourShortcutsRef = useRef<HTMLButtonElement>(null);
 
+  // ── Magnetic Effect Refs ──
+  const magneticHeaderBtns = useMagneticEffect<HTMLDivElement>(0.25);
+  const magneticModeSwitcher = useMagneticEffect<HTMLDivElement>(0.2);
+  const magneticToolbar = useMagneticEffect<HTMLDivElement>(0.2);
+
   // ── Tour Auto-Start ──
   useEffect(() => {
     if (!mounted) return;
@@ -2104,7 +2403,7 @@ export default function PdbTracker() {
     }
   }, [tourActive, tourStep, previewOpen]);
 
-  // ── Keyboard Shortcuts ──
+  // ── Keyboard Shortcuts & Navigation ──
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const isMod = e.metaKey || e.ctrlKey;
@@ -2126,6 +2425,41 @@ export default function PdbTracker() {
         e.preventDefault();
         setShowBookmarksOnly(prev => !prev);
       }
+
+      // ── Keyboard-Driven Row Navigation ──
+      if (mode === 'weekly' && !isMod && !e.altKey && paginatedEntriesRef.current.length > 0) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          setKeyboardNavActive(true);
+          setKeyboardNavHintVisible(true);
+          // Reset auto-hide timer
+          if (keyboardActivityTimerRef.current) clearTimeout(keyboardActivityTimerRef.current);
+          keyboardActivityTimerRef.current = setTimeout(() => setKeyboardNavHintVisible(false), 5000);
+
+          setFocusedRowIndex(prev => {
+            if (prev === null) {
+              return e.key === 'ArrowDown' ? 0 : paginatedEntriesRef.current.length - 1;
+            }
+            const next = e.key === 'ArrowDown' ? prev + 1 : prev - 1;
+            return Math.max(0, Math.min(next, paginatedEntriesRef.current.length - 1));
+          });
+        }
+        if (e.key === 'Enter' && focusedRowIndex !== null) {
+          e.preventDefault();
+          const entry = paginatedEntriesRef.current[focusedRowIndex];
+          if (entry) {
+            setSelectedEntry(entry);
+            setDetailPanelOpen(true);
+            if (isMobile) setBottomSheetSnap(0.9);
+          }
+        }
+        if (e.key === ' ' && focusedRowIndex !== null) {
+          e.preventDefault();
+          const entry = paginatedEntriesRef.current[focusedRowIndex];
+          if (entry) toggleBookmark(entry.pdbId);
+        }
+      }
+
       if (e.key === 'Escape') {
         if (commandPaletteOpen) {
           setCommandPaletteOpen(false);
@@ -2138,15 +2472,29 @@ export default function PdbTracker() {
         } else if (searchQuery) {
           setSearchQuery('');
           searchInputRef.current?.blur();
+        } else if (focusedRowIndex !== null) {
+          setFocusedRowIndex(null);
         }
       }
     }
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [searchQuery, searchDropdownOpen, commandPaletteOpen]);
+  }, [searchQuery, searchDropdownOpen, commandPaletteOpen, mode, focusedRowIndex, isMobile, toggleBookmark]);
+
+  // ── Scroll focused row into view ──
+  useEffect(() => {
+    if (focusedRowIndex === null) return;
+    const row = focusedRowRef.current;
+    if (row) {
+      row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [focusedRowIndex]);
+
+  // ── Reset focused row on page/filter change ──
+  useEffect(() => { setFocusedRowIndex(null); }, [currentPage, selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir]);
 
   // ── Reset page on filter/sort change ──
-  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter]);
+  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, selectedTagFilter]);
 
   // ── Notifications for week switching ──
   const prevWeekIdRef = useRef<string | null>(null);
@@ -2163,14 +2511,14 @@ export default function PdbTracker() {
   // ── Notification for filter changes ──
   const prevFilterCountRef = useRef(0);
   useEffect(() => {
-    const filterCount = activeAdvancedFilterCount + (methodFilter !== 'all' ? 1 : 0) + (debouncedSearch ? 1 : 0);
+    const filterCount = activeAdvancedFilterCount + (methodFilter !== 'all' ? 1 : 0) + (debouncedSearch ? 1 : 0) + (selectedTagFilter ? 1 : 0);
     if (filterCount > 0 && filterCount !== prevFilterCountRef.current) {
       prevFilterCountRef.current = filterCount;
       addNotification('filter', `Applied ${filterCount} filter${filterCount > 1 ? 's' : ''}`, 'Results updated with active filters');
     } else if (filterCount === 0) {
       prevFilterCountRef.current = 0;
     }
-  }, [activeAdvancedFilterCount, methodFilter, debouncedSearch, addNotification]);
+  }, [activeAdvancedFilterCount, methodFilter, debouncedSearch, selectedTagFilter, addNotification]);
 
   // ── Notification for compare week selection ──
   useEffect(() => {
@@ -2450,6 +2798,12 @@ export default function PdbTracker() {
         return ligandList.length > 0 && !ligandList.every(l => l === 'N/A');
       });
     }
+    if (selectedTagFilter) {
+      source = source.filter(e => {
+        const entryTags = generateTags(e, diffMode && diffResult.newIds.has(e.pdbId));
+        return entryTags.some(t => t.label === selectedTagFilter);
+      });
+    }
     if (!source.length) return [];
     const sorted = [...source].sort((a, b) => {
       let aVal: any, bVal: any;
@@ -2469,13 +2823,14 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, debouncedSearch, entryNotes]);
+  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, selectedTagFilter, diffMode, diffResult, debouncedSearch, entryNotes]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return sortedEntries.slice(start, start + PAGE_SIZE);
   }, [sortedEntries, currentPage]);
+  paginatedEntriesRef.current = paginatedEntries;
 
   const totalPages = Math.ceil(sortedEntries.length / PAGE_SIZE);
 
@@ -2958,7 +3313,9 @@ export default function PdbTracker() {
         <header className={`flex-shrink-0 h-[52px] flex items-center px-4 bg-white dark:bg-[#242220] border-b border-claude-border relative z-20 no-print ${hasLoaded ? 'animate-load-header' : 'opacity-0'}`}>
           {/* Gradient border at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-claude-accent/20 to-transparent bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
-          <div ref={tourTitleRef} className="flex items-center gap-3">
+          {/* Header Particles */}
+          <HeaderParticles />
+          <div ref={tourTitleRef} className="flex items-center gap-3 relative z-10">
             <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-claude-accent-light">
               <Dna className="h-4.5 w-4.5 text-claude-accent" />
             </div>
@@ -2968,12 +3325,14 @@ export default function PdbTracker() {
             </div>
           </div>
 
+          {/* Header Action Buttons - Magnetic wrapper */}
+          <div ref={magneticHeaderBtns} className="flex items-center gap-1 relative z-10">
           {/* Command Palette Button */}
           <Tooltip>
             <TooltipTrigger asChild>
               <button
                 onClick={() => setCommandPaletteOpen(true)}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
                 aria-label="Command palette"
               >
                 <Terminal className="h-4 w-4 text-claude-text-secondary" />
@@ -2989,7 +3348,7 @@ export default function PdbTracker() {
             <PopoverTrigger asChild>
               <button
                 ref={tourShortcutsRef}
-                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
                 aria-label="Keyboard shortcuts"
               >
                 <Keyboard className="h-4 w-4 text-claude-text-secondary" />
@@ -3035,7 +3394,7 @@ export default function PdbTracker() {
           {/* Help / Restart Tour Button */}
           <button
             onClick={startTour}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Help"
           >
             <HelpCircle className="h-4 w-4 text-claude-text-secondary" />
@@ -3049,7 +3408,7 @@ export default function PdbTracker() {
           >
             <PopoverTrigger asChild>
               <button
-                className="relative inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+                className="relative inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
                 aria-label="Notifications"
               >
                 <Bell className="h-4 w-4 text-claude-text-secondary" />
@@ -3128,7 +3487,7 @@ export default function PdbTracker() {
           {/* Dark mode toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+            className="ml-auto md:ml-auto inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Toggle dark mode"
           >
             {mounted && theme === 'dark' ? (
@@ -3141,7 +3500,7 @@ export default function PdbTracker() {
           {/* Mobile hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+            className="md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
           >
             <Menu className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
@@ -3149,10 +3508,11 @@ export default function PdbTracker() {
           {/* Mobile preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press"
+            className="ml-1 md:hidden inline-flex items-center justify-center w-8 h-8 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
           >
             <BarChart3 className="h-4.5 w-4.5 text-claude-text-secondary" />
           </button>
+          </div>
         </header>
 
         <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -3235,6 +3595,78 @@ export default function PdbTracker() {
                     </SelectContent>
                   </Select>
 
+                  {/* Tags Filter */}
+                  <Popover open={tagFilterDropdownOpen} onOpenChange={setTagFilterDropdownOpen}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border transition-colors duration-150 ${
+                          selectedTagFilter
+                            ? 'border-claude-accent/40 bg-claude-accent/5 text-claude-accent dark:border-[#d4784f]/40 dark:bg-[#d4784f]/10 dark:text-[#d4784f]'
+                            : 'border-claude-border bg-white dark:bg-[#242220] text-claude-text-secondary dark:text-[#9b9590] hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                        }`}
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                        Tags
+                        {selectedTagFilter && <span className="ml-0.5 text-[9px] opacity-70">({selectedTagFilter})</span>}
+                        <ChevronDown className="h-3 w-3 opacity-50" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent align="start" className="w-64 p-0">
+                      <div className="p-2 border-b border-claude-border dark:border-[#4a4540]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd]">Filter by Tag</span>
+                          {selectedTagFilter && (
+                            <button
+                              onClick={() => { setSelectedTagFilter(null); setTagFilterDropdownOpen(false); }}
+                              className="text-[10px] text-claude-accent dark:text-[#d4784f] hover:underline"
+                            >
+                              Clear
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="max-h-72 overflow-y-auto custom-scrollbar p-1.5">
+                        {(() => {
+                          const tagCounts = new Map<string, { tag: TagInfo; count: number }>();
+                          entries.forEach(entry => {
+                            const entryTags = generateTags(entry, diffMode && diffResult.newIds.has(entry.pdbId));
+                            entryTags.forEach(tag => {
+                              const existing = tagCounts.get(tag.label);
+                              if (existing) {
+                                existing.count++;
+                              } else {
+                                tagCounts.set(tag.label, { tag, count: 1 });
+                              }
+                            });
+                          });
+                          const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => b[1].count - a[1].count);
+                          if (sortedTags.length === 0) {
+                            return <div className="py-3 text-center text-[10px] text-claude-text-muted dark:text-[#6b6560]">No tags available</div>;
+                          }
+                          return sortedTags.map(([label, { tag, count }]) => (
+                            <button
+                              key={label}
+                              onClick={() => {
+                                setSelectedTagFilter(prev => prev === label ? null : label);
+                                setTagFilterDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
+                                selectedTagFilter === label
+                                  ? 'bg-claude-accent/10 dark:bg-[#d4784f]/15'
+                                  : 'hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <TagPill tag={tag} size="xs" />
+                              </div>
+                              <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] tabular-nums flex-shrink-0">{count}</span>
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+
                   {/* Search */}
                   <div ref={tourSearchRef} className="relative flex-1 max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
@@ -3312,7 +3744,7 @@ export default function PdbTracker() {
                   </div>
 
                   {/* Active Filter Chips */}
-                  <div className="flex items-center gap-1.5 flex-wrap no-print">
+                  <div ref={magneticToolbar} className="flex items-center gap-1.5 flex-wrap no-print">
                     {/* Bookmark Filter Button */}
                     <button
                       onClick={() => {
@@ -3330,29 +3762,73 @@ export default function PdbTracker() {
                       <Bookmark className="h-3.5 w-3.5" />
                     </button>
                     {methodFilter !== 'all' && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                      <AnimatePresence>
+                        <motion.span
+                          initial={{ opacity: 0, x: -8, scale: 0.9 }}
+                          animate={{ opacity: 1, x: 0, scale: 1 }}
+                          exit={{ opacity: 0, x: -8, scale: 0.9 }}
+                          transition={{ duration: 0.15 }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20"
+                        >
                         Method: {getMethodLabel(methodFilter === 'Cryo-EM' ? 'CRYO-EM' : methodFilter === 'X-RAY DIFFRACTION' ? 'X-RAY DIFFRACTION' : methodFilter === 'SOLUTION NMR' ? 'SOLUTION NMR' : methodFilter)}
                         <button onClick={() => setMethodFilter('all')} className="hover:text-claude-accent/80 transition-colors">
                           <X className="h-2.5 w-2.5" />
                         </button>
-                      </span>
+                        </motion.span>
+                      </AnimatePresence>
                     )}
                     {searchQuery && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                      <AnimatePresence>
+                        <motion.span
+                          initial={{ opacity: 0, x: -8, scale: 0.9 }}
+                          animate={{ opacity: 1, x: 0, scale: 1 }}
+                          exit={{ opacity: 0, x: -8, scale: 0.9 }}
+                          transition={{ duration: 0.15 }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20"
+                        >
                         Search: {searchQuery.length > 12 ? searchQuery.slice(0, 12) + '…' : searchQuery}
                         <button onClick={() => setSearchQuery('')} className="hover:text-claude-accent/80 transition-colors">
                           <X className="h-2.5 w-2.5" />
                         </button>
-                      </span>
+                        </motion.span>
+                      </AnimatePresence>
                     )}
                     {showBookmarksOnly && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                      <AnimatePresence>
+                        <motion.span
+                          initial={{ opacity: 0, x: -8, scale: 0.9 }}
+                          animate={{ opacity: 1, x: 0, scale: 1 }}
+                          exit={{ opacity: 0, x: -8, scale: 0.9 }}
+                          transition={{ duration: 0.15 }}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20"
+                        >
                         Bookmarked
                         <button onClick={() => setShowBookmarksOnly(false)} className="hover:text-claude-accent/80 transition-colors">
                           <X className="h-2.5 w-2.5" />
                         </button>
-                      </span>
+                        </motion.span>
+                      </AnimatePresence>
                     )}
+                    {selectedTagFilter && (() => {
+                      const tagInfo = (() => {
+                        for (const entry of entries) {
+                          const tags = generateTags(entry, diffMode && diffResult.newIds.has(entry.pdbId));
+                          const found = tags.find(t => t.label === selectedTagFilter);
+                          if (found) return found;
+                        }
+                        return null;
+                      })();
+                      const tagStyle = tagInfo ? TAG_CATEGORY_STYLES[tagInfo.category] : null;
+                      return (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${tagStyle ? `${tagStyle.bg} ${tagStyle.text} ${tagStyle.border} ${tagStyle.darkBg} ${tagStyle.darkText}` : 'bg-claude-accent-light text-claude-accent border border-claude-accent/20'}`}>
+                          <Tag className="h-2.5 w-2.5" />
+                          {selectedTagFilter}
+                          <button onClick={() => setSelectedTagFilter(null)} className="hover:opacity-70 transition-opacity">
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </span>
+                      );
+                    })()}
                     {diffMode && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800/30">
                         <FileDiff className="h-2.5 w-2.5" />
@@ -4116,9 +4592,9 @@ export default function PdbTracker() {
                       </div>
                       <p className="text-sm font-medium text-claude-text"><TypewriterText text="No structures found for this week" /></p>
                       <p className="text-xs mt-1 text-claude-text-muted max-w-[200px] text-center">Try adjusting filters or selecting a different week</p>
-                      {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0) && (
+                      {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0 || selectedTagFilter) && (
                         <button
-                          onClick={() => { setMethodFilter('all'); setSearchQuery(''); setShowBookmarksOnly(false); clearAdvancedFilters(); }}
+                          onClick={() => { setMethodFilter('all'); setSearchQuery(''); setShowBookmarksOnly(false); setSelectedTagFilter(null); clearAdvancedFilters(); }}
                           className="mt-3 px-3 py-1.5 rounded-md text-xs font-medium bg-claude-accent text-white hover:bg-claude-accent-hover transition-colors btn-press"
                         >
                           Clear all filters
@@ -4197,10 +4673,15 @@ export default function PdbTracker() {
                                 initial={{ opacity: 0, y: 4 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
-                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-[#d4784f]/5' : ''} ${pulsingRowId === entry.pdbId ? 'row-pulse' : ''} ${detailPanelOpen && selectedEntry?.pdbId === entry.pdbId ? 'row-selected' : ''} ${diffMode && diffResult.newIds.has(entry.pdbId) ? 'border-l-[3px] border-l-green-500' : ''}`}
+                                ref={focusedRowIndex === idx ? focusedRowRef : undefined}
+                                data-row-idx={idx}
+                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-[#d4784f]/5' : ''} ${pulsingRowId === entry.pdbId ? 'row-pulse' : ''} ${detailPanelOpen && selectedEntry?.pdbId === entry.pdbId ? 'row-selected' : ''} ${diffMode && diffResult.newIds.has(entry.pdbId) ? 'border-l-[3px] border-l-green-500' : ''} ${focusedRowIndex === idx ? 'keyboard-focused-row' : ''}`}
+                                style={focusedRowIndex === idx ? { outline: 'none', borderTop: '2px solid var(--claude-accent, #c96442)', borderBottom: '2px solid var(--claude-accent, #c96442)', backgroundColor: 'rgba(201, 100, 66, 0.06)', transition: 'border-color 150ms ease, background-color 150ms ease' } as React.CSSProperties : undefined}
                                 onClick={() => {
                                   setSelectedEntry(entry);
                                   setDetailPanelOpen(true);
+                                  if (isMobile) setBottomSheetSnap(0.5);
+                                  setFocusedRowIndex(idx);
                                   // Trigger pulse animation
                                   if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
                                   setPulsingRowId(entry.pdbId);
@@ -4217,17 +4698,23 @@ export default function PdbTracker() {
                                 <td className="px-1.5 py-2 w-[28px]" onClick={(e) => e.stopPropagation()}>
                                   <button
                                     onClick={(e) => { e.stopPropagation(); toggleBookmark(entry.pdbId); }}
-                                    className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors duration-200 ${
+                                    className={`inline-flex items-center justify-center w-6 h-6 rounded transition-colors duration-200 ripple-btn ${
                                       bookmarks.has(entry.pdbId)
                                         ? 'text-claude-accent'
                                         : 'text-claude-text-muted/0 group-hover:text-claude-text-muted/40 hover:!text-claude-accent'
                                     }`}
                                     title={bookmarks.has(entry.pdbId) ? 'Remove bookmark' : 'Add bookmark'}
                                   >
+                                    <motion.div
+                                      key={bookmarks.has(entry.pdbId) ? 'checked' : 'unchecked'}
+                                      animate={{ scale: [1, 1.3, 1] }}
+                                      transition={{ duration: 0.3 }}
+                                    >
                                     {bookmarks.has(entry.pdbId)
                                       ? <BookmarkCheck className="h-3.5 w-3.5" />
                                       : <Bookmark className="h-3.5 w-3.5" />
                                     }
+                                    </motion.div>
                                   </button>
                                 </td>
                                 <td className="px-1.5 py-2 w-[28px]" onClick={(e) => e.stopPropagation()}>
@@ -4743,13 +5230,33 @@ export default function PdbTracker() {
 
           {/* Center section */}
           <div className="flex-1 flex items-center justify-center h-full">
-            {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0) && (
+            {/* Keyboard Nav Hint - fades in when keyboard navigation is first used, auto-hides after 5s */}
+            <AnimatePresence>
+              {keyboardNavHintVisible && mode === 'weekly' && (
+                <motion.span
+                  key="keyboard-nav-hint"
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  transition={{ duration: 0.2 }}
+                  className="inline-flex items-center gap-1.5 px-2 text-claude-accent/80"
+                >
+                  <Terminal className="h-3 w-3" />
+                  <span>↑↓ Navigate</span>
+                  <span className="text-claude-text-muted/40">·</span>
+                  <span>Enter Open</span>
+                  <span className="text-claude-text-muted/40">·</span>
+                  <span>Space Bookmark</span>
+                </motion.span>
+              )}
+            </AnimatePresence>
+            {!keyboardNavHintVisible && (methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0 || selectedTagFilter) && (
               <span className="inline-flex items-center gap-1 px-2">
                 <SlidersHorizontal className="h-3 w-3" />
-                Filters: {[methodFilter !== 'all' ? 1 : 0, searchQuery ? 1 : 0, showBookmarksOnly ? 1 : 0, activeAdvancedFilterCount].reduce((a, b) => a + b, 0)} active
+                Filters: {[methodFilter !== 'all' ? 1 : 0, searchQuery ? 1 : 0, showBookmarksOnly ? 1 : 0, activeAdvancedFilterCount, selectedTagFilter ? 1 : 0].reduce((a, b) => a + b, 0)} active
               </span>
             )}
-            {sortField && (
+            {!keyboardNavHintVisible && sortField && (
               <span className="inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
                 <ArrowUpDown className="h-3 w-3" />
                 Sort: {sortField} {sortDir === 'asc' ? '↑' : '↓'}
@@ -4857,313 +5364,516 @@ export default function PdbTracker() {
         )}
       </AnimatePresence>
 
-      {/* ═══════════ ROW DETAIL SLIDE-OVER PANEL ═══════════ */}
+      {/* ═══════════ ROW DETAIL PANEL (Responsive) ═══════════ */}
       <AnimatePresence>
-        {detailPanelOpen && selectedEntry && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.15 }}
-              className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
-              onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
-            />
-            <motion.aside
-              initial={{ x: 420 }}
-              animate={{ x: 0 }}
-              exit={{ x: 420 }}
-              transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-              className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col shadow-2xl no-print"
-            >
-              {/* Detail Header */}
-              <div className="flex-shrink-0 flex items-center justify-between p-4 border-b border-claude-border">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="font-mono text-lg font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
-                    {getMethodLabel(selectedEntry.method)}
-                  </span>
-                  {entryNotes[selectedEntry.pdbId] && (
-                    <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-                  )}
+        {detailPanelOpen && selectedEntry && (() => {
+          // Helper: navigate to prev/next entry in the current table
+          const currentEntryIndex = paginatedEntries.findIndex(e => e.pdbId === selectedEntry.pdbId);
+          const navigateToEntry = (direction: 'prev' | 'next') => {
+            const nextIdx = direction === 'prev'
+              ? Math.max(0, currentEntryIndex - 1)
+              : Math.min(paginatedEntries.length - 1, currentEntryIndex + 1);
+            const nextEntry = paginatedEntries[nextIdx];
+            if (nextEntry && nextEntry.pdbId !== selectedEntry.pdbId) {
+              setDetailSlideDirection(direction === 'prev' ? 'right' : 'left');
+              setTimeout(() => {
+                setSelectedEntry(nextEntry);
+                setDetailSlideDirection(null);
+              }, 150);
+              if (focusedRowIndex !== null) setFocusedRowIndex(nextIdx);
+            }
+          };
+
+          // ── Shared detail content renderer ──
+          const detailContent = (
+            <div className={isMobile ? 'p-5 space-y-5' : 'p-4 space-y-5'}>
+              {/* Swipe Navigation Hint (mobile only) */}
+              {isMobile && (
+                <div className="flex items-center justify-center gap-2 text-[10px] text-claude-text-muted/60 select-none pb-1">
+                  <span>{currentEntryIndex > 0 ? '← Swipe for prev' : ''}</span>
+                  {currentEntryIndex > 0 && currentEntryIndex < paginatedEntries.length - 1 && <span>·</span>}
+                  <span>{currentEntryIndex < paginatedEntries.length - 1 ? 'Swipe for next →' : ''}</span>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
-                  <X className="h-4 w-4" />
-                </Button>
+              )}
+              {/* 3D Structure Viewer */}
+              <div>
+                <MoleculeViewer pdbId={selectedEntry.pdbId} />
               </div>
 
-              {/* Detail Content */}
-              <ScrollArea className="flex-1 preview-scroll">
-                <div className="p-4 space-y-5">
-                  {/* 3D Structure Viewer */}
-                  <div>
-                    <MoleculeViewer pdbId={selectedEntry.pdbId} />
-                  </div>
+              {/* Title */}
+              <div>
+                <h3 className={`font-semibold text-claude-text-muted uppercase tracking-wider mb-1 ${isMobile ? 'text-xs' : 'text-xs'}`}>Title</h3>
+                <p className={`text-claude-text leading-relaxed ${isMobile ? 'text-sm' : 'text-sm'}`}>{selectedEntry.title}</p>
+              </div>
 
-                  {/* Title */}
+              {/* Quality Score Card */}
+              {(() => {
+                const qs = computeQualityScore(selectedEntry);
+                const circumference = 2 * Math.PI * 40;
+                const offset = circumference - (qs.total / 100) * circumference;
+                return (
                   <div>
-                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h3>
-                    <p className="text-sm text-claude-text leading-relaxed">{selectedEntry.title}</p>
-                  </div>
-
-                  {/* Quality Score Card */}
-                  {(() => {
-                    const qs = computeQualityScore(selectedEntry);
-                    const circumference = 2 * Math.PI * 40;
-                    const offset = circumference - (qs.total / 100) * circumference;
-                    return (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Quality Score</h3>
-                        <div className="flex items-center gap-4 p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/40">
-                          {/* SVG Circular Gauge */}
-                          <div className="relative flex-shrink-0">
-                            <svg width="88" height="88" viewBox="0 0 88 88">
-                              {/* Background circle */}
-                              <circle
-                                cx="44" cy="44" r="40"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="6"
-                                className="text-claude-border-light dark:text-[#3d3832]"
-                              />
-                              {/* Score arc */}
-                              <circle
-                                cx="44" cy="44" r="40"
-                                fill="none"
-                                stroke={qs.color}
-                                strokeWidth="6"
-                                strokeLinecap="round"
-                                strokeDasharray={circumference}
-                                strokeDashoffset={offset}
-                                transform="rotate(-90 44 44)"
-                                className="transition-all duration-700"
-                              />
-                            </svg>
-                            {/* Score number in center */}
-                            <div className="absolute inset-0 flex flex-col items-center justify-center">
-                              <span className="text-xl font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
+                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Quality Score</h3>
+                    <div className="flex items-center gap-4 p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/40">
+                      <div className="relative flex-shrink-0">
+                        <svg width="88" height="88" viewBox="0 0 88 88">
+                          <circle cx="44" cy="44" r="40" fill="none" stroke="currentColor" strokeWidth="6" className="text-claude-border-light dark:text-[#3d3832]" />
+                          <circle cx="44" cy="44" r="40" fill="none" stroke={qs.color} strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} transform="rotate(-90 44 44)" className="transition-all duration-700" />
+                        </svg>
+                        <div className="absolute inset-0 flex flex-col items-center justify-center">
+                          <span className="text-xl font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0 space-y-1.5">
+                        <div className="text-sm font-semibold" style={{ color: qs.color }}>{qs.label}</div>
+                        <div className="text-[10px] text-claude-text-muted leading-relaxed">
+                          Resolution: {qs.resolutionScore}/35 · Method: {qs.methodScore}/25 · IF: {qs.ifScore}/30
+                        </div>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-claude-text-muted w-16">Resolution</span>
+                            <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${(qs.resolutionScore / 35) * 100}%`, backgroundColor: '#c96442' }} />
                             </div>
                           </div>
-                          {/* Score details */}
-                          <div className="flex-1 min-w-0 space-y-1.5">
-                            <div className="text-sm font-semibold" style={{ color: qs.color }}>{qs.label}</div>
-                            <div className="text-[10px] text-claude-text-muted leading-relaxed">
-                              Resolution: {qs.resolutionScore}/35 · Method: {qs.methodScore}/25 · IF: {qs.ifScore}/30
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-claude-text-muted w-16">Method</span>
+                            <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${(qs.methodScore / 25) * 100}%`, backgroundColor: '#2d8f8f' }} />
                             </div>
-                            {/* Mini score bars */}
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] text-claude-text-muted w-16">Resolution</span>
-                                <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
-                                  <div className="h-full rounded-full" style={{ width: `${(qs.resolutionScore / 35) * 100}%`, backgroundColor: '#c96442' }} />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] text-claude-text-muted w-16">Method</span>
-                                <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
-                                  <div className="h-full rounded-full" style={{ width: `${(qs.methodScore / 25) * 100}%`, backgroundColor: '#2d8f8f' }} />
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[9px] text-claude-text-muted w-16">IF</span>
-                                <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
-                                  <div className="h-full rounded-full" style={{ width: `${(qs.ifScore / 30) * 100}%`, backgroundColor: '#7c5cbf' }} />
-                                </div>
-                              </div>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] text-claude-text-muted w-16">IF</span>
+                            <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-[#3d3832] rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${(qs.ifScore / 30) * 100}%`, backgroundColor: '#7c5cbf' }} />
                             </div>
                           </div>
                         </div>
                       </div>
-                    );
-                  })()}
-
-                  {/* Resolution */}
-                  {selectedEntry.resolution != null && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
-                      <div className="flex items-center gap-3">
-                        <span className={`text-2xl font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
-                          {selectedEntry.resolution.toFixed(2)}Å
-                        </span>
-                        <div className="flex-1 h-2.5 bg-claude-border-light rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full transition-all duration-500"
-                            style={{
-                              width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
-                              backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
-                            }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-claude-text-muted">
-                          {selectedEntry.resolution <= 1.5 ? 'Excellent' : selectedEntry.resolution <= 2.0 ? 'High' : selectedEntry.resolution <= 3.0 ? 'Medium' : selectedEntry.resolution <= 3.5 ? 'Low' : 'Very Low'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Journal */}
-                  {selectedEntry.journal && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Journal</h3>
-                      <div className="flex items-start gap-2">
-                        <span className="text-sm text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
-                        {selectedEntry.journalIf != null && (
-                          <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
-                            IF {selectedEntry.journalIf.toFixed(1)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Authors */}
-                  {selectedEntry.authors && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Authors</h3>
-                      <p className="text-xs text-claude-text-secondary leading-relaxed">{selectedEntry.authors.replace(/\|/g, ', ')}</p>
-                    </div>
-                  )}
-
-                  {/* Organisms */}
-                  {selectedEntry.organisms && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Organisms</h3>
-                      <div className="flex flex-wrap gap-1">
-                        {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
-                          <span key={`org-${i}`} className="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-claude-border-light text-claude-text-secondary italic">
-                            {org.trim()}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Ligands */}
-                  {parseLigands(selectedEntry.ligands).length > 0 && (
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
-                      <div className="flex flex-wrap gap-1">
-                        {parseLigands(selectedEntry.ligands).map((lig, i) => (
-                          <Popover key={`detail-lig-${i}-${lig}`}>
-                            <PopoverTrigger asChild>
-                              <span
-                                className="ligand-chip cursor-pointer"
-                                onMouseEnter={() => fetchLigandInfo(lig)}
-                              >
-                                {lig}
-                              </span>
-                            </PopoverTrigger>
-                            <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
-                              {ligandCache[lig] ? (
-                                <LigandTooltipContent ligand={ligandCache[lig]} />
-                              ) : (
-                                <div className="p-3 flex items-center gap-2">
-                                  <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
-                                  <span className="text-xs text-claude-text-muted">Loading...</span>
-                                </div>
-                              )}
-                            </PopoverContent>
-                          </Popover>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Links */}
-                  <div>
-                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Links</h3>
-                    <div className="flex flex-wrap gap-2">
-                      <a
-                        href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150 external-link-hover"
-                      >
-                        <ExternalLink className="h-3 w-3 ext-arrow" />
-                        RCSB PDB
-                      </a>
-                      {selectedEntry.doi && (
-                        <a
-                          href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 hover:shadow-sm transition-all duration-150 external-link-hover"
-                        >
-                          <ExternalLink className="h-3 w-3 ext-arrow" />
-                          DOI
-                        </a>
-                      )}
-                      {selectedEntry.pubmedId && (
-                        <a
-                          href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 hover:shadow-sm transition-all duration-150 external-link-hover"
-                        >
-                          <ExternalLink className="h-3 w-3 ext-arrow" />
-                          PubMed
-                        </a>
-                      )}
                     </div>
                   </div>
+                );
+              })()}
 
-                  {/* Dates */}
-                  <div>
-                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Dates</h3>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-2.5 rounded-lg bg-claude-border-light/50">
-                        <div className="text-[10px] text-claude-text-muted">Release Date</div>
-                        <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
-                      </div>
-                      <div className="p-2.5 rounded-lg bg-claude-border-light/50">
-                        <div className="text-[10px] text-claude-text-muted">Fetch Date</div>
-                        <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.fetchDate)}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Week Info */}
-                  <div className="p-3 rounded-lg bg-claude-border-light/30">
-                    <div className="text-[10px] text-claude-text-muted mb-0.5">Week</div>
-                    <div className="text-sm font-mono font-medium text-claude-text-secondary">{selectedEntry.weekId}</div>
-                  </div>
-
-                  {/* Notes Section */}
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider">Notes</h3>
-                      <StickyNote className="h-3 w-3 text-amber-500 dark:text-amber-400" />
-                    </div>
-                    <div className="relative">
-                      <textarea
-                        rows={3}
-                        placeholder="Add your notes about this structure..."
-                        defaultValue={entryNotes[selectedEntry.pdbId] || ''}
-                        onBlur={(e) => {
-                          const note = e.target.value;
-                          if (note !== (entryNotes[selectedEntry.pdbId] || '')) {
-                            updateNote(selectedEntry.pdbId, note);
-                          }
+              {/* Resolution */}
+              {selectedEntry.resolution != null && (
+                <div>
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
+                  <div className="flex items-center gap-3">
+                    <span className={`text-2xl font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
+                      {selectedEntry.resolution.toFixed(2)}Å
+                    </span>
+                    <div className="flex-1 h-2.5 bg-claude-border-light rounded-full overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{
+                          width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
+                          backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
                         }}
-                        className="w-full px-3 py-2 text-xs rounded-lg border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
                       />
-                      {noteSavedIndicator === selectedEntry.pdbId && (
-                        <motion.span
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0 }}
-                          className="absolute bottom-2 right-2 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded"
-                        >
-                          ✓ Saved
-                        </motion.span>
-                      )}
                     </div>
+                    <span className="text-[10px] text-claude-text-muted">
+                      {selectedEntry.resolution <= 1.5 ? 'Excellent' : selectedEntry.resolution <= 2.0 ? 'High' : selectedEntry.resolution <= 3.0 ? 'Medium' : selectedEntry.resolution <= 3.5 ? 'Low' : 'Very Low'}
+                    </span>
                   </div>
                 </div>
-              </ScrollArea>
-            </motion.aside>
-          </>
-        )}
+              )}
+
+              {/* Journal */}
+              {selectedEntry.journal && (
+                <div>
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Journal</h3>
+                  <div className="flex items-start gap-2">
+                    <span className="text-sm text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
+                    {selectedEntry.journalIf != null && (
+                      <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
+                        IF {selectedEntry.journalIf.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Authors */}
+              {selectedEntry.authors && (
+                <div>
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Authors</h3>
+                  <p className="text-xs text-claude-text-secondary leading-relaxed">{selectedEntry.authors.replace(/\|/g, ', ')}</p>
+                </div>
+              )}
+
+              {/* Organisms */}
+              {selectedEntry.organisms && (
+                <div>
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Organisms</h3>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
+                      <span key={`org-${i}`} className="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-claude-border-light text-claude-text-secondary italic">
+                        {org.trim()}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Ligands */}
+              {parseLigands(selectedEntry.ligands).length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
+                  <div className="flex flex-wrap gap-1">
+                    {parseLigands(selectedEntry.ligands).map((lig, i) => (
+                      <Popover key={`detail-lig-${i}-${lig}`}>
+                        <PopoverTrigger asChild>
+                          <span
+                            className="ligand-chip cursor-pointer"
+                            onMouseEnter={() => fetchLigandInfo(lig)}
+                          >
+                            {lig}
+                          </span>
+                        </PopoverTrigger>
+                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
+                          {ligandCache[lig] ? (
+                            <LigandTooltipContent ligand={ligandCache[lig]} />
+                          ) : (
+                            <div className="p-3 flex items-center gap-2">
+                              <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
+                              <span className="text-xs text-claude-text-muted">Loading...</span>
+                            </div>
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Links */}
+              <div>
+                <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Links</h3>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150 external-link-hover"
+                  >
+                    <ExternalLink className="h-3 w-3 ext-arrow" />
+                    RCSB PDB
+                  </a>
+                  {selectedEntry.doi && (
+                    <a
+                      href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 hover:shadow-sm transition-all duration-150 external-link-hover"
+                    >
+                      <ExternalLink className="h-3 w-3 ext-arrow" />
+                      DOI
+                    </a>
+                  )}
+                  {selectedEntry.pubmedId && (
+                    <a
+                      href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 hover:shadow-sm transition-all duration-150 external-link-hover"
+                    >
+                      <ExternalLink className="h-3 w-3 ext-arrow" />
+                      PubMed
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div>
+                <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Dates</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/50">
+                    <div className="text-[10px] text-claude-text-muted">Release Date</div>
+                    <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/50">
+                    <div className="text-[10px] text-claude-text-muted">Fetch Date</div>
+                    <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.fetchDate)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Week Info */}
+              <div className="p-3 rounded-lg bg-claude-border-light/30">
+                <div className="text-[10px] text-claude-text-muted mb-0.5">Week</div>
+                <div className="text-sm font-mono font-medium text-claude-text-secondary">{selectedEntry.weekId}</div>
+              </div>
+
+              {/* Notes Section */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider">Notes</h3>
+                  <StickyNote className="h-3 w-3 text-amber-500 dark:text-amber-400" />
+                </div>
+                <div className="relative">
+                  <textarea
+                    rows={3}
+                    placeholder="Add your notes about this structure..."
+                    defaultValue={entryNotes[selectedEntry.pdbId] || ''}
+                    onBlur={(e) => {
+                      const note = e.target.value;
+                      if (note !== (entryNotes[selectedEntry.pdbId] || '')) {
+                        updateNote(selectedEntry.pdbId, note);
+                      }
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-claude-border bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
+                  />
+                  {noteSavedIndicator === selectedEntry.pdbId && (
+                    <motion.span
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                      className="absolute bottom-2 right-2 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded"
+                    >
+                      ✓ Saved
+                    </motion.span>
+                  )}
+                </div>
+              </div>
+
+              {/* AI Summary Section */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider">AI Summary</h3>
+                  <Sparkles className="h-3 w-3 text-claude-accent" />
+                  <span className="inline-flex items-center px-1 py-0 rounded text-[8px] font-bold bg-claude-accent/10 text-claude-accent border border-claude-accent/20 dark:bg-[#d4784f]/15 dark:text-[#d4784f] dark:border-[#d4784f]/20">AI</span>
+                </div>
+                {aiSummaries[selectedEntry.pdbId] ? (
+                  <div className="rounded-lg border border-claude-border bg-white dark:bg-[#1a1917] p-3">
+                    <div className="border-l-2 border-claude-accent dark:border-[#d4784f] pl-3">
+                      <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">{aiSummaries[selectedEntry.pdbId]}</p>
+                    </div>
+                    <div className="flex items-center justify-between mt-2.5">
+                      <span className="text-[9px] text-claude-text-muted/60 dark:text-[#6b6560] italic">AI-generated summary for reference only</span>
+                      <button
+                        onClick={() => {
+                          setAiSummaries(prev => {
+                            const next = { ...prev };
+                            delete next[selectedEntry.pdbId];
+                            return next;
+                          });
+                          generateAiSummary(selectedEntry);
+                        }}
+                        className="inline-flex items-center gap-1 text-[10px] text-claude-text-muted hover:text-claude-accent dark:text-[#9b9590] dark:hover:text-[#d4784f] transition-colors"
+                        title="Regenerate summary"
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                        Regenerate
+                      </button>
+                    </div>
+                  </div>
+                ) : aiSummaryLoading === selectedEntry.pdbId ? (
+                  <div className="rounded-lg border border-claude-border bg-white dark:bg-[#1a1917] p-3">
+                    <div className="space-y-2">
+                      <div className="shimmer-skeleton h-3 w-full rounded" />
+                      <div className="shimmer-skeleton h-3 w-[85%] rounded" />
+                      <div className="shimmer-skeleton h-3 w-[60%] rounded" />
+                    </div>
+                  </div>
+                ) : aiSummaryError && aiSummaryLoading === null ? (
+                  <div className="rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <AlertTriangle className="h-3 w-3 text-red-500 dark:text-red-400" />
+                      <span className="text-[10px] font-medium text-red-600 dark:text-red-400">Error generating summary</span>
+                    </div>
+                    <p className="text-[10px] text-red-500/70 dark:text-red-400/70 mb-2">{aiSummaryError}</p>
+                    <button
+                      onClick={() => generateAiSummary(selectedEntry)}
+                      className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors"
+                    >
+                      <RefreshCw className="h-3 w-3" />
+                      Try again
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => generateAiSummary(selectedEntry)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-[#d4784f]/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-[#1a1917]/40 dark:hover:bg-[#d4784f]/5 text-xs text-claude-text-muted hover:text-claude-accent dark:text-[#9b9590] dark:hover:text-[#d4784f] transition-all duration-200"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Generate AI Summary
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+
+          // ── Mobile: Bottom Sheet ──
+          if (isMobile) {
+            return (
+              <motion.div
+                key="mobile-bottom-sheet-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+                onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
+              >
+                <motion.div
+                  key={`mobile-bottom-sheet-${selectedEntry.pdbId}`}
+                  initial={{ y: '100%' }}
+                  animate={{ y: `${(1 - bottomSheetSnap) * 100}%` }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  drag="y"
+                  dragConstraints={{ top: `${(1 - 0.9) * 100}%`, bottom: 0 }}
+                  dragElastic={0.1}
+                  onDragEnd={(_event, info) => {
+                    const sheetEl = document.querySelector('[data-bottom-sheet]');
+                    if (!sheetEl) return;
+                    const rect = sheetEl.getBoundingClientRect();
+                    const viewportH = window.innerHeight;
+                    const currentSnapPercent = rect.top / viewportH;
+
+                    // If dragged past 30% down from the current snap point, dismiss
+                    if (info.offset.y > viewportH * 0.3) {
+                      setDetailPanelOpen(false);
+                      setSelectedEntry(null);
+                      return;
+                    }
+
+                    // Snap to nearest snap point
+                    const snapPoints = [0.5, 0.9];
+                    const nearest = snapPoints.reduce((prev, curr) =>
+                      Math.abs(curr - (1 - currentSnapPercent)) < Math.abs(prev - (1 - currentSnapPercent)) ? curr : prev
+                    );
+                    setBottomSheetSnap(nearest);
+                  }}
+                  onDrag={(_event, info) => {
+                    // Horizontal swipe detection for entry navigation
+                    if (Math.abs(info.offset.x) > 80 && Math.abs(info.offset.y) < 40) {
+                      if (info.offset.x > 0 && currentEntryIndex > 0) {
+                        navigateToEntry('prev');
+                      } else if (info.offset.x < 0 && currentEntryIndex < paginatedEntries.length - 1) {
+                        navigateToEntry('next');
+                      }
+                    }
+                  }}
+                  data-bottom-sheet
+                  className="fixed left-0 right-0 bottom-0 z-50 bg-white dark:bg-[#242220] rounded-t-2xl shadow-2xl no-print flex flex-col"
+                  style={{ height: `${bottomSheetSnap * 100}vh` }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Drag Handle */}
+                  <div className="flex-shrink-0 flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing">
+                    <div className="w-10 h-1 rounded-full bg-claude-border-light dark:bg-[#4a4540]" />
+                  </div>
+
+                  {/* Detail Header */}
+                  <div className="flex-shrink-0 px-5 pb-3 border-b border-claude-border">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
+                          {getMethodLabel(selectedEntry.method)}
+                        </span>
+                        {entryNotes[selectedEntry.pdbId] && (
+                          <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                        )}
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-9 w-9 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 touch-manipulation">
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    {(() => {
+                      const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
+                      return entryTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {entryTags.map((tag, i) => (
+                            <TagPill key={`mobile-tag-${i}-${tag.label}`} tag={tag} size="xs" />
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+
+                  {/* Detail Content with horizontal slide transition */}
+                  <ScrollArea className="flex-1 preview-scroll">
+                    <motion.div
+                      key={selectedEntry.pdbId}
+                      initial={{ x: detailSlideDirection === 'left' ? 60 : detailSlideDirection === 'right' ? -60 : 0, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      {detailContent}
+                    </motion.div>
+                  </ScrollArea>
+                </motion.div>
+              </motion.div>
+            );
+          }
+
+          // ── Desktop: Slide-over from right ──
+          return (
+            <>
+              <motion.div
+                key="desktop-detail-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
+              />
+              <motion.aside
+                key={`desktop-detail-panel-${selectedEntry.pdbId}`}
+                initial={{ x: 420 }}
+                animate={{ x: 0 }}
+                exit={{ x: 420 }}
+                transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-white dark:bg-[#242220] border-l border-claude-border flex flex-col shadow-2xl no-print"
+              >
+                {/* Detail Header */}
+                <div className="flex-shrink-0 p-4 border-b border-claude-border">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="font-mono text-lg font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
+                        {getMethodLabel(selectedEntry.method)}
+                      </span>
+                      {entryNotes[selectedEntry.pdbId] && (
+                        <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                      )}
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {(() => {
+                    const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
+                    return entryTags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {entryTags.map((tag, i) => (
+                          <TagPill key={`desktop-tag-${i}-${tag.label}`} tag={tag} size="xs" />
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
+                </div>
+
+                {/* Detail Content */}
+                <ScrollArea className="flex-1 preview-scroll">
+                  <motion.div
+                    key={selectedEntry.pdbId}
+                    initial={{ x: detailSlideDirection === 'left' ? 30 : detailSlideDirection === 'right' ? -30 : 0, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {detailContent}
+                  </motion.div>
+                </ScrollArea>
+              </motion.aside>
+            </>
+          );
+        })()}
       </AnimatePresence>
 
       {/* ═══════════ COMMAND PALETTE ═══════════ */}
@@ -5228,7 +5938,7 @@ export default function PdbTracker() {
             </CommandItem>
           </CommandGroup>
           <CommandGroup heading="Filters">
-            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setMethodFilter('all'); setSearchQuery(''); clearAdvancedFilters(); setShowBookmarksOnly(false); }}>
+            <CommandItem onSelect={() => { setCommandPaletteOpen(false); setMethodFilter('all'); setSearchQuery(''); clearAdvancedFilters(); setShowBookmarksOnly(false); setSelectedTagFilter(null); }}>
               <RotateCcw className="h-4 w-4 mr-2 text-claude-text-muted" />
               <span>Clear All Filters</span>
             </CommandItem>
@@ -5310,7 +6020,7 @@ export default function PdbTracker() {
       <>
         {/* Mode Switcher */}
         <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border">
-          <div className="flex rounded-lg bg-claude-border-light p-0.5">
+          <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light p-0.5">
             <button
               onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
               className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
@@ -5450,7 +6160,7 @@ export default function PdbTracker() {
                           }}
                           className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] week-card-parallax ${
                             isSelected
-                              ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe week-card-active-border'
+                              ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe breathe-glow-active week-card-active-border'
                               : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                           }`}
                         >
@@ -5706,7 +6416,7 @@ export default function PdbTracker() {
                       onClick={() => setSelectedEvalId(ev.uniprotId)}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                         selectedEvalId === ev.uniprotId
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe'
+                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
                           : 'bg-white dark:bg-[#242220] border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >
@@ -5745,26 +6455,37 @@ export default function PdbTracker() {
 
   // ── Preview Panel Render Function ──
   function renderPreviewPanel() {
+    const previewTabs = [
+      { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
+      { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
+      { value: 'heatmap', icon: <Grid3x3 className="h-3 w-3 mr-1" />, label: 'Heatmap' },
+      { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Full Report' },
+    ];
+
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col">
         <div className="px-4 pt-3 border-b border-claude-border">
-          <TabsList className="w-full h-8 bg-claude-border-light p-0.5">
-            <TabsTrigger value="summary" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
-              <BarChart3 className="h-3 w-3 mr-1" />
-              Summary
-            </TabsTrigger>
-            <TabsTrigger value="timeline" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
-              <Clock className="h-3 w-3 mr-1" />
-              Timeline
-            </TabsTrigger>
-            <TabsTrigger value="heatmap" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
-              <Grid3x3 className="h-3 w-3 mr-1" />
-              Heatmap
-            </TabsTrigger>
-            <TabsTrigger value="report" className="tab-gradient-active flex-1 text-[10px] h-7 data-[state=active]:bg-white dark:data-[state=active]:bg-[#2b2926] data-[state=active]:shadow-sm">
-              <FileText className="h-3 w-3 mr-1" />
-              Full Report
-            </TabsTrigger>
+          <TabsList className="w-full h-8 bg-claude-border-light p-0.5 relative">
+            {previewTabs.map((tab) => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="tab-gradient-active flex-1 text-[10px] h-7 relative z-[1] data-[state=active]:text-white data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200"
+              >
+                {previewTab === tab.value && (
+                  <motion.div
+                    layoutId="preview-tab-indicator"
+                    className="absolute inset-0 rounded-md"
+                    style={{ background: 'linear-gradient(135deg, #c96442, #d4784f)' }}
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-[2] flex items-center justify-center">
+                  {tab.icon}
+                  {tab.label}
+                </span>
+              </TabsTrigger>
+            ))}
           </TabsList>
         </div>
 

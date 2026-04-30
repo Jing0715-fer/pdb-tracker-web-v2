@@ -386,6 +386,21 @@
   background-color: transparent;
 }
 
+/* Keyboard-focused row */
+.keyboard-focused-row {
+  outline: none;
+  border-top: 2px solid #c96442 !important;
+  border-bottom: 2px solid #c96442 !important;
+  background-color: rgba(201, 100, 66, 0.06) !important;
+  transition: border-color 150ms ease, background-color 150ms ease;
+}
+
+.dark .keyboard-focused-row {
+  border-top-color: #d4784f !important;
+  border-bottom-color: #d4784f !important;
+  background-color: rgba(212, 120, 79, 0.08) !important;
+}
+
 /* Table row hover */
 .table-row-hover {
   transition: background-color 0.1s ease;
@@ -1629,4 +1644,197 @@
   background: linear-gradient(180deg, #d4784f, #3d2a22, #d4784f);
   background-size: 100% 200%;
   animation: gradient-border-shift 3s ease-in-out infinite;
+}
+
+/* ─── Style Enhancement 1: Magnetic Cursor Effect ──────────────────────────── */
+
+.magnetic-element {
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.magnetic-element-active {
+  transition: none;
+}
+
+/* ─── Style Enhancement 2: Breathing Glow on Active Cards ──────────────────── */
+
+@keyframes breathe-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(201, 100, 66, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 12px 2px rgba(201, 100, 66, 0.15);
+  }
+}
+
+.dark .breathe-glow-active {
+  animation-name: breathe-glow-dark;
+}
+
+@keyframes breathe-glow-dark {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(212, 120, 79, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 12px 2px rgba(212, 120, 79, 0.2);
+  }
+}
+
+.breathe-glow-active {
+  animation: breathe-glow 3s ease-in-out infinite;
+}
+
+.sidebar-card-inner-glow {
+  transition: box-shadow 300ms ease;
+}
+
+.sidebar-card-inner-glow:hover {
+  box-shadow: inset 0 0 20px rgba(201, 100, 66, 0.04);
+}
+
+.dark .sidebar-card-inner-glow:hover {
+  box-shadow: inset 0 0 20px rgba(212, 120, 79, 0.06);
+}
+
+/* ─── Style Enhancement 3: Liquid Tab Indicator ────────────────────────────── */
+
+.liquid-tab-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #c96442, #d4784f);
+  z-index: 0;
+}
+
+.dark .liquid-tab-indicator {
+  background: linear-gradient(135deg, #d4784f, #e08a62);
+}
+
+.liquid-tab-content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+}
+
+.liquid-tab-active-text {
+  color: #ffffff;
+}
+
+.liquid-tab-inactive-text {
+  color: #6b6560;
+  transition: color 0.2s ease;
+}
+
+.dark .liquid-tab-inactive-text {
+  color: #9b9590;
+}
+
+/* ─── Style Enhancement 4: Header Particles ────────────────────────────────── */
+
+@keyframes particle-drift {
+  0% {
+    opacity: var(--particle-min-opacity, 0.1);
+    transform: translate(0, 0);
+  }
+  25% {
+    opacity: var(--particle-max-opacity, 0.3);
+    transform: translate(var(--particle-dx1, 10px), var(--particle-dy1, -8px));
+  }
+  50% {
+    opacity: var(--particle-min-opacity, 0.1);
+    transform: translate(var(--particle-dx2, -5px), var(--particle-dy2, 12px));
+  }
+  75% {
+    opacity: var(--particle-max-opacity, 0.3);
+    transform: translate(var(--particle-dx3, 8px), var(--particle-dy3, 5px));
+  }
+  100% {
+    opacity: var(--particle-min-opacity, 0.1);
+    transform: translate(0, 0);
+  }
+}
+
+.header-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  animation: particle-drift var(--particle-duration, 10s) ease-in-out infinite;
+  animation-delay: var(--particle-delay, 0s);
+}
+
+.dark .header-particle {
+  opacity: 0.5;
+}
+
+/* ─── Style Enhancement 5: Ripple Effect on Button Clicks ──────────────────── */
+
+.ripple-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.ripple-btn::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(201, 100, 66, 0.15);
+  transform: translate(-50%, -50%);
+  transition: width 600ms ease-out, height 600ms ease-out, opacity 600ms ease-out;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.dark .ripple-btn::after {
+  background: rgba(212, 120, 79, 0.2);
+}
+
+.ripple-btn:active::after {
+  width: 200%;
+  height: 200%;
+  opacity: 1;
+  transition: width 0ms, height 0ms, opacity 0ms;
+}
+
+/* Count-up ping on stat changes */
+.stat-ping {
+  position: relative;
+}
+
+.stat-ping::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(201, 100, 66, 0.3);
+  transform: translate(-50%, -50%) scale(0);
+  animation: stat-count-ping 200ms ease-out forwards;
+  pointer-events: none;
+}
+
+.dark .stat-ping::after {
+  background: rgba(212, 120, 79, 0.4);
+}
+
+@keyframes stat-count-ping {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(3);
+    opacity: 0;
+  }
 }
