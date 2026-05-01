@@ -41,34 +41,38 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+}
 
-  /* Claude-style custom colors */
-  --color-claude-bg: #faf8f5;
-  --color-claude-surface: #ffffff;
-  --color-claude-border: #e8e4dd;
-  --color-claude-border-light: #f0ece5;
-  --color-claude-text: #1a1a1a;
-  --color-claude-text-secondary: #6b6560;
-  --color-claude-text-muted: #9b9590;
-  --color-claude-accent: #c96442;
-  --color-claude-accent-hover: #b5573a;
-  --color-claude-accent-light: #fdf0eb;
-  --color-claude-cryoem: #2d8f8f;
-  --color-claude-cryoem-bg: #e8f5f5;
-  --color-claude-xray: #7c5cbf;
-  --color-claude-xray-bg: #f0ebf8;
-  --color-claude-nmr: #c9872e;
-  --color-claude-nmr-bg: #fdf4e5;
-  --color-claude-other: #6b7280;
-  --color-claude-other-bg: #f3f4f6;
-  --color-claude-top: #dc2626;
-  --color-claude-top-bg: #fef2f2;
-  --color-claude-high: #ea580c;
-  --color-claude-high-bg: #fff7ed;
-  --color-claude-mid: #16a34a;
-  --color-claude-mid-bg: #f0fdf4;
-  --color-claude-low: #6b7280;
-  --color-claude-low-bg: #f3f4f6;
+/* Claude-style custom colors - use @theme inline with var() references so that
+   utility classes (bg-claude-bg, text-claude-text, etc.) resolve dynamically
+   through CSS custom properties that .dark can override. */
+@theme inline {
+  --color-claude-bg: var(--claude-bg);
+  --color-claude-surface: var(--claude-surface);
+  --color-claude-border: var(--claude-border);
+  --color-claude-border-light: var(--claude-border-light);
+  --color-claude-text: var(--claude-text);
+  --color-claude-text-secondary: var(--claude-text-secondary);
+  --color-claude-text-muted: var(--claude-text-muted);
+  --color-claude-accent: var(--claude-accent);
+  --color-claude-accent-hover: var(--claude-accent-hover);
+  --color-claude-accent-light: var(--claude-accent-light);
+  --color-claude-cryoem: var(--claude-cryoem);
+  --color-claude-cryoem-bg: var(--claude-cryoem-bg);
+  --color-claude-xray: var(--claude-xray);
+  --color-claude-xray-bg: var(--claude-xray-bg);
+  --color-claude-nmr: var(--claude-nmr);
+  --color-claude-nmr-bg: var(--claude-nmr-bg);
+  --color-claude-other: var(--claude-other);
+  --color-claude-other-bg: var(--claude-other-bg);
+  --color-claude-top: var(--claude-top);
+  --color-claude-top-bg: var(--claude-top-bg);
+  --color-claude-high: var(--claude-high);
+  --color-claude-high-bg: var(--claude-high-bg);
+  --color-claude-mid: var(--claude-mid);
+  --color-claude-mid-bg: var(--claude-mid-bg);
+  --color-claude-low: var(--claude-low);
+  --color-claude-low-bg: var(--claude-low-bg);
 }
 
 :root {
@@ -104,6 +108,34 @@
   --sidebar-accent-foreground: #1a1a1a;
   --sidebar-border: #e8e4dd;
   --sidebar-ring: #c96442;
+
+  /* Claude custom colors (light) */
+  --claude-bg: #faf8f5;
+  --claude-surface: #ffffff;
+  --claude-border: #e8e4dd;
+  --claude-border-light: #f0ece5;
+  --claude-text: #1a1a1a;
+  --claude-text-secondary: #6b6560;
+  --claude-text-muted: #9b9590;
+  --claude-accent: #c96442;
+  --claude-accent-hover: #b5573a;
+  --claude-accent-light: #fdf0eb;
+  --claude-cryoem: #2d8f8f;
+  --claude-cryoem-bg: #e8f5f5;
+  --claude-xray: #7c5cbf;
+  --claude-xray-bg: #f0ebf8;
+  --claude-nmr: #c9872e;
+  --claude-nmr-bg: #fdf4e5;
+  --claude-other: #6b7280;
+  --claude-other-bg: #f3f4f6;
+  --claude-top: #dc2626;
+  --claude-top-bg: #fef2f2;
+  --claude-high: #ea580c;
+  --claude-high-bg: #fff7ed;
+  --claude-mid: #16a34a;
+  --claude-mid-bg: #f0fdf4;
+  --claude-low: #6b7280;
+  --claude-low-bg: #f3f4f6;
 }
 
 .dark {
@@ -140,32 +172,32 @@
   --sidebar-ring: #d4784f;
 
   /* Dark mode Claude custom colors */
-  --color-claude-bg: #1a1917;
-  --color-claude-surface: #242220;
-  --color-claude-border: #3d3832;
-  --color-claude-border-light: #2b2926;
-  --color-claude-text: #e8e4dd;
-  --color-claude-text-secondary: #9b9590;
-  --color-claude-text-muted: #6b6560;
-  --color-claude-accent: #d4784f;
-  --color-claude-accent-hover: #e08a62;
-  --color-claude-accent-light: #3d2a22;
-  --color-claude-cryoem: #3db5b5;
-  --color-claude-cryoem-bg: #1a2e2e;
-  --color-claude-xray: #9b7ed8;
-  --color-claude-xray-bg: #28203a;
-  --color-claude-nmr: #d9a24e;
-  --color-claude-nmr-bg: #302818;
-  --color-claude-other: #9b9590;
-  --color-claude-other-bg: #2b2926;
-  --color-claude-top: #ef6b6b;
-  --color-claude-top-bg: #2e1a1a;
-  --color-claude-high: #f09040;
-  --color-claude-high-bg: #2e2218;
-  --color-claude-mid: #3dbb5e;
-  --color-claude-mid-bg: #1a2e1e;
-  --color-claude-low: #9b9590;
-  --color-claude-low-bg: #2b2926;
+  --claude-bg: #1a1917;
+  --claude-surface: #242220;
+  --claude-border: #3d3832;
+  --claude-border-light: #2b2926;
+  --claude-text: #e8e4dd;
+  --claude-text-secondary: #9b9590;
+  --claude-text-muted: #6b6560;
+  --claude-accent: #d4784f;
+  --claude-accent-hover: #e08a62;
+  --claude-accent-light: #3d2a22;
+  --claude-cryoem: #3db5b5;
+  --claude-cryoem-bg: #1a2e2e;
+  --claude-xray: #9b7ed8;
+  --claude-xray-bg: #28203a;
+  --claude-nmr: #d9a24e;
+  --claude-nmr-bg: #302818;
+  --claude-other: #9b9590;
+  --claude-other-bg: #2b2926;
+  --claude-top: #ef6b6b;
+  --claude-top-bg: #2e1a1a;
+  --claude-high: #f09040;
+  --claude-high-bg: #2e2218;
+  --claude-mid: #3dbb5e;
+  --claude-mid-bg: #1a2e1e;
+  --claude-low: #9b9590;
+  --claude-low-bg: #2b2926;
 }
 
 @layer base {

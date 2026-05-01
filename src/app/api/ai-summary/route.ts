@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createSdk } from 'z-ai-web-dev-sdk';
+import Sdk from 'z-ai-web-dev-sdk';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sdk = createSdk();
+    const sdk = new Sdk();
 
     const methodStr = method || 'Unknown';
     const resStr = resolution != null ? `${resolution}Å` : 'N/A';
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const prompt = `Provide a brief 2-3 sentence scientific summary of this protein structure entry: ${pdbId} - ${title}. Method: ${methodStr}, Resolution: ${resStr}, Published in ${journalStr} ${ifStr}. Organisms: ${orgStr}. Ligands: ${ligStr}. Focus on the scientific significance and methodology.`;
 
-    const result = await sdk.llm.chat({
+    const result = await sdk.chat({
       messages: [{ role: 'user', content: prompt }],
       model: 'default',
     });

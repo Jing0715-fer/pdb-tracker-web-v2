@@ -2188,3 +2188,161 @@ Stage Summary:
 4. Add virtual scrolling for large datasets
 5. Add keyboard shortcut for sidebar compact toggle
 6. Add data import/sync from live RCSB PDB API
+
+---
+Task ID: 2-b
+Agent: Mobile Responsiveness Agent
+Task: Fix mobile/small screen responsiveness in pdb-tracker.tsx
+
+Work Log:
+- Read worklog.md and analyzed the existing pdb-tracker.tsx (~9294 lines) structure
+- Identified all critical and medium responsiveness issues from QA testing
+- **Part 1: Header Mobile Optimization**
+  - Hidden non-essential header buttons on mobile with `hidden sm:inline-flex`: Command Palette, Keyboard Shortcuts, Help, Notifications
+  - Added `ml-auto` to header buttons container for proper right-alignment
+  - Increased touch targets on remaining visible buttons (dark mode, hamburger, preview toggle) with `min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8`
+  - Made hamburger menu icon larger on mobile (`h-5 w-5` instead of `h-4.5 w-4.5`)
+  - Hidden app title text on mobile (`hidden sm:block`) while keeping logo icon visible
+  - Changed hamburger/preview buttons from `md:hidden` to `lg:hidden` to show on tablets too
+- **Part 2: Sidebar Responsive Breakpoint**
+  - Changed desktop sidebar from `hidden md:flex` to `hidden lg:flex` so sidebar is hidden on medium screens
+  - Mobile sidebar drawer already existed with Vaul Drawer component
+- **Part 3: Table Horizontal Scroll**
+  - Added `min-w-[800px]` to weekly data tables and `min-w-[700px]` to evaluation tables
+  - Parent container already has `overflow-auto` so horizontal scrolling works automatically
+  - Tables now have a minimum width preventing content from being compressed/clipped on small screens
+- **Part 4: Toolbar Responsiveness**
+  - Reduced toolbar padding on mobile: `px-3 sm:px-4 py-2 sm:py-3`
+  - Reduced gap: `gap-2 sm:gap-3`
+  - Added `overflow-x-auto` to toolbar container for horizontal scroll if needed
+  - Made Select triggers narrower on mobile: `w-[130px] sm:w-[160px]` and `w-[120px] sm:w-[150px]`
+  - Hidden non-essential toolbar buttons on mobile with `hidden sm:inline-flex`: Tags, Presets, Columns, Export, Print, Share, Compare, Diff, Data Density
+  - Filter chips section hidden on mobile (`hidden sm:flex`)
+  - Kept essential items visible: Week Select, Method Filter, Search, Filters button
+  - Filters button shows icon only on mobile (`hidden sm:inline` for label)
+  - Search input gets `min-h-[44px]` on mobile and `min-w-[120px]`
+- **Part 5: Touch Target Improvements**
+  - All header buttons: `min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0`
+  - Search input: `min-h-[44px] sm:min-h-0 sm:py-1.5`
+  - Filters button: `min-h-[44px] sm:min-h-0 sm:h-7`
+  - Compare week selector: `min-h-[44px] sm:min-h-0`
+  - Pagination buttons: `min-h-[44px] sm:min-h-0 sm:h-7` and `min-w-[44px] sm:min-w-0 sm:w-7`
+  - Pagination text shortened on mobile
+- **Part 6: Stat Cards Responsive**
+  - Changed from `flex gap-3` to `grid grid-cols-2 sm:flex gap-2 sm:gap-3`
+  - Cards now display in 2x2 grid on mobile, horizontal row on desktop
+  - Reduced horizontal padding: `px-3 sm:px-4`
+- **Part 7: Preview Panel Responsive**
+  - Changed desktop preview panel from `hidden md:flex` to `hidden lg:flex`
+  - Mobile preview slide-over changed from `md:hidden` to `lg:hidden`
+  - Preview toggle button changed from `hidden md:inline-flex` to `hidden lg:inline-flex`
+- **Part 8: Footer Improvements**
+  - Added `mt-auto` to footer for sticky bottom behavior
+  - Added safe area support: `paddingBottom: 'env(safe-area-inset-bottom, 0px)'`
+  - Hidden keyboard shortcut hints on footer on mobile (`hidden sm:flex`)
+- **Part 9: Safe Area Support**
+  - Added `viewport-fit=cover` to viewport meta via `export const viewport` in layout.tsx
+  - Added `env(safe-area-inset-bottom)` to footer, bottom sheet, and batch action bar
+- **Part 10: Page Layout**
+  - Changed page wrapper from `min-h-screen` to `h-screen` for full viewport height
+  - Component root changed from `h-full` to `min-h-full` for proper flex behavior
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Mobile responsiveness fully addressed for 375px and up
+- Header optimized: only essential buttons visible on mobile with 44px touch targets
+- Table horizontal scroll enabled with min-width constraints
+- Toolbar simplified on mobile with non-essential items hidden
+- Stat cards use 2x2 grid on mobile
+- All interactive elements meet 44px minimum touch target on mobile
+- Safe area support for iOS devices
+- Sticky footer with safe area insets
+- Sidebar accessible via hamburger menu on screens < 1024px
+- All existing functionality preserved
+- No lint errors, no compilation errors
+
+---
+Task ID: 2-a
+Agent: Dark Mode Fix Agent
+Task: Fix remaining dark mode issues in pdb-tracker.tsx by replacing hardcoded light-mode colors with claude-* CSS variable tokens
+
+Work Log:
+- Read worklog.md and globals.css to understand the claude-* token system
+- Confirmed ROOT CAUSE was already fixed: claude custom colors moved from `@theme inline` to `@theme` so they use CSS custom properties that properly respond to `.dark` class overrides
+- Systematically searched pdb-tracker.tsx for hardcoded color patterns
+- **Batch 1: bg-white dark:bg-[#242220] → bg-claude-surface** (replaced ~30 instances)
+  - Modal containers, pagination buttons, sidebar, toolbar, preview panel, detail panel, stat cards, footer, context menu, popover content, drawer content, filters, evaluation cards
+- **Batch 2: bg-[#faf8f5] dark:bg-[#1a1917] → bg-claude-bg** (replaced 4 instances)
+  - Table header rows in weekly and evaluation tables
+- **Batch 3: Removed redundant dark:text-[#e8e4dd] after text-claude-text** (replaced ~18 instances)
+  - Since text-claude-text CSS variable resolves to #e8e4dd in dark mode, the dark: override was redundant
+  - Chart headers, stat labels, heatmap headers, comparison view labels
+- **Batch 4: Removed redundant dark:text-[#9b9590] after text-claude-text-secondary** (replaced ~7 instances)
+  - Since text-claude-text-secondary CSS variable resolves to #9b9590 in dark mode
+  - Method names, chart legends, timeline stats, comparison counts
+- **Batch 5: Removed redundant dark:text-[#6b6560] after text-claude-text-muted** (replaced ~11 instances)
+  - Since text-claude-text-muted CSS variable resolves to #6b6560 in dark mode
+  - Muted labels, counts, percentages, timestamps
+- **Batch 6: Replaced hardcoded method colors with claude tokens**
+  - bg-[#2d8f8f] → bg-claude-cryoem
+  - bg-[#7c5cbf] → bg-claude-xray
+  - bg-[#c9872e] → bg-claude-nmr
+  - bg-[#6b7280] → bg-claude-other
+  - text-[#2d8f8f] → text-claude-cryoem
+  - text-[#7c5cbf] → text-claude-xray
+  - text-[#c9872e] → text-claude-nmr
+  - Score tier colors: text-[#2d8f8f] dark:text-[#3db5b5] → text-claude-cryoem
+  - text-[#c9872e] dark:text-[#d9a24e] → text-claude-nmr
+  - text-[#dc2626] dark:text-[#ef6b6b] → text-claude-top
+- **Batch 7: Fixed inline styles with hardcoded colors**
+  - Quality score progress bars: backgroundColor: '#c96442' → className="bg-claude-accent"
+  - backgroundColor: '#2d8f8f' → className="bg-claude-cryoem"
+  - backgroundColor: '#7c5cbf' → className="bg-claude-xray"
+  - Quality filter dots: style={{ backgroundColor: '#22c55e' }} → className="bg-green-500" (and similar for emerald-500, teal-500, amber-500, red-500)
+  - Preview tab indicator gradient: hardcoded #c96442/#d4784f → CSS variables var(--color-claude-accent)/var(--color-claude-accent-hover)
+  - Tooltip dot: backgroundColor: '#c4644a' → className="bg-claude-accent"
+- **Batch 8: Simplified dark: variant patterns using claude tokens**
+  - bg-white dark:bg-[#1a1917] → bg-white dark:bg-claude-bg (input fields, containers)
+  - bg-white dark:bg-[#2b2926] → bg-white dark:bg-claude-border-light (tooltips, tabs, popover cards)
+  - bg-white/80 dark:bg-[#242220]/80 → bg-claude-surface/80 (glassmorphism panels)
+  - bg-[#f5f0eb] dark:bg-[#1a1917] → bg-claude-border-light dark:bg-claude-bg (footer)
+  - bg-claude-bg/50 dark:bg-[#1a1917]/50 → bg-claude-bg/50 (chart containers - redundant)
+  - bg-claude-bg/30 dark:bg-[#1a1917]/30 → bg-claude-bg/30 (comparison dividers - redundant)
+  - dark:bg-[#3d3832] → dark:bg-claude-border (progress bar tracks, button backgrounds)
+  - dark:hover:bg-[#3d3832] → dark:hover:bg-claude-border (~25 instances)
+  - dark:bg-[#2b2926] → dark:bg-claude-border-light (empty state icons, kbd, coverage bars, badges)
+  - dark:hover:bg-[#2b2926] → dark:hover:bg-claude-border-light (evaluation/weekly cards)
+  - dark:text-[#e8e4dd] → dark:text-claude-text (input fields)
+  - dark:border-[#d4784f] → removed (border-claude-accent handles it)
+  - dark:text-[#d4784f] → removed (text-claude-accent handles it)
+  - dark:bg-[#d4784f]/10 → dark:bg-claude-accent/10
+  - dark:bg-[#d4784f]/15 → dark:bg-claude-accent/15
+  - dark:bg-[#d4784f]/5 → dark:bg-claude-accent/5
+  - dark:border-[#d4784f]/20 → dark:border-claude-accent/20
+- **Batch 9: Simplified isDark chart tooltip patterns**
+  - isDark ? 'text-[#e8e4dd]' : 'text-claude-text' → text-claude-text (11 instances)
+  - isDark ? 'text-[#9b9590]' : 'text-claude-text-secondary' → text-claude-text-secondary (7 instances)
+  - isDark ? 'text-[#6b6560]' : 'text-claude-text-muted' → text-claude-text-muted (7 instances)
+  - isDark ? 'text-[#d4784f]' : 'text-claude-accent' → text-claude-accent (2 instances)
+  - isDark ? 'bg-[#2b2926] border-[#4a4540] text-[#e8e4dd]' : 'bg-white border-claude-border text-claude-text' → bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text (7 tooltip instances)
+  - isDark ? 'bg-[#2b2926]' : ... → isDark ? 'bg-claude-border-light' : ... (4 comparison card instances)
+  - fill-claude-text dark:fill-[#e8e4dd] → fill-claude-text (redundant)
+  - isDark ? 'fill-[#9b9590]' : 'fill-[#9b9590]' → fill-[#9b9590] (identical branches)
+- **Batch 10: Slider/Checkbox component colors**
+  - [&_[data-slot=slider-*]]:bg/border/ring-[#c96442] → :bg/border/ring-claude-accent
+  - data-[state=checked]:bg/border-[#c96442] → :bg/border-claude-accent
+- **Kept intentionally different values**: #4a4540 borders (slightly lighter than claude-border), chart inline color strings (required by Recharts), bg-[#2b2926] dark-style tooltip
+- Lint passes with no errors
+- Dev server compiling successfully
+
+Stage Summary:
+- Replaced ~100+ hardcoded hex color values with claude-* CSS variable tokens
+- All bg-white dark:bg-[#242220] patterns now use bg-claude-surface (CSS variable handles both modes)
+- All redundant dark: overrides for text-claude-text, text-claude-text-secondary, text-claude-text-muted removed (CSS variables handle them)
+- Method color tokens (bg-claude-cryoem, bg-claude-xray, bg-claude-nmr, bg-claude-other) now used consistently
+- Inline styles converted to className-based styling where possible
+- Chart tooltips simplified from isDark ternaries to CSS-based dark: variants
+- No functionality changes - only dark mode styling improvements
+- All existing functionality preserved
+- No lint errors, no compilation errors
