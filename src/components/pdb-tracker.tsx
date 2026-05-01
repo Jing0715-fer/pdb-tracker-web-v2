@@ -65,6 +65,8 @@ import {
   EyeOff,
   PanelRightOpen,
   PanelRightClose,
+  PanelLeftClose,
+  PanelLeftOpen,
   Layers,
   FileDiff,
   StickyNote,
@@ -110,7 +112,6 @@ import { toast } from 'sonner';
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from '@/components/ui/collapsible';
 import { HoverCard, HoverCardTrigger, HoverCardContent } from '@/components/ui/hover-card';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuCheckboxItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuItem } from '@/components/ui/dropdown-menu';
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '@/components/ui/drawer';
 import { Slider } from '@/components/ui/slider';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ContextMenu, ContextMenuTrigger, ContextMenuContent, ContextMenuItem, ContextMenuSeparator } from '@/components/ui/context-menu';
@@ -943,7 +944,7 @@ function LigandTooltipContent({ ligand }: { ligand: LigandInfo }) {
         <img
           src={ligand.imageUrl}
           alt={ligand.name}
-          className="w-24 h-24 rounded-md bg-white dark:bg-claude-bg border border-claude-border flex-shrink-0 object-contain p-1"
+          className="w-24 h-24 rounded-md bg-white dark:bg-[#1a1917] border border-claude-border dark:border-[#3d3832] flex-shrink-0 object-contain p-1"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <div className="flex-1 min-w-0">
@@ -1073,10 +1074,10 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={{ duration: 0.2 }}
-            className="bg-claude-surface rounded-[10px] shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] flex flex-col"
+            className="bg-claude-surface dark:bg-[#242220] rounded-[10px] shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-claude-border">
+            <div className="flex items-center justify-between p-4 border-b border-claude-border dark:border-[#3d3832]">
               <h2 className="text-base font-semibold text-claude-text">{title}</h2>
               <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text">
                 <X className="h-4 w-4" />
@@ -1186,11 +1187,11 @@ function EntryComparisonModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={{ duration: 0.2 }}
-            className="bg-claude-surface rounded-[10px] shadow-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col"
+            className="bg-claude-surface dark:bg-[#242220] rounded-[10px] shadow-xl max-w-4xl w-full mx-4 max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-claude-border">
+            <div className="flex items-center justify-between p-4 border-b border-claude-border dark:border-[#3d3832]">
               <div className="flex items-center gap-3">
                 <Columns className="h-5 w-5 text-claude-accent" />
                 <h2 className="text-base font-semibold text-claude-text">Entry Comparison</h2>
@@ -1334,7 +1335,7 @@ function Pagination({
   };
 
   return (
-    <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-t border-claude-border bg-claude-surface">
+    <div className="flex items-center justify-between px-3 sm:px-4 py-2 sm:py-3 border-t border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220]">
       <span className="text-[11px] text-claude-text-muted hidden sm:inline">
         Showing <span className="font-mono font-medium text-claude-text-secondary">{start}</span>–<span className="font-mono font-medium text-claude-text-secondary">{end}</span> of <span className="font-mono font-medium text-claude-text-secondary">{totalItems}</span> entries
       </span>
@@ -1473,7 +1474,7 @@ function SearchDropdown({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: -4 }}
           transition={{ duration: 0.12 }}
-          className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-claude-border-light border border-claude-border rounded-lg shadow-xl p-1 max-h-64 overflow-y-auto custom-scrollbar"
+          className="absolute top-full left-0 right-0 mt-1 z-50 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-lg shadow-xl p-1 max-h-64 overflow-y-auto custom-scrollbar dark:shadow-[0_8px_24px_rgba(0,0,0,0.4)]"
         >
           {hasQuery ? (
             <>
@@ -1702,7 +1703,7 @@ function TourOverlay({
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: positionAbove ? 6 : -6 }}
           transition={{ duration: 0.2 }}
-          className="absolute bg-claude-surface border border-claude-border rounded-xl shadow-2xl p-4 max-w-[280px]"
+          className="absolute bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-xl shadow-2xl p-4 max-w-[280px]"
           style={{
             top: tooltipPos.top,
             left: tooltipPos.left,
@@ -1920,6 +1921,26 @@ export default function PdbTracker() {
   // ── Mobile State ──
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+
+  // ── Desktop Sidebar Toggle State ──
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1280;
+    }
+    return true;
+  });
+
+  // Auto-close sidebar when resizing below xl breakpoint
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 1280) {
+        setSidebarOpen(false);
+        setMobileSidebarOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // ── Detail Panel (Row Detail Slide-over) ──
   const [selectedEntry, setSelectedEntry] = useState<PdbEntry | null>(null);
@@ -3414,18 +3435,21 @@ export default function PdbTracker() {
       <div className="flex flex-col min-h-full w-full overflow-hidden">
 
         {/* ═══════════ HEADER BAR ═══════════ */}
-        <header className={`flex-shrink-0 h-[52px] sm:h-[52px] flex items-center px-3 sm:px-4 bg-claude-surface border-b border-claude-border relative z-20 no-print ${hasLoaded ? 'animate-load-header' : 'opacity-0'}`}>
+        <header className={`flex-shrink-0 h-[48px] sm:h-[52px] flex items-center px-2 sm:px-4 bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832] relative z-20 no-print ${hasLoaded ? 'animate-load-header' : 'opacity-0'}`}>
           {/* Gradient border at bottom */}
           <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-claude-accent/20 to-transparent bg-[length:200%_100%] animate-[gradient-shift_3s_ease-in-out_infinite]" />
           {/* Header Particles */}
           <HeaderParticles />
-          <div ref={tourTitleRef} className="flex items-center gap-2 sm:gap-3 relative z-10 min-w-0">
-            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-claude-accent-light flex-shrink-0">
-              <Dna className="h-4.5 w-4.5 text-claude-accent" />
+          <div ref={tourTitleRef} className="flex items-center gap-1.5 sm:gap-3 relative z-10 min-w-0">
+            <div className="flex items-center justify-center w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-claude-accent-light dark:bg-[#3d2a22] flex-shrink-0">
+              <Dna className="h-4 w-4 sm:h-4.5 sm:w-4.5 text-claude-accent" />
             </div>
             <div className="hidden sm:block min-w-0">
               <h1 className="text-base font-semibold text-claude-text leading-tight header-title" style={{ letterSpacing: '-0.02em' }}>PDB Structure Tracker</h1>
               <p className="text-[10px] text-claude-text-muted leading-tight">Protein Data Bank Weekly Tracking & Evaluation System</p>
+            </div>
+            <div className="sm:hidden min-w-0">
+              <h1 className="text-sm font-semibold text-claude-text leading-tight" style={{ letterSpacing: '-0.02em' }}>PDB Tracker</h1>
             </div>
           </div>
 
@@ -3458,7 +3482,7 @@ export default function PdbTracker() {
                 <Keyboard className="h-4 w-4 text-claude-text-secondary" />
               </button>
             </PopoverTrigger>
-            <PopoverContent side="bottom" align="end" className="w-56 p-3">
+            <PopoverContent side="bottom" align="end" className="w-56 p-3 dark:bg-[#2b2926] dark:border-[#4a4540]">
               <div className="text-xs font-semibold text-claude-text mb-2">Keyboard Shortcuts</div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -3521,8 +3545,8 @@ export default function PdbTracker() {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-0 bg-claude-surface border border-claude-border shadow-xl rounded-lg">
-              <div className="flex items-center justify-between px-3 py-2.5 border-b border-claude-border">
+            <PopoverContent align="end" className="w-80 p-0 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg">
+              <div className="flex items-center justify-between px-3 py-2.5 border-b border-claude-border dark:border-[#4a4540]">
                 <span className="text-xs font-semibold text-claude-text">Notifications</span>
                 <div className="flex items-center gap-1">
                   {notifications.length > 0 && (
@@ -3601,19 +3625,28 @@ export default function PdbTracker() {
             )}
           </button>
 
-          {/* Mobile hamburger menu */}
+          {/* Desktop sidebar toggle */}
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="hidden xl:inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+          >
+            <PanelLeftClose className={`h-4 w-4 text-claude-text-secondary transition-transform duration-200 ${sidebarOpen ? '' : 'rotate-180'}`} />
+          </button>
+
+          {/* Mobile/tablet hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="xl:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5 text-claude-text-secondary" />
           </button>
 
-          {/* Mobile preview toggle */}
+          {/* Mobile/tablet preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="ml-1 xl:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Open preview panel"
           >
             <BarChart3 className="h-5 w-5 text-claude-text-secondary" />
@@ -3624,43 +3657,114 @@ export default function PdbTracker() {
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
-          {/* Desktop sidebar */}
-          <aside className={`hidden lg:flex flex-shrink-0 border-r border-claude-border bg-claude-surface flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarCompact ? 56 : sidebarWidth }}>
-            {/* Sidebar gradient mesh overlay */}
-            <div className="sidebar-mesh-overlay" />
-            {renderSidebar()}
-            {/* Sidebar resize handle */}
-            <div
-              onMouseDown={handleSidebarMouseDown}
-              className={`absolute top-0 right-0 bottom-0 w-1 hover:bg-claude-accent/30 transition-colors duration-150 cursor-col-resize z-10 ${resizingSidebar ? 'bg-claude-accent/50' : ''}`}
-            />
-          </aside>
-
-          {/* Mobile sidebar overlay */}
-          <Drawer
-            direction="left"
-            open={mobileSidebarOpen}
-            onOpenChange={setMobileSidebarOpen}
-          >
-            <DrawerContent className="left-0 right-auto top-0 bottom-0 w-[280px] max-w-[85vw] h-full rounded-none border-r border-claude-border bg-claude-surface mobile-drawer-shadow sidebar-gradient relative">
+          {/* Desktop sidebar - visible when open on xl+ */}
+          {sidebarOpen && (
+            <aside className={`hidden xl:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarCompact ? 56 : sidebarWidth }}>
+              {/* Sidebar gradient mesh overlay */}
               <div className="sidebar-mesh-overlay" />
-              <div className="mobile-drawer-handle" />
-              <DrawerHeader className="p-3 border-b border-claude-border">
-                <div className="flex items-center justify-between">
-                  <DrawerTitle className="text-xs font-semibold text-claude-text">Navigation</DrawerTitle>
-                  <DrawerClose asChild>
-                    <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </DrawerClose>
-                </div>
-              </DrawerHeader>
               {renderSidebar()}
-            </DrawerContent>
-          </Drawer>
+              {/* Sidebar resize handle */}
+              <div
+                onMouseDown={handleSidebarMouseDown}
+                className={`absolute top-0 right-0 bottom-0 w-1 hover:bg-claude-accent/30 transition-colors duration-150 cursor-col-resize z-10 ${resizingSidebar ? 'bg-claude-accent/50' : ''}`}
+              />
+            </aside>
+          )}
+
+          {/* Desktop sidebar collapsed strip - when sidebarOpen is false on xl+ */}
+          {!sidebarOpen && (
+            <div className="hidden xl:flex w-12 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-2 no-print sidebar-gradient relative">
+              <div className="sidebar-mesh-overlay" />
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={() => setSidebarOpen(true)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150"
+                  >
+                    <PanelLeftOpen className="h-4 w-4 text-claude-text-secondary" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="text-xs">Expand sidebar</TooltipContent>
+              </Tooltip>
+              {/* Compact mode icons */}
+              <div className="flex flex-col items-center gap-1 mt-1">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 ${
+                        mode === 'weekly'
+                          ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                          : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                      }`}
+                    >
+                      <Calendar className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">Weekly Mode</TooltipContent>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 ${
+                        mode === 'evaluation'
+                          ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                          : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                      }`}
+                    >
+                      <Microscope className="h-3.5 w-3.5" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="text-xs">Evaluation Mode</TooltipContent>
+                </Tooltip>
+              </div>
+            </div>
+          )}
+
+          {/* ═══════════ MOBILE/TABLET SIDEBAR (Overlay Panel) ═══════════ */}
+          <AnimatePresence>
+            {mobileSidebarOpen && (
+              <>
+                <motion.div
+                  key="sidebar-overlay"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm xl:hidden"
+                  onClick={() => setMobileSidebarOpen(false)}
+                />
+                <motion.div
+                  key="sidebar-panel"
+                  initial={{ x: -280 }}
+                  animate={{ x: 0 }}
+                  exit={{ x: -280 }}
+                  transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-claude-surface dark:bg-[#242220] border-r border-claude-border dark:border-[#3d3832] flex flex-col xl:hidden shadow-2xl sidebar-gradient relative"
+                >
+                  <div className="sidebar-mesh-overlay" />
+                  {/* Close button header */}
+                  <div className="flex items-center justify-between p-3 border-b border-claude-border dark:border-[#3d3832] relative z-[1]">
+                    <span className="text-xs font-semibold text-claude-text">Navigation</span>
+                    <button
+                      onClick={() => setMobileSidebarOpen(false)}
+                      className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150"
+                      aria-label="Close navigation menu"
+                    >
+                      <X className="h-4 w-4 text-claude-text-muted" />
+                    </button>
+                  </div>
+                  <div className="flex-1 overflow-hidden relative z-[1]">
+                    {renderSidebar()}
+                  </div>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
 
           {/* ═══════════ MAIN AREA ═══════════ */}
-          <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative ${hasLoaded ? 'animate-load-main' : 'opacity-0'}`}>
+          <div className={`flex-1 flex flex-col min-w-0 overflow-hidden relative dark:bg-[#1a1917] ${hasLoaded ? 'animate-load-main' : 'opacity-0'}`}>
             {/* Ambient Background Orbs */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none z-0" aria-hidden="true">
               <div className="ambient-orb ambient-orb-1" style={{ width: '300px', height: '300px', top: '10%', left: '5%', background: 'rgba(201, 100, 66, 0.03)' }} />
@@ -3669,7 +3773,7 @@ export default function PdbTracker() {
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 border-b border-claude-border bg-claude-surface/80 backdrop-blur-sm no-print overflow-x-auto">
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-sm no-print overflow-x-auto">
               {mode === 'weekly' ? (
                 <>
                   {/* Week Select */}
@@ -3717,7 +3821,7 @@ export default function PdbTracker() {
                         <ChevronDown className="h-3 w-3 opacity-50" />
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent align="start" className="w-64 p-0">
+                    <PopoverContent align="start" className="w-64 p-0 dark:bg-[#2b2926] dark:border-[#4a4540]">
                       <div className="p-2 border-b border-claude-border dark:border-[#4a4540]">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-claude-text">Filter by Tag</span>
@@ -3820,7 +3924,7 @@ export default function PdbTracker() {
                           setSearchHighlightIndex(-1);
                         }
                       }}
-                      className="w-full pl-8 pr-3 min-h-[44px] sm:min-h-0 sm:py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 input-focus-glow"
+                      className="w-full pl-8 pr-3 min-h-[44px] sm:min-h-0 sm:py-1.5 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 input-focus-glow"
                     />
                     {searchQuery && (
                       <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
@@ -3860,8 +3964,8 @@ export default function PdbTracker() {
                       }}
                       className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-6 sm:w-6 rounded-md transition-colors duration-200 ${
                         showBookmarksOnly
-                          ? 'bg-claude-accent-light text-claude-accent border border-claude-accent/30'
-                          : 'text-claude-text-muted/40 hover:text-claude-accent hover:bg-claude-accent-light/50 border border-transparent'
+                          ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/30'
+                          : 'text-claude-text-muted/40 hover:text-claude-accent hover:bg-claude-accent-light/50 dark:hover:bg-[#3d2a22] border border-transparent'
                       }`}
                       title="Show bookmarked only (⌘B)"
                     >
@@ -3874,7 +3978,7 @@ export default function PdbTracker() {
                           animate={{ opacity: 1, x: 0, scale: 1 }}
                           exit={{ opacity: 0, x: -8, scale: 0.9 }}
                           transition={{ duration: 0.15 }}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20"
                         >
                         Method: {getMethodLabel(methodFilter === 'Cryo-EM' ? 'CRYO-EM' : methodFilter === 'X-RAY DIFFRACTION' ? 'X-RAY DIFFRACTION' : methodFilter === 'SOLUTION NMR' ? 'SOLUTION NMR' : methodFilter)}
                         <button onClick={() => setMethodFilter('all')} className="hover:text-claude-accent/80 transition-colors">
@@ -3890,7 +3994,7 @@ export default function PdbTracker() {
                           animate={{ opacity: 1, x: 0, scale: 1 }}
                           exit={{ opacity: 0, x: -8, scale: 0.9 }}
                           transition={{ duration: 0.15 }}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20"
                         >
                         Search: {searchQuery.length > 12 ? searchQuery.slice(0, 12) + '…' : searchQuery}
                         <button onClick={() => setSearchQuery('')} className="hover:text-claude-accent/80 transition-colors">
@@ -3906,7 +4010,7 @@ export default function PdbTracker() {
                           animate={{ opacity: 1, x: 0, scale: 1 }}
                           exit={{ opacity: 0, x: -8, scale: 0.9 }}
                           transition={{ duration: 0.15 }}
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20"
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20"
                         >
                         Bookmarked
                         <button onClick={() => setShowBookmarksOnly(false)} className="hover:text-claude-accent/80 transition-colors">
@@ -3926,7 +4030,7 @@ export default function PdbTracker() {
                       })();
                       const tagStyle = tagInfo ? TAG_CATEGORY_STYLES[tagInfo.category] : null;
                       return (
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${tagStyle ? `${tagStyle.bg} ${tagStyle.text} ${tagStyle.border} ${tagStyle.darkBg} ${tagStyle.darkText}` : 'bg-claude-accent-light text-claude-accent border border-claude-accent/20'}`}>
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium ${tagStyle ? `${tagStyle.bg} ${tagStyle.text} ${tagStyle.border} ${tagStyle.darkBg} ${tagStyle.darkText}` : 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20'}`}>
                           <Tag className="h-2.5 w-2.5" />
                           {selectedTagFilter}
                           <button onClick={() => setSelectedTagFilter(null)} className="hover:opacity-70 transition-opacity">
@@ -3951,7 +4055,7 @@ export default function PdbTracker() {
                       </span>
                     )}
                     {selectedRows.size > 0 && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                         {selectedRows.size} selected
                         <button onClick={clearSelection} className="hover:text-claude-accent/80 transition-colors">
                           <X className="h-2.5 w-2.5" />
@@ -4154,7 +4258,7 @@ export default function PdbTracker() {
                         onClick={() => setCompactMode(!compactMode)}
                         className={`hidden sm:inline-flex items-center justify-center h-7 w-7 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
                           compactMode
-                            ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                            ? 'border-claude-accent bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent'
                             : 'border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border'
                         }`}
                         aria-label={compactMode ? 'Switch to comfortable mode' : 'Switch to compact mode'}
@@ -4239,7 +4343,7 @@ export default function PdbTracker() {
                     }}
                     className={`hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
                       compareMode
-                        ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                        ? 'border-claude-accent bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent'
                         : 'border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border'
                     }`}
                   >
@@ -4260,7 +4364,7 @@ export default function PdbTracker() {
                     }}
                     className={`hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 claude-focus-ring ${
                       diffMode
-                        ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                        ? 'border-claude-accent bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent'
                         : 'border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border'
                     }`}
                   >
@@ -4273,7 +4377,7 @@ export default function PdbTracker() {
                     onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)}
                     className={`inline-flex items-center gap-1 min-h-[44px] sm:min-h-0 sm:h-7 px-2 rounded-md text-[11px] font-medium border transition-colors duration-150 relative claude-focus-ring ${
                       advancedFiltersOpen || activeAdvancedFilterCount > 0
-                        ? 'border-claude-accent bg-claude-accent-light text-claude-accent'
+                        ? 'border-claude-accent bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent'
                         : 'border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border'
                     }`}
                   >
@@ -4329,14 +4433,14 @@ export default function PdbTracker() {
                     variant="outline"
                     size="sm"
                     onClick={() => setPreviewOpen(!previewOpen)}
-                    className={`hidden lg:inline-flex h-7 px-2 text-[10px] gap-1 transition-colors duration-150 ${
+                    className={`hidden xl:inline-flex h-7 px-2 text-[10px] gap-1 transition-colors duration-150 ${
                       previewOpen
-                        ? 'text-claude-text-muted border-claude-border hover:bg-claude-border-light hover:text-claude-text'
-                        : 'text-claude-accent border-claude-accent/30 bg-claude-accent-light hover:bg-claude-accent-light/80'
+                        ? 'text-claude-text-muted border-claude-border hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text'
+                        : 'text-claude-accent border-claude-accent/30 bg-claude-accent-light dark:bg-[#3d2a22] hover:bg-claude-accent-light/80'
                     }`}
                   >
                     {previewOpen ? <PanelRightClose className="h-3 w-3" /> : <PanelRightOpen className="h-3 w-3" />}
-                    <span className="hidden lg:inline">{previewOpen ? 'Hide' : 'Show'}</span>
+                    <span className="hidden xl:inline">{previewOpen ? 'Hide' : 'Show'}</span>
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="bottom" className="text-xs">
@@ -4356,14 +4460,14 @@ export default function PdbTracker() {
                     transition={{ duration: 0.2, ease: 'easeInOut' }}
                     className="overflow-hidden no-print"
                   >
-                    <div className="bg-claude-surface border-b border-claude-border p-4">
+                    <div className="bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832] p-4">
                       {/* Panel Header - Active Filter Chips + Clear All */}
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-xs font-semibold text-claude-text-secondary">Active Filters</span>
                           {/* Active filter chips */}
                           {(resolutionRange[0] !== 0 || resolutionRange[1] !== 5) && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                               {resolutionRange[0].toFixed(1)}Å — {resolutionRange[1].toFixed(1)}Å
                               <button onClick={() => setResolutionRange([0, 5])} className="hover:text-claude-accent/80 transition-colors">
                                 <X className="h-2.5 w-2.5" />
@@ -4371,7 +4475,7 @@ export default function PdbTracker() {
                             </span>
                           )}
                           {(ifRange[0] !== 0 || ifRange[1] !== 50) && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                               IF: {ifRange[0].toFixed(1)} — {ifRange[1].toFixed(1)}
                               <button onClick={() => setIfRange([0, 50])} className="hover:text-claude-accent/80 transition-colors">
                                 <X className="h-2.5 w-2.5" />
@@ -4379,7 +4483,7 @@ export default function PdbTracker() {
                             </span>
                           )}
                           {selectedOrganisms.size > 0 && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                               {selectedOrganisms.size} organism{selectedOrganisms.size > 1 ? 's' : ''}
                               <button onClick={() => setSelectedOrganisms(new Set())} className="hover:text-claude-accent/80 transition-colors">
                                 <X className="h-2.5 w-2.5" />
@@ -4387,7 +4491,7 @@ export default function PdbTracker() {
                             </span>
                           )}
                           {dateRange.from && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                               From: {dateRange.from}
                               <button onClick={() => setDateRange(prev => ({ ...prev, from: '' }))} className="hover:text-claude-accent/80 transition-colors">
                                 <X className="h-2.5 w-2.5" />
@@ -4395,7 +4499,7 @@ export default function PdbTracker() {
                             </span>
                           )}
                           {dateRange.to && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                               To: {dateRange.to}
                               <button onClick={() => setDateRange(prev => ({ ...prev, to: '' }))} className="hover:text-claude-accent/80 transition-colors">
                                 <X className="h-2.5 w-2.5" />
@@ -4403,7 +4507,7 @@ export default function PdbTracker() {
                             </span>
                           )}
                           {qualityFilter !== 'all' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
                               Quality: {qualityFilter === 'excellent' ? 'Excellent' : qualityFilter === 'high' ? 'High' : qualityFilter === 'good' ? 'Good' : qualityFilter === 'fair' ? 'Fair' : 'Low'}
                               <button onClick={() => setQualityFilter('all')} className="hover:text-claude-accent/80 transition-colors">
                                 <X className="h-2.5 w-2.5" />
@@ -4526,7 +4630,7 @@ export default function PdbTracker() {
                               type="date"
                               value={dateRange.from}
                               onChange={e => setDateRange(prev => ({ ...prev, from: e.target.value }))}
-                              className="flex-1 px-2 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 [color-scheme:light] dark:[color-scheme:dark]"
+                              className="flex-1 px-2 py-1.5 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 [color-scheme:light] dark:[color-scheme:dark]"
                               placeholder="From"
                             />
                             <span className="text-[10px] text-claude-text-muted">—</span>
@@ -4534,7 +4638,7 @@ export default function PdbTracker() {
                               type="date"
                               value={dateRange.to}
                               onChange={e => setDateRange(prev => ({ ...prev, to: e.target.value }))}
-                              className="flex-1 px-2 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 [color-scheme:light] dark:[color-scheme:dark]"
+                              className="flex-1 px-2 py-1.5 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent/40 [color-scheme:light] dark:[color-scheme:dark]"
                               placeholder="To"
                             />
                           </div>
@@ -4615,7 +4719,7 @@ export default function PdbTracker() {
 
             {/* Diff Mode Summary */}
             {mode === 'weekly' && diffMode && selectedWeekId && (
-              <div className="px-4 py-2 flex items-center gap-4 text-[11px] border-b border-claude-border bg-claude-surface">
+              <div className="px-4 py-2 flex items-center gap-4 text-[11px] border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220]">
                 <div className="flex items-center gap-4">
                   <span className="flex items-center gap-1.5">
                     <span className="inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
@@ -4674,8 +4778,8 @@ export default function PdbTracker() {
               {mode === 'weekly' ? (
                 loadingEntries ? (
                   <table className={`min-w-[800px] w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
-                    <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-claude-bg">
+                    <thead className="sticky top-0 z-10 border-b border-claude-border dark:border-[#3d3832]">
+                      <tr className="bg-claude-bg dark:bg-[#1a1917]">
                         {[
                           { h: '', field: '' },
                           { h: '', field: '' },
@@ -4705,11 +4809,11 @@ export default function PdbTracker() {
                   <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted relative">
                     <div className="absolute inset-0 empty-state-pattern opacity-40" />
                     <div className="relative z-10 flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-claude-border-light flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-[#2b2926] flex items-center justify-center mb-4">
                         <Database className="h-8 w-8 opacity-30 animate-float" />
                       </div>
-                      <p className="text-sm font-medium text-claude-text"><TypewriterText text="No structures found for this week" /></p>
-                      <p className="text-xs mt-1 text-claude-text-muted max-w-[200px] text-center">Try adjusting filters or selecting a different week</p>
+                      <p className="text-sm font-medium text-claude-text dark:text-[#e8e4dd]"><TypewriterText text="No structures found for this week" /></p>
+                      <p className="text-xs mt-1 text-claude-text-muted dark:text-[#9b9590] max-w-[200px] text-center">Try adjusting filters or selecting a different week</p>
                       {(methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0 || selectedTagFilter) && (
                         <button
                           onClick={() => { setMethodFilter('all'); setSearchQuery(''); setShowBookmarksOnly(false); setSelectedTagFilter(null); clearAdvancedFilters(); }}
@@ -4723,8 +4827,8 @@ export default function PdbTracker() {
                 ) : (
                   <>
                   <table className={`min-w-[800px] w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
-                    <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-claude-bg">
+                    <thead className="sticky top-0 z-10 border-b border-claude-border dark:border-[#3d3832]">
+                      <tr className="bg-claude-bg dark:bg-[#1a1917]">
                         <th className="px-1.5 py-3.5 w-[32px] table-header-cell">
                           <button
                             onClick={toggleAllPageRows}
@@ -4733,7 +4837,7 @@ export default function PdbTracker() {
                                 ? 'bg-claude-accent border-claude-accent'
                                 : somePageSelected
                                   ? 'bg-claude-accent border-claude-accent'
-                                  : 'border-claude-border-light bg-claude-surface hover:border-claude-text-muted/40'
+                                  : 'border-claude-border-light dark:border-[#3d3832] bg-claude-surface dark:bg-[#2b2926] hover:border-claude-text-muted/40'
                             }`}
                             title={allPageSelected ? 'Deselect all on page' : 'Select all on page'}
                           >
@@ -4987,16 +5091,16 @@ export default function PdbTracker() {
                             )}
                           </motion.tr>
                             </ContextMenuTrigger>
-                            <ContextMenuContent className="w-52 bg-claude-surface border border-claude-border shadow-xl rounded-lg p-1">
+                            <ContextMenuContent className="w-52 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
                               <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
                                 onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
                               >
                                 <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
                                 View Details
                               </ContextMenuItem>
                               <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
                                 onClick={() => toggleBookmark(entry.pdbId)}
                               >
                                 {bookmarks.has(entry.pdbId)
@@ -5005,14 +5109,14 @@ export default function PdbTracker() {
                                 }
                               </ContextMenuItem>
                               <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
                                 onClick={() => copyPdbId(entry.pdbId)}
                               >
                                 <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
                                 Copy PDB ID
                               </ContextMenuItem>
                               <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
                                 onClick={() => window.open(`https://www.rcsb.org/structure/${entry.pdbId}`, '_blank')}
                               >
                                 <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
@@ -5020,7 +5124,7 @@ export default function PdbTracker() {
                               </ContextMenuItem>
                               <ContextMenuSeparator className="bg-claude-border-light my-1" />
                               <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
                                 onClick={() => handleExportRowCsv(entry)}
                               >
                                 <Download className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
@@ -5083,17 +5187,17 @@ export default function PdbTracker() {
                   <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted relative">
                     <div className="absolute inset-0 empty-state-pattern opacity-40" />
                     <div className="relative z-10 flex flex-col items-center">
-                      <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-claude-border-light flex items-center justify-center mb-4">
+                      <div className="w-16 h-16 rounded-2xl bg-claude-border-light/60 dark:bg-[#2b2926] flex items-center justify-center mb-4">
                         <Microscope className="h-8 w-8 opacity-30 animate-float" />
                       </div>
-                      <p className="text-sm font-medium text-claude-text"><TypewriterText text="No evaluations match your search" /></p>
-                      <p className="text-xs mt-1 text-claude-text-muted max-w-[220px] text-center">Choose from the sidebar to view structures and BLAST results</p>
+                      <p className="text-sm font-medium text-claude-text dark:text-[#e8e4dd]"><TypewriterText text="No evaluations match your search" /></p>
+                      <p className="text-xs mt-1 text-claude-text-muted dark:text-[#9b9590] max-w-[220px] text-center">Choose from the sidebar to view structures and BLAST results</p>
                     </div>
                   </div>
                 ) : loadingEvalDetail && !selectedComplexId ? (
                   <table className={`min-w-[700px] w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
-                    <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-claude-bg">
+                    <thead className="sticky top-0 z-10 border-b border-claude-border dark:border-[#3d3832]">
+                      <tr className="bg-claude-bg dark:bg-[#1a1917]">
                         {[
                           { h: 'PDB ID', field: 'pdbId' },
                           { h: 'Type', field: '_type' },
@@ -5118,8 +5222,8 @@ export default function PdbTracker() {
                   </table>
                 ) : (
                   <table className={`min-w-[700px] w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
-                    <thead className="sticky top-0 z-10 border-b border-claude-border">
-                      <tr className="bg-claude-bg">
+                    <thead className="sticky top-0 z-10 border-b border-claude-border dark:border-[#3d3832]">
+                      <tr className="bg-claude-bg dark:bg-[#1a1917]">
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: '_type', label: 'Type', w: 'w-[70px]' },
@@ -5153,7 +5257,7 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover-enhanced border-b border-claude-border-light ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30' : ''}`}>
+                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}>
                             <td className="px-3 py-2">
                               {row.pdbId ? (
                                 <Tooltip>
@@ -5185,7 +5289,7 @@ export default function PdbTracker() {
                               {isBlast ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light text-claude-accent border border-claude-accent/20 cursor-help">
+                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20 cursor-help">
                                       Homolog
                                     </span>
                                   </TooltipTrigger>
@@ -5337,7 +5441,7 @@ export default function PdbTracker() {
                 animate={{ width: previewWidth, opacity: hasLoaded ? 1 : 0 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, delay: hasLoaded ? 0 : 0.3 }}
-                className={`hidden lg:flex flex-shrink-0 bg-claude-surface/80 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
+                className={`hidden xl:flex flex-shrink-0 bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
               >
                 {/* Preview panel resize handle */}
                 <div
@@ -5358,7 +5462,7 @@ export default function PdbTracker() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
+                  className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm xl:hidden"
                   onClick={() => setMobilePreviewOpen(false)}
                 />
                 <motion.aside
@@ -5366,9 +5470,9 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: 380 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-claude-surface/80 backdrop-blur-xl border-l border-claude-border flex flex-col lg:hidden no-print glassmorphism-panel preview-inner-glow"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl border-l border-claude-border dark:border-[#3d3832] flex flex-col xl:hidden no-print glassmorphism-panel preview-inner-glow"
                 >
-                  <div className="flex items-center justify-between p-3 border-b border-claude-border">
+                  <div className="flex items-center justify-between p-3 border-b border-claude-border dark:border-[#3d3832]">
                     <span className="text-xs font-semibold text-claude-text">Details</span>
                     <Button variant="ghost" size="sm" onClick={() => setMobilePreviewOpen(false)} className="h-7 w-7 p-0">
                       <X className="h-4 w-4" />
@@ -5382,18 +5486,18 @@ export default function PdbTracker() {
         </div>
 
         {/* ═══════════ STATUS BAR (VS Code-style) ═══════════ */}
-        <footer className="flex-shrink-0 h-6 flex items-center border-t border-claude-border bg-claude-border-light dark:bg-claude-bg text-[10px] text-claude-text-muted relative no-print select-none mt-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <footer className="flex-shrink-0 h-6 flex items-center border-t border-claude-border dark:border-[#3d3832] bg-claude-border-light dark:bg-[#1a1917] text-[10px] text-claude-text-muted dark:text-[#9b9590] relative no-print select-none mt-auto" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           {/* Animated gradient line at top */}
           <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-claude-accent/40 to-transparent bg-[length:200%_100%] animate-[status-bar-gradient_4s_ease-in-out_infinite]" />
 
           {/* Left section */}
-          <div className="flex items-center h-full">
+          <div className="flex items-center h-full min-w-0">
             <span className="inline-flex items-center gap-1 px-2 border-r border-claude-border/50">
               {mode === 'weekly' ? <Database className="h-3 w-3 text-claude-accent" /> : <Microscope className="h-3 w-3 text-claude-accent" />}
               <span className="font-medium text-claude-text-secondary">{mode === 'weekly' ? 'Weekly' : 'Evaluation'}</span>
             </span>
             {mode === 'weekly' && selectedWeekId && (
-              <span className="inline-flex items-center gap-1 px-2 border-r border-claude-border/50">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 border-r border-claude-border/50">
                 <Calendar className="h-3 w-3" />
                 <span className="font-mono">{selectedWeekId}</span>
               </span>
@@ -5405,7 +5509,7 @@ export default function PdbTracker() {
           </div>
 
           {/* Center section */}
-          <div className="flex-1 flex items-center justify-center h-full">
+          <div className="flex-1 flex items-center justify-center h-full overflow-hidden">
             {/* Keyboard Nav Hint - fades in when keyboard navigation is first used, auto-hides after 5s */}
             <AnimatePresence>
               {keyboardNavHintVisible && mode === 'weekly' && (
@@ -5427,13 +5531,13 @@ export default function PdbTracker() {
               )}
             </AnimatePresence>
             {!keyboardNavHintVisible && (methodFilter !== 'all' || searchQuery || showBookmarksOnly || activeAdvancedFilterCount > 0 || selectedTagFilter) && (
-              <span className="inline-flex items-center gap-1 px-2">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2">
                 <SlidersHorizontal className="h-3 w-3" />
                 Filters: {[methodFilter !== 'all' ? 1 : 0, searchQuery ? 1 : 0, showBookmarksOnly ? 1 : 0, activeAdvancedFilterCount, selectedTagFilter ? 1 : 0].reduce((a, b) => a + b, 0)} active
               </span>
             )}
             {!keyboardNavHintVisible && sortField && (
-              <span className="inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
+              <span className="hidden sm:inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
                 <ArrowUpDown className="h-3 w-3" />
                 Sort: {sortField} {sortDir === 'asc' ? '↑' : '↓'}
               </span>
@@ -5443,13 +5547,13 @@ export default function PdbTracker() {
           {/* Right section */}
           <div className="hidden sm:flex items-center h-full">
             <span className="inline-flex items-center gap-1.5 px-2 border-l border-claude-border/50">
-              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-claude-border-light border border-claude-border/40 font-mono">⌘</kbd>
+              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-[#3d3832] border border-claude-border/40 dark:border-[#4a4540] font-mono">⌘</kbd>
               <span>K</span>
               <span className="text-claude-text-muted/40">·</span>
-              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-claude-border-light border border-claude-border/40 font-mono">⌘</kbd>
+              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-[#3d3832] border border-claude-border/40 dark:border-[#4a4540] font-mono">⌘</kbd>
               <span>E</span>
               <span className="text-claude-text-muted/40">·</span>
-              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-claude-border-light border border-claude-border/40 font-mono">⌘</kbd>
+              <kbd className="px-0.5 py-px rounded text-[9px] bg-claude-border-light/80 dark:bg-[#3d3832] border border-claude-border/40 dark:border-[#4a4540] font-mono">⌘</kbd>
               <span>B</span>
             </span>
             <span className="inline-flex items-center gap-1 px-2 border-l border-claude-border/50">
@@ -5497,7 +5601,7 @@ export default function PdbTracker() {
               animate={{ scale: 1, y: 0 }}
               exit={{ scale: 0.95, y: 10 }}
               transition={{ duration: 0.15 }}
-              className="relative bg-claude-surface border border-claude-border rounded-xl shadow-2xl w-[420px] max-w-[90vw] p-5"
+              className="relative bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-2xl w-[420px] max-w-[90vw] p-5"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
@@ -5507,7 +5611,7 @@ export default function PdbTracker() {
                 </h3>
                 <button
                   onClick={() => setShowComplexDialog(false)}
-                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-claude-border-light transition-colors"
+                  className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
                 >
                   <X className="h-4 w-4 text-claude-text-muted" />
                 </button>
@@ -5521,7 +5625,7 @@ export default function PdbTracker() {
                     value={complexName}
                     onChange={e => setComplexName(e.target.value)}
                     placeholder="e.g. EGFR Complex"
-                    className="w-full px-3 py-2 text-xs rounded-md border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
+                    className="w-full px-3 py-2 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60"
                   />
                 </div>
                 <div>
@@ -5531,7 +5635,7 @@ export default function PdbTracker() {
                     onChange={e => setComplexInput(e.target.value)}
                     placeholder="e.g. P00533 P04637 Q9Y6K9"
                     rows={3}
-                    className="w-full px-3 py-2 text-xs rounded-md border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none font-mono"
+                    className="w-full px-3 py-2 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none font-mono"
                   />
                   {complexInput && (
                     <div className="mt-1 text-[10px] text-claude-text-muted">
@@ -5573,28 +5677,28 @@ export default function PdbTracker() {
             className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 no-print"
             style={{ bottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))' }}
           >
-            <div className="bg-claude-surface border border-claude-border rounded-xl shadow-2xl px-4 py-2.5 flex items-center gap-3">
+            <div className="bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-xl shadow-2xl px-4 py-2.5 flex items-center gap-3">
               <span className="text-xs font-medium text-claude-text-secondary whitespace-nowrap">
                 {selectedRows.size} structure{selectedRows.size !== 1 ? 's' : ''} selected
               </span>
               <div className="w-px h-5 bg-claude-border-light" />
               <button
                 onClick={batchBookmarkAll}
-                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-accent bg-claude-accent-light hover:bg-claude-accent-light/80 transition-colors duration-150"
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-accent bg-claude-accent-light dark:bg-[#3d2a22] hover:bg-claude-accent-light/80 transition-colors duration-150"
               >
                 <BookmarkPlus className="h-3 w-3" />
                 Bookmark All
               </button>
               <button
                 onClick={batchRemoveBookmarks}
-                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-text-secondary bg-claude-border-light/50 hover:bg-claude-border-light dark:bg-claude-border/50 dark:hover:bg-claude-border transition-colors duration-150"
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-text-secondary bg-claude-border-light/50 hover:bg-claude-border-light dark:bg-[#2b2926] dark:hover:bg-[#3d3832] transition-colors duration-150"
               >
                 <BookmarkMinus className="h-3 w-3" />
                 Remove Bookmarks
               </button>
               <button
                 onClick={handleExportSelectedCsv}
-                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-text-secondary bg-claude-border-light/50 hover:bg-claude-border-light dark:bg-claude-border/50 dark:hover:bg-claude-border transition-colors duration-150"
+                className="inline-flex items-center gap-1 h-7 px-3 rounded-lg text-[11px] font-medium text-claude-text-secondary bg-claude-border-light/50 hover:bg-claude-border-light dark:bg-[#2b2926] dark:hover:bg-[#3d3832] transition-colors duration-150"
               >
                 <Download className="h-3 w-3" />
                 Export Selected
@@ -5672,7 +5776,7 @@ export default function PdbTracker() {
                 return (
                   <div>
                     <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Quality Score</h3>
-                    <div className="flex items-center gap-4 p-3 rounded-xl bg-claude-border-light/30 dark:bg-claude-bg/40">
+                    <div className="flex items-center gap-4 p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/60">
                       <div className="relative flex-shrink-0">
                         <svg width="88" height="88" viewBox="0 0 88 88">
                           <circle cx="44" cy="44" r="40" fill="none" stroke="currentColor" strokeWidth="6" className="text-claude-border-light dark:text-claude-border" />
@@ -5813,7 +5917,7 @@ export default function PdbTracker() {
                     href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150 external-link-hover"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150 external-link-hover"
                   >
                     <ExternalLink className="h-3 w-3 ext-arrow" />
                     RCSB PDB
@@ -5847,11 +5951,11 @@ export default function PdbTracker() {
               <div>
                 <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Dates</h3>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="p-2.5 rounded-lg bg-claude-border-light/50">
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/50 dark:bg-[#2b2926]">
                     <div className="text-[10px] text-claude-text-muted">Release Date</div>
                     <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
                   </div>
-                  <div className="p-2.5 rounded-lg bg-claude-border-light/50">
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/50 dark:bg-[#2b2926]">
                     <div className="text-[10px] text-claude-text-muted">Fetch Date</div>
                     <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.fetchDate)}</div>
                   </div>
@@ -5859,7 +5963,7 @@ export default function PdbTracker() {
               </div>
 
               {/* Week Info */}
-              <div className="p-3 rounded-lg bg-claude-border-light/30">
+              <div className="p-3 rounded-lg bg-claude-border-light/30 dark:bg-[#2b2926]">
                 <div className="text-[10px] text-claude-text-muted mb-0.5">Week</div>
                 <div className="text-sm font-mono font-medium text-claude-text-secondary">{selectedEntry.weekId}</div>
               </div>
@@ -5881,7 +5985,7 @@ export default function PdbTracker() {
                         updateNote(selectedEntry.pdbId, note);
                       }
                     }}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
                   />
                   {noteSavedIndicator === selectedEntry.pdbId && (
                     <motion.span
@@ -5904,9 +6008,9 @@ export default function PdbTracker() {
                   <span className="inline-flex items-center px-1 py-0 rounded text-[8px] font-bold bg-claude-accent/10 text-claude-accent border border-claude-accent/20 dark:bg-claude-accent/15 dark:border-claude-accent/20">AI</span>
                 </div>
                 {aiSummaries[selectedEntry.pdbId] ? (
-                  <div className="rounded-lg border border-claude-border bg-white dark:bg-claude-bg p-3">
+                  <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-3">
                     <div className="border-l-2 border-claude-accent pl-3">
-                      <p className="text-xs text-claude-text-secondary leading-relaxed">{aiSummaries[selectedEntry.pdbId]}</p>
+                      <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">{aiSummaries[selectedEntry.pdbId]}</p>
                     </div>
                     <div className="flex items-center justify-between mt-2.5">
                       <span className="text-[9px] text-claude-text-muted/60 italic">AI-generated summary for reference only</span>
@@ -5928,7 +6032,7 @@ export default function PdbTracker() {
                     </div>
                   </div>
                 ) : aiSummaryLoading === selectedEntry.pdbId ? (
-                  <div className="rounded-lg border border-claude-border bg-white dark:bg-claude-bg p-3">
+                  <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-3">
                     <div className="space-y-2">
                       <div className="shimmer-skeleton h-3 w-full rounded" />
                       <div className="shimmer-skeleton h-3 w-[85%] rounded" />
@@ -5953,7 +6057,7 @@ export default function PdbTracker() {
                 ) : (
                   <button
                     onClick={() => generateAiSummary(selectedEntry)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-claude-accent/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-claude-bg/40 dark:hover:bg-claude-accent/5 text-xs text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent transition-all duration-200"
+                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-claude-accent/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-[#1a1917]/60 dark:hover:bg-claude-accent/5 text-xs text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent transition-all duration-200"
                   >
                     <Sparkles className="h-3.5 w-3.5" />
                     Generate AI Summary
@@ -6016,7 +6120,7 @@ export default function PdbTracker() {
                     }
                   }}
                   data-bottom-sheet
-                  className="fixed left-0 right-0 bottom-0 z-50 bg-claude-surface rounded-t-2xl shadow-2xl no-print flex flex-col"
+                  className="fixed left-0 right-0 bottom-0 z-50 bg-claude-surface dark:bg-[#242220] rounded-t-2xl shadow-2xl no-print flex flex-col"
                   style={{ height: `${bottomSheetSnap * 100}vh`, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                   onClick={(e) => e.stopPropagation()}
                 >
@@ -6026,7 +6130,7 @@ export default function PdbTracker() {
                   </div>
 
                   {/* Detail Header */}
-                  <div className="flex-shrink-0 px-5 pb-3 border-b border-claude-border">
+                  <div className="flex-shrink-0 px-5 pb-3 border-b border-claude-border dark:border-[#3d3832]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
@@ -6087,10 +6191,10 @@ export default function PdbTracker() {
                 animate={{ x: 0 }}
                 exit={{ x: 420 }}
                 transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-claude-surface border-l border-claude-border flex flex-col shadow-2xl no-print"
+                className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-claude-surface dark:bg-[#242220] border-l border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print"
               >
                 {/* Detail Header */}
-                <div className="flex-shrink-0 p-4 border-b border-claude-border">
+                <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832]">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="font-mono text-lg font-bold text-claude-accent">{selectedEntry.pdbId}</span>
@@ -6279,15 +6383,15 @@ export default function PdbTracker() {
       return (
         <div className="flex flex-col h-full">
           {/* Compact Mode Switcher - Icons Only */}
-          <div className="p-2 border-b border-claude-border flex flex-col items-center gap-1">
+          <div className="p-2 border-b border-claude-border dark:border-[#3d3832] flex flex-col items-center gap-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
+                  onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
                   className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
                     mode === 'weekly'
-                      ? 'bg-claude-accent-light text-claude-accent shadow-sm'
-                      : 'text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary'
+                      ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                      : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
                   }`}
                 >
                   <Calendar className="h-4 w-4" />
@@ -6298,11 +6402,11 @@ export default function PdbTracker() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
-                  onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
+                  onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
                   className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
                     mode === 'evaluation'
-                      ? 'bg-claude-accent-light text-claude-accent shadow-sm'
-                      : 'text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary'
+                      ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                      : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
                   }`}
                 >
                   <Microscope className="h-4 w-4" />
@@ -6326,11 +6430,11 @@ export default function PdbTracker() {
                       <Tooltip key={snap.weekId}>
                         <TooltipTrigger asChild>
                           <button
-                            onClick={() => setSelectedWeekId(snap.weekId)}
+                            onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
                             className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all duration-150 text-[9px] font-mono ${
                               selectedWeekId === snap.weekId
-                                ? 'bg-claude-accent-light text-claude-accent shadow-sm'
-                                : 'bg-white dark:bg-claude-border-light border border-claude-border text-claude-text-muted hover:border-claude-accent/30 hover:text-claude-text-secondary'
+                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                                : 'bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] text-claude-text-muted dark:text-[#9b9590] hover:border-claude-accent/30 hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
                             }`}
                           >
                             <span className="font-semibold leading-none">W{snap.weekId.replace(/.*-W/, '')}</span>
@@ -6364,11 +6468,11 @@ export default function PdbTracker() {
                         <Tooltip key={ev.uniprotId}>
                           <TooltipTrigger asChild>
                             <button
-                              onClick={() => setSelectedEvalId(ev.uniprotId)}
+                              onClick={() => { setSelectedEvalId(ev.uniprotId); setMobileSidebarOpen(false); }}
                               className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all duration-150 text-[8px] font-mono ${
                                 selectedEvalId === ev.uniprotId
-                                  ? 'bg-claude-accent-light text-claude-accent shadow-sm'
-                                  : 'bg-white dark:bg-claude-border-light border border-claude-border text-claude-text-muted hover:border-claude-accent/30 hover:text-claude-text-secondary'
+                                  ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                                  : 'bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] text-claude-text-muted dark:text-[#9b9590] hover:border-claude-accent/30 hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
                               }`}
                             >
                               <span className="font-semibold leading-none text-[9px]">{ev.uniprotId.slice(0, 3)}</span>
@@ -6399,12 +6503,12 @@ export default function PdbTracker() {
           </ScrollArea>
 
           {/* Compact Mode Toggle */}
-          <div className="p-2 border-t border-claude-border">
+          <div className="p-2 border-t border-claude-border dark:border-[#3d3832]">
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
                   onClick={() => setSidebarCompact(false)}
-                  className="w-10 h-8 rounded-lg flex items-center justify-center text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary transition-colors duration-150"
+                  className="w-10 h-8 rounded-lg flex items-center justify-center text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
                 >
                   <PanelRightOpen className="h-3.5 w-3.5" />
                 </button>
@@ -6420,14 +6524,14 @@ export default function PdbTracker() {
     return (
       <>
         {/* Mode Switcher */}
-        <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border">
+        <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border dark:border-[#3d3832]">
           <div className="flex items-center justify-between mb-2">
-            <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light p-0.5 flex-1">
+            <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light dark:bg-[#2b2926] p-0.5 flex-1">
               <button
-                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
+                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                   mode === 'weekly'
-                    ? 'bg-white dark:bg-claude-border-light text-claude-text shadow-sm'
+                    ? 'bg-white dark:bg-[#2b2926] text-claude-text dark:text-[#e8e4dd] shadow-sm'
                     : 'text-claude-text-muted hover:text-claude-text-secondary'
                 }`}
               >
@@ -6435,10 +6539,10 @@ export default function PdbTracker() {
                 Weekly
               </button>
               <button
-                onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
+                onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                   mode === 'evaluation'
-                    ? 'bg-white dark:bg-claude-border-light text-claude-text shadow-sm'
+                    ? 'bg-white dark:bg-[#2b2926] text-claude-text dark:text-[#e8e4dd] shadow-sm'
                     : 'text-claude-text-muted hover:text-claude-text-secondary'
                 }`}
               >
@@ -6450,7 +6554,7 @@ export default function PdbTracker() {
               <TooltipTrigger asChild>
                 <button
                   onClick={() => setSidebarCompact(true)}
-                  className="ml-2 h-7 w-7 flex items-center justify-center rounded-md text-claude-text-muted hover:bg-claude-border-light hover:text-claude-text-secondary transition-colors duration-150"
+                  className="ml-2 h-7 w-7 flex items-center justify-center rounded-md text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
                 >
                   <PanelRightClose className="h-3.5 w-3.5" />
                 </button>
@@ -6482,7 +6586,7 @@ export default function PdbTracker() {
                     <span className="flex items-center gap-1.5">
                       <Bookmark className="h-3 w-3 text-claude-accent" />
                       Bookmarks
-                      <span className="text-[9px] bg-claude-accent-light text-claude-accent px-1.5 py-0.5 rounded-full font-mono">({bookmarks.size})</span>
+                      <span className="text-[9px] bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent px-1.5 py-0.5 rounded-full font-mono">({bookmarks.size})</span>
                     </span>
                     <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${bookmarksExpanded ? 'rotate-0' : '-rotate-90'}`} />
                   </CollapsibleTrigger>
@@ -6562,7 +6666,7 @@ export default function PdbTracker() {
                     <HoverCard key={snap.weekId} openDelay={500} closeDelay={100}>
                       <HoverCardTrigger asChild>
                         <button
-                          onClick={() => setSelectedWeekId(snap.weekId)}
+                          onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
                           onMouseMove={(e) => {
                             const rect = e.currentTarget.getBoundingClientRect();
                             const x = (e.clientX - rect.left) / rect.width - 0.5;
@@ -6574,15 +6678,15 @@ export default function PdbTracker() {
                           }}
                           className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] week-card-parallax ${
                             isSelected
-                              ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe breathe-glow-active week-card-active-border'
-                              : 'bg-claude-surface border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
+                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe breathe-glow-active week-card-active-border'
+                              : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                           }`}
                         >
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-semibold text-claude-text font-mono">{snap.weekId}</span>
-                            <span className="text-[10px] text-claude-text-muted">{snap.totalStructures} structures</span>
+                            <span className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] font-mono">{snap.weekId}</span>
+                            <span className="text-[10px] text-claude-text-muted dark:text-[#6b6560]">{snap.totalStructures} structures</span>
                           </div>
-                          <div className="text-[10px] text-claude-text-muted mb-2">
+                          <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mb-2">
                             {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
                           </div>
                           <div className="flex gap-1.5 flex-wrap mb-2">
@@ -6608,7 +6712,7 @@ export default function PdbTracker() {
                             )}
                           </div>
                           {/* Method ratio progress bar */}
-                          <div className="flex h-1.5 rounded-full overflow-hidden bg-claude-border-light">
+                          <div className="flex h-1.5 rounded-full overflow-hidden bg-claude-border-light dark:bg-[#3d3832]">
                             {snap.cryoemCount > 0 && (
                               <div className="h-full bg-claude-cryoem transition-all duration-300" style={{ width: `${cryoemPct}%` }} />
                             )}
@@ -6627,7 +6731,7 @@ export default function PdbTracker() {
                       <HoverCardContent
                         side="right"
                         align="start"
-                        className="w-64 p-3 space-y-2 bg-white dark:bg-claude-border-light border border-claude-border rounded-xl shadow-xl"
+                        className="w-64 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl"
                       >
                         {/* Header - Week date range */}
                         <div className="text-xs font-semibold text-claude-text">
@@ -6708,7 +6812,7 @@ export default function PdbTracker() {
                     <button
                       key={report.id}
                       onClick={() => openReport(report.id, report.title || 'Weekly Report')}
-                      className="w-full text-left p-2.5 rounded-lg border border-claude-border bg-claude-surface hover:bg-claude-border-light dark:hover:bg-claude-border-light transition-all duration-150 claude-hover flex items-start gap-2"
+                      className="w-full text-left p-2.5 rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover flex items-start gap-2"
                     >
                       <FileText className="h-3.5 w-3.5 text-claude-accent mt-0.5 flex-shrink-0" />
                       <div className="min-w-0">
@@ -6780,7 +6884,7 @@ export default function PdbTracker() {
                       setSearchHighlightIndex(-1);
                     }
                   }}
-                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border bg-white dark:bg-claude-bg dark:text-claude-text focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 claude-focus-ring"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 claude-focus-ring"
                 />
                 <SearchDropdown
                   isOpen={searchDropdownOpen}
@@ -6812,7 +6916,7 @@ export default function PdbTracker() {
                     <TooltipTrigger asChild>
                       <button
                         onClick={() => setShowComplexDialog(true)}
-                        className="h-5 w-5 flex items-center justify-center rounded text-claude-accent hover:bg-claude-accent-light transition-colors duration-150"
+                        className="h-5 w-5 flex items-center justify-center rounded text-claude-accent hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] transition-colors duration-150"
                       >
                         <Layers className="h-3 w-3" />
                       </button>
@@ -6837,8 +6941,8 @@ export default function PdbTracker() {
                         <div
                           className={`rounded-[10px] border transition-all duration-200 overflow-hidden ${
                             isSelected
-                              ? 'bg-claude-accent-light/50 border-claude-accent/30 shadow-sm'
-                              : 'bg-claude-surface border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                              ? 'bg-claude-accent-light/50 dark:bg-[#3d2a22]/60 border-claude-accent/30 shadow-sm'
+                              : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540]'
                           }`}
                         >
                           <button
@@ -6857,16 +6961,16 @@ export default function PdbTracker() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1">
                                   <Layers className="h-3 w-3 text-claude-accent flex-shrink-0" />
-                                  <span className="text-[11px] font-semibold text-claude-text truncate">{group.name}</span>
+                                  <span className="text-[11px] font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{group.name}</span>
                                 </div>
-                                <div className="text-[10px] text-claude-text-muted mt-0.5">
+                                <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mt-0.5">
                                   {group.uniprotIds.length} UniProt IDs · {totalPdbs} PDB · {totalBlasts} BLAST
                                 </div>
                               </div>
                               <div className="flex items-center gap-0.5 flex-shrink-0">
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setExpandedComplexId(isExpanded ? null : group.id); }}
-                                  className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light transition-colors duration-150"
+                                  className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
                                 >
                                   <ChevronDown className={`h-3 w-3 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                                 </button>
@@ -6881,7 +6985,7 @@ export default function PdbTracker() {
                           </button>
                           {/* Expanded sub-entries */}
                           {isExpanded && (
-                            <div className="px-2 pb-2 space-y-1 border-t border-claude-border/50">
+                            <div className="px-2 pb-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50">
                               {group.uniprotIds.map(uid => {
                                 const subEv = evaluations.find(e => e.uniprotId === uid);
                                 const subScore = subEv ? getAvgScore(subEv.scores) : null;
@@ -6899,7 +7003,7 @@ export default function PdbTracker() {
                                     <span className="font-mono text-[10px] font-semibold text-claude-accent">{uid}</span>
                                     {subEv && (
                                       <>
-                                        <span className="text-[9px] text-claude-text-muted truncate flex-1">{subEv.proteinName || subEv.entryName}</span>
+                                        <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv.proteinName || subEv.entryName}</span>
                                         {subScore !== null && (
                                           <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
                                             {subScore.toFixed(1)}
@@ -6920,7 +7024,7 @@ export default function PdbTracker() {
                     );
                   })
                 ) : (
-                  <div className="text-[10px] text-claude-text-muted/60 text-center py-1.5">
+                  <div className="text-[10px] text-claude-text-muted/60 dark:text-[#9b9590] text-center py-1.5">
                     Click + to create a complex group
                   </div>
                 )}
@@ -6954,11 +7058,11 @@ export default function PdbTracker() {
                   return (
                     <button
                       key={ev.uniprotId}
-                      onClick={() => setSelectedEvalId(ev.uniprotId)}
+                      onClick={() => { setSelectedEvalId(ev.uniprotId); setMobileSidebarOpen(false); }}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                         selectedEvalId === ev.uniprotId
-                          ? 'bg-claude-accent-light border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
-                          : 'bg-claude-surface border-claude-border hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
+                          ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
+                          : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
@@ -6970,10 +7074,10 @@ export default function PdbTracker() {
                           {avgScore.toFixed(1)}
                         </span>
                       </div>
-                      <div className="text-[11px] text-claude-text-secondary line-clamp-1 leading-tight">
+                      <div className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight">
                         {ev.proteinName || ev.entryName}
                       </div>
-                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted">
+                      <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
                         {ev.coverage != null && <span>{ev.coverage.toFixed(1)}% coverage</span>}
                         {ev._count && (
                           <>
@@ -7005,8 +7109,8 @@ export default function PdbTracker() {
 
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col">
-        <div className="px-4 pt-3 border-b border-claude-border">
-          <TabsList className="w-full h-8 bg-claude-border-light p-0.5 relative">
+        <div className="px-4 pt-3 border-b border-claude-border dark:border-[#3d3832]">
+          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative">
             {previewTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
@@ -7055,7 +7159,7 @@ export default function PdbTracker() {
             ) : mode === 'evaluation' && selectedEval ? (
               <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Info className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-xs">Select an item to view summary</p>
               </div>
@@ -7071,7 +7175,7 @@ export default function PdbTracker() {
                 highlightedEntry={highlightedEntry}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Clock className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-xs">Select a week to view timeline</p>
               </div>
@@ -7085,7 +7189,7 @@ export default function PdbTracker() {
                 loading={heatmapLoading}
               />
             ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
                 <p className="text-xs">Heatmap available in weekly mode</p>
               </div>
@@ -7098,7 +7202,7 @@ export default function PdbTracker() {
                   <button
                     key={report.id}
                     onClick={() => openReport(report.id, report.title || 'Weekly Report')}
-                    className="w-full text-left p-3 rounded-[10px] border border-claude-border bg-claude-surface hover:bg-claude-border-light dark:hover:bg-claude-border-light transition-all duration-150 claude-hover"
+                    className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
                   >
                     <div className="flex items-center gap-2 mb-1">
                       <FileText className="h-3.5 w-3.5 text-claude-accent" />
@@ -7163,7 +7267,7 @@ function ClaudeChartTooltip({ active, payload, label, isDark }: {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s, p) => s + p.value, 0);
   return (
-    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}>
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}>
       {label && <div className={`font-semibold mb-1 text-[11px] text-claude-text`}>{label}</div>}
       {payload.map((p, i) => {
         const pct = total > 0 ? ((p.value / total) * 100).toFixed(1) : '0';
@@ -7187,7 +7291,7 @@ function ClaudeTrendTooltip({ active, payload, label, isDark }: {
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}>
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}>
       <div className={`font-semibold mb-0.5 text-[11px] text-claude-text`}>{label}</div>
       {payload.map((p, i) => (
         <div key={i} className="flex items-center gap-2 py-0.5">
@@ -7207,7 +7311,7 @@ function ClaudeResTooltip({ active, payload, isDark }: {
   const p = payload[0];
   const range = p.payload?.range || '';
   return (
-    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}>
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}>
       <div className={`font-semibold mb-0.5 text-[11px] text-claude-text`}>{range}</div>
       <div className="flex items-center gap-2 py-0.5">
         <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: p.payload?.color || '#7c5cbf' }} />
@@ -7234,7 +7338,7 @@ function ClaudeScatterTooltip({ active, payload, isDark }: {
   const methodLabel = d.method ? getMethodLabel(d.method) : '';
   const methodColor = d.method ? (METHOD_COLORS[methodLabel] || METHOD_COLORS['Other']) : METHOD_COLORS['Other'];
   return (
-    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}>
+    <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}>
       <div className="flex items-center gap-2 mb-1">
         <span className={`font-mono font-semibold text-[11px] text-claude-accent`}>{d.pdbId}</span>
         {methodLabel && (
@@ -7410,19 +7514,19 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="p-3 rounded-lg bg-claude-border-light/50 claude-card-shadow">
+        <div className="p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#2b2926] claude-card-shadow">
           <div className="text-lg font-semibold text-claude-text"><AnimatedNumber value={snapshot.totalStructures} /></div>
           <div className="text-[10px] text-claude-text-muted">Total Structures</div>
         </div>
-        <div className="p-3 rounded-lg bg-claude-cryoem-bg/50 claude-card-shadow">
+        <div className="p-3 rounded-lg bg-claude-cryoem-bg/50 dark:bg-[#1a2e2e] claude-card-shadow">
           <div className="text-lg font-semibold text-claude-cryoem"><AnimatedNumber value={snapshot.cryoemCount} /></div>
           <div className="text-[10px] text-claude-cryoem/70">Cryo-EM</div>
         </div>
-        <div className="p-3 rounded-lg bg-claude-xray-bg/50 claude-card-shadow">
+        <div className="p-3 rounded-lg bg-claude-xray-bg/50 dark:bg-[#28203a] claude-card-shadow">
           <div className="text-lg font-semibold text-claude-xray"><AnimatedNumber value={snapshot.xrayCount} /></div>
           <div className="text-[10px] text-claude-xray/70">X-ray</div>
         </div>
-        <div className="p-3 rounded-lg bg-claude-nmr-bg/50 claude-card-shadow">
+        <div className="p-3 rounded-lg bg-claude-nmr-bg/50 dark:bg-[#302818] claude-card-shadow">
           <div className="text-lg font-semibold text-claude-nmr"><AnimatedNumber value={snapshot.nmrCount} /></div>
           <div className="text-[10px] text-claude-nmr/70">NMR</div>
         </div>
@@ -7430,7 +7534,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 1: Method Distribution Donut Chart ─── */}
       {methodPieData.length > 0 && (
-        <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Method Distribution</h4>
           <div className="flex items-center gap-3">
             <div className="w-[120px] h-[120px] flex-shrink-0">
@@ -7476,7 +7580,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 2: Resolution Distribution Bar Chart ─── */}
       {resolutionBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution Distribution</h4>
           <ResponsiveContainer width="100%" height={120}>
             <BarChart data={resolutionBarData} layout="vertical" margin={{ top: 0, right: 20, bottom: 0, left: 0 }}>
@@ -7496,13 +7600,13 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
       {/* Average Resolution */}
       <div className="grid grid-cols-2 gap-2">
         {snapshot.cryoemAvgRes != null && (
-          <div className="p-3 rounded-lg bg-claude-cryoem-bg/30 dark:bg-claude-bg/50">
+          <div className="p-3 rounded-lg bg-claude-cryoem-bg/30 dark:bg-[#1a2e2e]/50">
             <div className="text-[10px] text-claude-cryoem/70 mb-0.5">Cryo-EM Avg Res</div>
             <div className="text-sm font-mono font-semibold text-claude-cryoem">{snapshot.cryoemAvgRes.toFixed(2)}Å</div>
           </div>
         )}
         {snapshot.xrayAvgRes != null && (
-          <div className="p-3 rounded-lg bg-claude-xray-bg/30 dark:bg-claude-bg/50">
+          <div className="p-3 rounded-lg bg-claude-xray-bg/30 dark:bg-[#28203a]/50">
             <div className="text-[10px] text-claude-xray/70 mb-0.5">X-ray Avg Res</div>
             <div className="text-sm font-mono font-semibold text-claude-xray">{snapshot.xrayAvgRes.toFixed(2)}Å</div>
           </div>
@@ -7511,7 +7615,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 5: Organism Distribution Horizontal Bar Chart ─── */}
       {organismBarData.length > 0 && (
-        <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Top Organisms</h4>
           <ResponsiveContainer width="100%" height={130}>
             <BarChart data={organismBarData} layout="vertical" margin={{ top: 0, right: 30, bottom: 0, left: 0 }}>
@@ -7521,7 +7625,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
                 if (!active || !payload?.length) return null;
                 const d = payload[0].payload;
                 return (
-                  <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}>
+                  <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}>
                     <div className={`font-semibold mb-0.5 text-[11px] text-claude-text`}>{d.name}</div>
                     <div className="flex items-center gap-2 py-0.5">
                       <span className="text-claude-text-secondary">Count</span>
@@ -7543,7 +7647,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 3: Impact Factor Tier Distribution ─── */}
       {ifTierBarData.length > 0 && ifTierBarData.some(d => d.count > 0) && (
-        <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Impact Factor Tiers</h4>
           <ResponsiveContainer width="100%" height={100}>
             <BarChart data={ifTierBarData} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
@@ -7563,7 +7667,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 4: Weekly Trends Mini Area Chart ─── */}
       {weeklyTrendData.length > 1 && (
-        <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Weekly Trends</h4>
           <ResponsiveContainer width="100%" height={100}>
             <AreaChart data={weeklyTrendData} margin={{ top: 2, right: 10, bottom: 0, left: 0 }}>
@@ -7599,7 +7703,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
 
       {/* ─── Chart 6: Resolution vs IF Scatter Plot ─── */}
       {scatterData.length > 0 && (
-        <div className="bg-claude-bg/50 rounded-[10px] p-3">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-[10px] p-3">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution vs Impact Factor</h4>
           <ResponsiveContainer width="100%" height={200}>
             <ScatterChart margin={{ top: 5, right: 10, bottom: 5, left: 0 }}>
@@ -7746,7 +7850,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
           <h4 className="text-xs font-semibold text-claude-text mb-2">Top Journals</h4>
           <div className="space-y-1.5">
             {topJournals.slice(0, 8).map((j: { name: string; count: number; if_?: number }, i: number) => (
-              <div key={i} className="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-claude-border-light/30">
+              <div key={i} className="flex items-center justify-between py-1.5 px-2.5 rounded-md bg-claude-border-light/30 dark:bg-[#2b2926]">
                 <span className="text-[11px] text-claude-text-secondary truncate mr-2">{j.name}</span>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {j.if_ != null && (
@@ -8009,7 +8113,7 @@ function WeeklyTimeline({
         {/* Method distribution mini bar */}
         {methodBarTotal > 0 && (
           <div className="space-y-1">
-            <div className="flex h-2 rounded-full overflow-hidden bg-claude-border-light dark:bg-claude-bg">
+            <div className="flex h-2 rounded-full overflow-hidden bg-claude-border-light dark:bg-[#1a1917]">
               {methodBarSegments.map((seg, i) => (
                 <div
                   key={`mbar-${i}`}
@@ -8053,7 +8157,7 @@ function WeeklyTimeline({
       </div>
 
       {/* SVG Timeline */}
-      <div className="rounded-[10px] border border-claude-border p-3 bg-claude-bg/30">
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] p-3 bg-claude-bg/30 dark:bg-[#1a1917]/50">
         <svg
           width={containerWidth - 24}
           height={svgHeight}
@@ -8180,7 +8284,7 @@ function WeeklyTimeline({
               style={{ overflow: 'visible', pointerEvents: 'none' }}
             >
               <div
-                className={`rounded-lg px-2.5 py-2 text-[10px] shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}
+                className={`rounded-lg px-2.5 py-2 text-[10px] shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}
                 style={{ whiteSpace: 'nowrap' }}
               >
                 <div className="flex items-center gap-1.5 mb-1">
@@ -8289,7 +8393,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
     <div className="px-3 sm:px-4 py-2">
       <div className="grid grid-cols-2 sm:flex gap-2 sm:gap-3">
         {/* Total Structures Card */}
-        <TiltCard className="flex-1 bg-claude-surface border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="400ms">
+        <TiltCard className="flex-1 bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="400ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Total Structures</div>
@@ -8319,7 +8423,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </TiltCard>
 
         {/* Avg Resolution Card */}
-        <TiltCard className="flex-1 bg-claude-surface border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="450ms">
+        <TiltCard className="flex-1 bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="450ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Resolution</div>
@@ -8337,7 +8441,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </TiltCard>
 
         {/* Cryo-EM % Card */}
-        <TiltCard className="flex-1 bg-claude-surface border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="500ms">
+        <TiltCard className="flex-1 bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="500ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Cryo-EM %</div>
@@ -8358,7 +8462,7 @@ function WeeklyStatCards({ entries, snapshots, selectedSnapshot }: { entries: Pd
         </TiltCard>
 
         {/* Top IF Card */}
-        <TiltCard className="flex-1 bg-claude-surface border border-claude-border rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="550ms">
+        <TiltCard className="flex-1 bg-claude-surface dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-[10px] p-3 claude-card-shadow animate-load-stat-card" animationDelay="550ms">
           <div className="flex items-start justify-between">
             <div>
               <div className="text-[10px] text-claude-text-muted uppercase tracking-wider">Top IF</div>
@@ -8532,7 +8636,7 @@ function ActivityHeatmap({
       </div>
 
       {/* Heatmap Grid */}
-      <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow overflow-x-auto">
+      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow overflow-x-auto">
         <div className="relative" style={{ minWidth: svgWidth }}>
           <svg
             width={svgWidth}
@@ -8615,7 +8719,7 @@ function ActivityHeatmap({
                 transform: 'translate(-50%, -100%)',
               }}
             >
-              <div className="bg-claude-border-light dark:bg-claude-bg text-white text-[10px] px-2 py-1 rounded-md shadow-lg whitespace-nowrap">
+              <div className="bg-claude-border-light dark:bg-[#242220] text-claude-text dark:text-[#e8e4dd] text-[10px] px-2 py-1 rounded-md shadow-lg whitespace-nowrap">
                 <span className="font-semibold">{hoveredCell.count} structure{hoveredCell.count !== 1 ? 's' : ''}</span>
                 <span className="opacity-70 ml-1">on {hoveredCell.date}</span>
               </div>
@@ -8662,7 +8766,7 @@ function ActivityHeatmap({
               return (
                 <div key={snap.weekId} className="flex items-center gap-2">
                   <span className="text-[9px] font-mono text-claude-text-muted w-10 flex-shrink-0">{snap.weekId.replace('W', ' W')}</span>
-                  <div className="flex-1 h-4 rounded-sm overflow-hidden bg-claude-border-light/30 dark:bg-claude-border-light">
+                  <div className="flex-1 h-4 rounded-sm overflow-hidden bg-claude-border-light/30 dark:bg-[#2b2926]">
                     <div
                       className="h-full rounded-sm transition-all duration-300"
                       style={{
@@ -8809,7 +8913,7 @@ function WeekComparisonView({
       </div>
 
       {/* Side-by-Side Method Donut Charts */}
-      <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+      <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
         <h4 className="text-xs font-semibold text-claude-text mb-2">Method Distribution</h4>
         <div className="flex items-center gap-1">
           {/* Week A Donut */}
@@ -8853,7 +8957,7 @@ function WeekComparisonView({
 
       {/* Grouped Bar Chart: Resolution Distribution */}
       {resDataB.some(d => d.weekA > 0 || d.weekB > 0) && (
-        <div className="bg-claude-bg/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
+        <div className="bg-claude-bg/50 dark:bg-[#1a1917]/50 rounded-lg p-3 claude-card-shadow chart-container chart-inner-shadow">
           <h4 className="text-xs font-semibold text-claude-text mb-2">Resolution Comparison</h4>
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={resDataB} margin={{ top: 0, right: 10, bottom: 0, left: 0 }}>
@@ -8863,7 +8967,7 @@ function WeekComparisonView({
               <RTooltip content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
                 return (
-                  <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-claude-border-light dark:border-[#4a4540] text-claude-text`}>
+                  <div className={`rounded-lg px-3 py-2 text-xs shadow-lg border bg-white dark:bg-[#2b2926] dark:border-[#4a4540] text-claude-text`}>
                     <div className={`font-semibold mb-1 text-[11px] text-claude-text`}>{label}</div>
                     {payload.map((p: any, i: number) => (
                       <div key={i} className="flex items-center gap-2 py-0.5">
@@ -8967,7 +9071,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
   return (
     <div className="p-3 space-y-3">
       {/* ── Evaluation Overview Hero Card ── */}
-      <div className="rounded-[10px] border border-claude-border bg-claude-surface p-3 space-y-3">
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-3">
         <div className="flex items-start gap-3">
           {/* Circular Coverage Indicator */}
           <div className="flex-shrink-0 relative">
@@ -9031,14 +9135,14 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
         {/* Bottom badges row */}
         <div className="flex items-center gap-2 flex-wrap">
           {evalData.sequenceLength && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-border-light/60 dark:bg-claude-border-light text-claude-text-secondary border border-claude-border/50">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-border-light/60 dark:bg-[#2b2926] text-claude-text-secondary dark:text-[#e8e4dd] border border-claude-border/50 dark:border-[#4a4540]">
               <span className="font-mono">{evalData.sequenceLength}</span> aa
             </span>
           )}
           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border" style={{ backgroundColor: coverageColor + '15', color: coverageColor, borderColor: coverageColor + '30' }}>
             {coverageLabel} coverage
           </span>
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-border-light/60 dark:bg-claude-border-light text-claude-text-muted border border-claude-border/50">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-claude-border-light/60 dark:bg-[#2b2926] text-claude-text-muted dark:text-[#9b9590] border border-claude-border/50 dark:border-[#4a4540]">
             <Clock className="h-2.5 w-2.5" />
             {formatDate(evalData.updatedAt)}
           </span>
@@ -9047,7 +9151,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
 
       {/* ── Score Breakdown Panel ── */}
       {Object.keys(scores).length > 0 && (
-        <div className="rounded-[10px] border border-claude-border bg-claude-surface p-3 space-y-2">
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold text-claude-text">Score Breakdown</h4>
             {overallScore !== null && (
@@ -9072,7 +9176,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
                     <span className="text-[11px] text-claude-text-secondary">{key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1')}</span>
                     <span className={`text-[11px] font-mono font-semibold ${textColor}`}>{score.toFixed(1)}</span>
                   </div>
-                  <div className="h-1.5 bg-claude-border-light dark:bg-claude-bg rounded-full overflow-hidden">
+                  <div className="h-1.5 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
@@ -9092,7 +9196,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
                 <span className="text-[11px] font-medium text-claude-text">Overall Score</span>
                 <span className="text-xs font-mono font-bold" style={{ color: getScoreColor(overallScore) }}>{overallScore.toFixed(1)}/10</span>
               </div>
-              <div className="h-2 bg-claude-border-light dark:bg-claude-bg rounded-full overflow-hidden mt-1">
+              <div className="h-2 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden mt-1">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={{ width: `${Math.min((overallScore / 10) * 100, 100)}%` }}
@@ -9127,14 +9231,14 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
 
       {/* ── Protein Sequence Coverage Bar ── */}
       {evalData.sequenceLength != null && evalData.sequenceLength > 0 && (
-        <div className="rounded-[10px] border border-claude-border bg-claude-surface p-3 space-y-2">
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
           <div className="flex items-center justify-between">
             <h4 className="text-xs font-semibold text-claude-text">Sequence Coverage</h4>
             <span className="text-[10px] font-mono font-medium" style={{ color: coverageColor }}>
               Coverage: {coveragePct.toFixed(0)}%
             </span>
           </div>
-          <div className="h-2 bg-claude-border-light dark:bg-claude-bg rounded-full overflow-hidden relative">
+          <div className="h-2 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden relative">
             {pdbStructures.length > 0 && pdbStructures.map((s, i) => {
               // Simulate coverage segments - spread structures across the protein
               const segmentWidth = Math.max(2, (coveragePct / pdbStructures.length));
@@ -9164,7 +9268,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
 
       {/* ── PDB Structures Grid ── */}
       {pdbStructures.length > 0 && (
-        <div className="rounded-[10px] border border-claude-border bg-claude-surface p-3 space-y-2">
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
           <h4 className="text-xs font-semibold text-claude-text">
             PDB Structures <span className="text-claude-text-muted font-normal">({pdbStructures.length})</span>
           </h4>
@@ -9178,7 +9282,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
                   href={`https://www.rcsb.org/structure/${s.pdbId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block p-2 rounded-lg border border-claude-border/60 bg-claude-border-light/20 dark:bg-claude-bg/40 hover:bg-claude-border-light/50 dark:hover:bg-claude-border-light transition-all duration-150 group"
+                  className="block p-2 rounded-lg border border-claude-border/60 bg-claude-border-light/20 dark:bg-[#1a1917]/60 hover:bg-claude-border-light/50 dark:hover:bg-[#2b2926] transition-all duration-150 group"
                 >
                   <div className="flex items-center gap-1.5 mb-1">
                     <span className="font-mono text-[11px] font-bold text-claude-accent group-hover:text-claude-accent-hover transition-colors">{s.pdbId}</span>
@@ -9205,7 +9309,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
 
       {/* ── BLAST Results Table ── */}
       {blastResults.length > 0 && (
-        <div className="rounded-[10px] border border-claude-border bg-claude-surface p-3 space-y-2">
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
           <h4 className="text-xs font-semibold text-claude-text">
             BLAST Homologs <span className="text-claude-text-muted font-normal">({blastResults.length})</span>
           </h4>
@@ -9246,7 +9350,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
                     </td>
                     <td className="px-2 py-1.5">
                       {br.identity != null ? (
-                        <span className={`font-mono font-medium ${br.identity > 90 ? 'text-green-600' : br.identity >= 70 ? 'text-amber-600' : 'text-red-500'}`}>
+                        <span className={`font-mono font-medium ${br.identity > 90 ? 'text-green-600 dark:text-green-400' : br.identity >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400'}`}>
                           {br.identity}%
                         </span>
                       ) : '—'}
@@ -9272,9 +9376,9 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
 
       {/* ── Recommendations ── */}
       {evalData.report && (
-        <div className="rounded-[10px] border border-claude-border bg-claude-surface p-3 space-y-1.5">
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-1.5">
           <h4 className="text-xs font-semibold text-claude-text">Recommendations</h4>
-          <div className="p-2.5 rounded-lg bg-claude-border-light/30 text-[11px] text-claude-text-secondary leading-relaxed line-clamp-4">
+          <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#2b2926] text-[11px] text-claude-text-secondary dark:text-[#9b9590] leading-relaxed line-clamp-4">
             {evalData.report
               .replace(/[#*_]/g, '')
               .split('\n')
