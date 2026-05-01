@@ -254,22 +254,28 @@ function useMagneticEffect<T extends HTMLElement>(strength: number = 0.3) {
 // ─── HeaderParticles Component ──────────────────────────────────────────────
 
 function HeaderParticles() {
+  // Deterministic particle positions using index-based formulas (no Math.random, no hydration mismatch)
   const particles = useMemo(() => {
     const count = 18;
+    // Simple hash-like function based on index
+    const h = (i: number, offset: number) => {
+      const v = Math.sin(i * 127.1 + offset * 311.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
     return Array.from({ length: count }, (_, i) => {
-      const size = 2 + Math.random() * 1;
-      const duration = 8 + Math.random() * 7;
-      const delay = Math.random() * -15;
-      const left = Math.random() * 100;
-      const top = Math.random() * 100;
-      const minOpacity = 0.05 + Math.random() * 0.08;
-      const maxOpacity = 0.2 + Math.random() * 0.2;
-      const dx1 = -20 + Math.random() * 40;
-      const dy1 = -20 + Math.random() * 40;
-      const dx2 = -20 + Math.random() * 40;
-      const dy2 = -20 + Math.random() * 40;
-      const dx3 = -20 + Math.random() * 40;
-      const dy3 = -20 + Math.random() * 40;
+      const size = 2 + h(i, 0) * 1;
+      const duration = 8 + h(i, 1) * 7;
+      const delay = h(i, 2) * -15;
+      const left = h(i, 3) * 100;
+      const top = h(i, 4) * 100;
+      const minOpacity = 0.05 + h(i, 5) * 0.08;
+      const maxOpacity = 0.2 + h(i, 6) * 0.2;
+      const dx1 = -20 + h(i, 7) * 40;
+      const dy1 = -20 + h(i, 8) * 40;
+      const dx2 = -20 + h(i, 9) * 40;
+      const dy2 = -20 + h(i, 10) * 40;
+      const dx3 = -20 + h(i, 11) * 40;
+      const dy3 = -20 + h(i, 12) * 40;
       // Alternate between accent and muted colors
       const color = i % 3 === 0 ? 'rgba(201, 100, 66, 0.15)' : i % 3 === 1 ? 'rgba(155, 149, 144, 0.12)' : 'rgba(201, 100, 66, 0.1)';
       return { size, duration, delay, left, top, minOpacity, maxOpacity, dx1, dy1, dx2, dy2, dx3, dy3, color, key: `hp-${i}` };
@@ -3659,7 +3665,7 @@ export default function PdbTracker() {
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar - visible when open on xl+ */}
           {sidebarOpen && (
-            <aside className={`hidden xl:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarCompact ? 56 : sidebarWidth }}>
+            <aside className={`hidden xl:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarCompact ? 180 : sidebarWidth }}>
               {/* Sidebar gradient mesh overlay */}
               <div className="sidebar-mesh-overlay" />
               {renderSidebar()}
@@ -6382,75 +6388,57 @@ export default function PdbTracker() {
     if (sidebarCompact) {
       return (
         <div className="flex flex-col h-full">
-          {/* Compact Mode Switcher - Icons Only */}
-          <div className="p-2 border-b border-claude-border dark:border-[#3d3832] flex flex-col items-center gap-1">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
-                    mode === 'weekly'
-                      ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                      : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
-                  }`}
-                >
-                  <Calendar className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Weekly Mode</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
-                  className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all duration-150 ${
-                    mode === 'evaluation'
-                      ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                      : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
-                  }`}
-                >
-                  <Microscope className="h-4 w-4" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Evaluation Mode</TooltipContent>
-            </Tooltip>
+          {/* Compact Mode Switcher - Small Tabs */}
+          <div className="px-2 pt-2 pb-1.5 border-b border-claude-border dark:border-[#3d3832]">
+            <div className="flex rounded-lg bg-claude-border-light dark:bg-[#2b2926] p-0.5">
+              <button
+                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition-all duration-150 ${
+                  mode === 'weekly'
+                    ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
+                    : 'text-claude-text-muted hover:text-claude-text-secondary'
+                }`}
+              >
+                <Calendar className="h-3 w-3" />
+                Weekly
+              </button>
+              <button
+                onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
+                className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition-all duration-150 ${
+                  mode === 'evaluation'
+                    ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
+                    : 'text-claude-text-muted hover:text-claude-text-secondary'
+                }`}
+              >
+                <Microscope className="h-3 w-3" />
+                Eval
+              </button>
+            </div>
           </div>
 
           {/* Compact Content */}
           <ScrollArea className="flex-1 sidebar-scroll">
-            <div className="p-2 flex flex-col items-center gap-1">
+            <div className="px-2 py-1.5 flex flex-col gap-1">
               {mode === 'weekly' ? (
                 <>
                   {loadingSnapshots ? (
                     [1,2,3,4].map(i => (
-                      <div key={i} className="w-10 h-10 rounded-lg shimmer-skeleton" />
+                      <div key={i} className="w-full h-9 rounded-lg shimmer-skeleton" />
                     ))
                   ) : (
                     snapshots.map(snap => (
-                      <Tooltip key={snap.weekId}>
-                        <TooltipTrigger asChild>
-                          <button
-                            onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
-                            className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all duration-150 text-[9px] font-mono ${
-                              selectedWeekId === snap.weekId
-                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                                : 'bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] text-claude-text-muted dark:text-[#9b9590] hover:border-claude-accent/30 hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
-                            }`}
-                          >
-                            <span className="font-semibold leading-none">W{snap.weekId.replace(/.*-W/, '')}</span>
-                            <span className="text-[8px] mt-0.5 opacity-70">{snap.totalStructures}</span>
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="right" className="text-xs">
-                          <div className="font-semibold">{snap.weekId}</div>
-                          <div className="text-[10px] text-claude-text-muted">{snap.totalStructures} structures</div>
-                          <div className="text-[10px] text-claude-text-muted">{formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}</div>
-                          <div className="flex gap-1 mt-1">
-                            {snap.cryoemCount > 0 && <span className="text-claude-cryoem text-[10px]">EM:{snap.cryoemCount}</span>}
-                            {snap.xrayCount > 0 && <span className="text-claude-xray text-[10px]">XR:{snap.xrayCount}</span>}
-                          </div>
-                        </TooltipContent>
-                      </Tooltip>
+                      <button
+                        key={snap.weekId}
+                        onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
+                        className={`w-full text-left px-2 py-1.5 rounded-md flex items-center justify-between transition-all duration-150 ${
+                          selectedWeekId === snap.weekId
+                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                            : 'text-claude-text-muted dark:text-[#9b9590] hover:bg-claude-border-light dark:hover:bg-[#2b2926] hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
+                        }`}
+                      >
+                        <span className="font-mono text-[10px] font-semibold">W{snap.weekId.replace(/.*-W/, '')}</span>
+                        <span className="text-[9px] opacity-70">{snap.totalStructures}</span>
+                      </button>
                     ))
                   )}
                 </>
@@ -6458,42 +6446,26 @@ export default function PdbTracker() {
                 <>
                   {loadingEvals ? (
                     [1,2,3,4].map(i => (
-                      <div key={i} className="w-10 h-10 rounded-lg shimmer-skeleton" />
+                      <div key={i} className="w-full h-10 rounded-lg shimmer-skeleton" />
                     ))
                   ) : (
                     filteredEvals.map(ev => {
-                      const avgScore = getAvgScore(ev.scores);
-                      const scoreColor = getScoreColor(avgScore);
+                      const geneName = ev.geneNames || ev.proteinName || ev.entryName || '';
                       return (
-                        <Tooltip key={ev.uniprotId}>
-                          <TooltipTrigger asChild>
-                            <button
-                              onClick={() => { setSelectedEvalId(ev.uniprotId); setMobileSidebarOpen(false); }}
-                              className={`w-10 h-10 rounded-lg flex flex-col items-center justify-center transition-all duration-150 text-[8px] font-mono ${
-                                selectedEvalId === ev.uniprotId
-                                  ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                                  : 'bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] text-claude-text-muted dark:text-[#9b9590] hover:border-claude-accent/30 hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
-                              }`}
-                            >
-                              <span className="font-semibold leading-none text-[9px]">{ev.uniprotId.slice(0, 3)}</span>
-                              <span
-                                className="text-[8px] font-bold mt-0.5"
-                                style={{ color: scoreColor }}
-                              >
-                                {avgScore.toFixed(0)}
-                              </span>
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent side="right" className="text-xs">
-                            <div className="font-semibold">{ev.uniprotId}</div>
-                            <div className="text-[10px] text-claude-text-secondary">{ev.proteinName || ev.entryName}</div>
-                            {ev._count && (
-                              <div className="text-[10px] text-claude-text-muted mt-0.5">
-                                {ev._count.pdbStructures} PDB · {ev._count.blastResults} BLAST
-                              </div>
-                            )}
-                          </TooltipContent>
-                        </Tooltip>
+                        <button
+                          key={ev.uniprotId}
+                          onClick={() => { setSelectedEvalId(ev.uniprotId); setMobileSidebarOpen(false); }}
+                          className={`w-full text-left px-2 py-1.5 rounded-md transition-all duration-150 ${
+                            selectedEvalId === ev.uniprotId
+                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                              : 'text-claude-text-muted dark:text-[#9b9590] hover:bg-claude-border-light dark:hover:bg-[#2b2926] hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
+                          }`}
+                        >
+                          <div className="font-mono text-[10px] font-semibold leading-tight text-claude-accent">{ev.uniprotId}</div>
+                          {geneName && (
+                            <div className="text-[9px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight mt-0.5">{geneName}</div>
+                          )}
+                        </button>
                       );
                     })
                   )}
@@ -6503,18 +6475,14 @@ export default function PdbTracker() {
           </ScrollArea>
 
           {/* Compact Mode Toggle */}
-          <div className="p-2 border-t border-claude-border dark:border-[#3d3832]">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setSidebarCompact(false)}
-                  className="w-10 h-8 rounded-lg flex items-center justify-center text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
-                >
-                  <PanelRightOpen className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Expand sidebar</TooltipContent>
-            </Tooltip>
+          <div className="px-2 py-1.5 border-t border-claude-border dark:border-[#3d3832]">
+            <button
+              onClick={() => setSidebarCompact(false)}
+              className="w-full h-7 rounded-md flex items-center justify-center gap-1 text-[10px] text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
+            >
+              <PanelRightOpen className="h-3 w-3" />
+              Expand
+            </button>
           </div>
         </div>
       );
@@ -6526,13 +6494,13 @@ export default function PdbTracker() {
         {/* Mode Switcher */}
         <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border dark:border-[#3d3832]">
           <div className="flex items-center justify-between mb-2">
-            <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light dark:bg-[#2b2926] p-0.5 flex-1">
+            <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
               <button
                 onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                   mode === 'weekly'
-                    ? 'bg-white dark:bg-[#2b2926] text-claude-text dark:text-[#e8e4dd] shadow-sm'
-                    : 'text-claude-text-muted hover:text-claude-text-secondary'
+                    ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
+                    : 'text-claude-text-muted hover:text-claude-text-secondary dark:hover:text-[#9b9590]'
                 }`}
               >
                 <Calendar className="h-3.5 w-3.5" />
@@ -6542,8 +6510,8 @@ export default function PdbTracker() {
                 onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                   mode === 'evaluation'
-                    ? 'bg-white dark:bg-[#2b2926] text-claude-text dark:text-[#e8e4dd] shadow-sm'
-                    : 'text-claude-text-muted hover:text-claude-text-secondary'
+                    ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
+                    : 'text-claude-text-muted hover:text-claude-text-secondary dark:hover:text-[#9b9590]'
                 }`}
               >
                 <Microscope className="h-3.5 w-3.5" />
@@ -7066,7 +7034,12 @@ export default function PdbTracker() {
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <span className="font-mono text-xs font-semibold text-claude-accent">{ev.uniprotId}</span>
+                        <div className="min-w-0 flex-1">
+                          <span className="font-mono text-xs font-semibold text-claude-accent">{ev.uniprotId}</span>
+                          {ev.geneNames && (
+                            <span className="ml-1.5 text-[10px] text-claude-text-muted dark:text-[#9b9590] font-normal">{ev.geneNames}</span>
+                          )}
+                        </div>
                         <span
                           className="flex-shrink-0 text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
                           style={{ color: scoreColor, backgroundColor: `${scoreColor}15` }}

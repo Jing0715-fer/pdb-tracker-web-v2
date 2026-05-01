@@ -2765,3 +2765,26 @@ Stage Summary:
 3. Add virtual scrolling for performance
 4. Add more responsive breakpoints for very small phones
 5. Test on real devices for mobile responsiveness
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix sidebar compact mode, dark mode tab visibility, and HeaderParticles hydration mismatch
+
+Work Log:
+- Redesigned compact sidebar mode: changed width from 56px to 180px for better readability
+- Compact sidebar now uses small tab switcher (Weekly/Eval) instead of icon-only buttons
+- Compact evaluation mode now shows full UniProt ID (not truncated to 3 chars) + gene name (geneNames field), no score
+- Compact weekly mode shows week number + structure count in a clean row format
+- Fixed dark mode sidebar tab visibility: active tab now uses `dark:bg-[#3d3832]` against `dark:bg-[#1a1917]` container (previously both were #2b2926)
+- Fixed HeaderParticles hydration mismatch: replaced `Math.random()` with deterministic hash-based pseudo-random function `Math.sin(i * 127.1 + offset * 311.7) * 43758.5453`
+- Added geneNames display to full sidebar evaluation cards (shown next to UniProt ID)
+- Compact mode toggle button now shows text "Expand" alongside icon for clarity
+- QA verified: compact mode shows full UniProt IDs and gene names, dark mode tab clearly visible, no lint errors
+
+Stage Summary:
+- Compact sidebar redesigned with 180px width, full UniProt IDs, gene names, no scores
+- Dark mode tab visibility fixed with proper contrast between active tab and container
+- HeaderParticles hydration mismatch resolved with deterministic math
+- geneNames field now displayed in both compact and full sidebar modes
+- All changes pass lint, dev server compiling successfully
