@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Suspense, useSyncExternalStore } from 'react';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -128,7 +128,41 @@ import {
   CommandShortcut,
 } from '@/components/ui/command';
 
-const MoleculeViewer = dynamic(() => import('./molecule-viewer'), { ssr: false });
+const MoleculeViewer = dynamic(() => import('./molecule-viewer').catch(() => {
+  // Return a fallback component when the module fails to load
+  return { default: function MoleculeViewerFallback({ pdbId }: { pdbId: string }) {
+    return (
+      <div className="relative w-full h-[300px] rounded-lg overflow-hidden bg-[#f5f0eb] dark:bg-[#3d3832] border border-claude-border dark:border-[#4a4540] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-2 text-center px-6">
+          <svg width="48" height="48" viewBox="0 0 64 64" fill="none" className="opacity-60">
+            <circle cx="32" cy="32" r="8" fill="#d4784f" opacity="0.9" />
+            <line x1="38" y1="27" x2="50" y2="16" stroke="#c9872e" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="52" cy="14" r="5" fill="#c9872e" opacity="0.7" />
+            <line x1="38" y1="37" x2="52" y2="46" stroke="#2d8f8f" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="54" cy="48" r="5" fill="#2d8f8f" opacity="0.7" />
+            <line x1="24" y1="32" x2="12" y2="32" stroke="#7c5cbf" strokeWidth="2" strokeLinecap="round" />
+            <circle cx="10" cy="32" r="5" fill="#7c5cbf" opacity="0.7" />
+          </svg>
+          <span className="text-[12px] font-medium text-claude-text dark:text-[#e8e4dd]">3D viewer unavailable</span>
+          <span className="text-[10px] text-claude-text-muted dark:text-[#9b9590]">Module failed to load</span>
+          <a href={`https://www.rcsb.org/structure/${pdbId}`} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-claude-border-light dark:bg-[#2b2926] hover:bg-claude-border dark:hover:bg-[#3d3832] border border-claude-border dark:border-[#4a4540] text-[11px] font-medium text-claude-accent transition-colors duration-200">
+            View on RCSB PDB
+          </a>
+        </div>
+      </div>
+    );
+  }};
+}), { 
+  ssr: false,
+  loading: () => (
+    <div className="relative w-full h-[300px] rounded-lg overflow-hidden bg-[#f5f0eb] dark:bg-[#3d3832] border border-claude-border dark:border-[#4a4540] flex items-center justify-center">
+      <div className="flex flex-col items-center gap-2">
+        <div className="h-6 w-6 border-2 border-claude-accent border-t-transparent rounded-full animate-spin" />
+        <span className="text-[11px] text-claude-text-muted dark:text-[#9b9590]">Loading 3D viewer...</span>
+      </div>
+    </div>
+  )
+});
 
 // ─── useAnimatedValue Hook ─────────────────────────────────────────────────
 
@@ -254,6 +288,13 @@ function useMagneticEffect<T extends HTMLElement>(strength: number = 0.3) {
 // ─── HeaderParticles Component ──────────────────────────────────────────────
 
 function HeaderParticles() {
+  // Only render on client to avoid hydration mismatch with animated CSS particles
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+
   // Static particle definitions to avoid SSR/CSR hydration mismatch (no Math.random, no Math.sin)
   const particles = useMemo(() => {
     const defs = [
@@ -284,6 +325,8 @@ function HeaderParticles() {
       key: `hp-${i}`
     }));
   }, []);
+
+  if (!mounted) return null;
 
   return (
     <>
@@ -1399,7 +1442,7 @@ function TableSkeleton({ rows = 10, cols = 8 }: { rows?: number; cols?: number }
   return (
     <>
       {Array.from({ length: rows }).map((_, i) => (
-        <tr key={`skel-${i}`} className="border-b border-claude-border-light">
+        <tr key={`skel-${i}`} className="border-b border-claude-border-light dark:border-[#3d3832]">
           {Array.from({ length: cols }).map((_, j) => (
             <td key={`skel-${i}-${j}`} className="px-3 py-2.5">
               <div className={`h-3 rounded-md shimmer-skeleton ${colWidths[j % colWidths.length]}`} />
@@ -1933,12 +1976,13 @@ export default function PdbTracker() {
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   // ── Desktop Sidebar Toggle State ──
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
 
-  // Initialize sidebarOpen based on viewport width on mount (hydration-safe)
+  // Initialize sidebarOpen and previewOpen based on viewport width on mount (hydration-safe)
   useEffect(() => {
-    if (window.innerWidth < 1280) {
-      setSidebarOpen(false);
+    if (window.innerWidth >= 1280) {
+      setSidebarOpen(true);
+      setPreviewOpen(true);
     }
     // Load persisted preferences from localStorage
     try {
@@ -1959,11 +2003,12 @@ export default function PdbTracker() {
     } catch { /* ignore */ }
   }, []);
 
-  // Auto-close sidebar when resizing below xl breakpoint
+  // Auto-close sidebar/preview when resizing below xl breakpoint
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 1280) {
         setSidebarOpen(false);
+        setPreviewOpen(false);
         setMobileSidebarOpen(false);
       }
     };
@@ -3437,7 +3482,7 @@ export default function PdbTracker() {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="flex flex-col min-h-full w-full overflow-hidden">
+      <div className="flex flex-col min-h-full w-full overflow-hidden" suppressHydrationWarning>
 
         {/* ═══════════ HEADER BAR ═══════════ */}
         <header className={`flex-shrink-0 h-[48px] sm:h-[52px] flex items-center px-2 sm:px-4 bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832] relative z-20 no-print ${hasLoaded ? 'animate-load-header' : 'opacity-0'}`}>
@@ -3633,7 +3678,7 @@ export default function PdbTracker() {
           {/* Mobile/tablet hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="xl:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5 text-claude-text-secondary" />
@@ -3642,7 +3687,7 @@ export default function PdbTracker() {
           {/* Mobile/tablet preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 xl:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="ml-1 lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Open preview panel"
           >
             <BarChart3 className="h-5 w-5 text-claude-text-secondary" />
@@ -3655,7 +3700,7 @@ export default function PdbTracker() {
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar - visible when open on xl+ */}
           {sidebarOpen && (
-            <aside className={`hidden xl:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
+            <aside className={`hidden lg:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
               {/* Sidebar gradient mesh overlay */}
               <div className="sidebar-mesh-overlay" />
               {renderSidebar()}
@@ -3669,7 +3714,7 @@ export default function PdbTracker() {
 
           {/* Desktop sidebar collapsed strip - when sidebarOpen is false on xl+ */}
           {!sidebarOpen && (
-            <div className="hidden xl:flex w-12 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-2 no-print sidebar-gradient relative">
+            <div className="hidden lg:flex w-12 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-2 no-print sidebar-gradient relative">
               <div className="sidebar-mesh-overlay" />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3728,7 +3773,7 @@ export default function PdbTracker() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm xl:hidden"
+                  className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden"
                   onClick={() => setMobileSidebarOpen(false)}
                 />
                 <motion.div
@@ -3737,7 +3782,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: -280 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-claude-surface dark:bg-[#242220] border-r border-claude-border dark:border-[#3d3832] flex flex-col xl:hidden shadow-2xl sidebar-gradient relative"
+                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-claude-surface dark:bg-[#242220] border-r border-claude-border dark:border-[#3d3832] flex flex-col lg:hidden shadow-2xl sidebar-gradient relative"
                 >
                   <div className="sidebar-mesh-overlay" />
                   {/* Close button header */}
@@ -4873,12 +4918,13 @@ export default function PdbTracker() {
                                 transition={{ duration: 0.15, delay: Math.min(idx, 10) * 0.02 }}
                                 ref={focusedRowIndex === idx ? focusedRowRef : undefined}
                                 data-row-idx={idx}
-                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-claude-accent/5' : ''} ${pulsingRowId === entry.pdbId ? 'row-pulse' : ''} ${detailPanelOpen && selectedEntry?.pdbId === entry.pdbId ? 'row-selected' : ''} ${diffMode && diffResult.newIds.has(entry.pdbId) ? 'border-l-[3px] border-l-green-500' : ''} ${focusedRowIndex === idx ? 'keyboard-focused-row' : ''}`}
+                                className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light dark:border-[#3d3832] hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-claude-accent/5' : ''} ${pulsingRowId === entry.pdbId ? 'row-pulse' : ''} ${detailPanelOpen && selectedEntry?.pdbId === entry.pdbId ? 'row-selected' : ''} ${diffMode && diffResult.newIds.has(entry.pdbId) ? 'border-l-[3px] border-l-green-500' : ''} ${focusedRowIndex === idx ? 'keyboard-focused-row' : ''}`}
                                 style={focusedRowIndex === idx ? { outline: 'none', borderTop: '2px solid var(--claude-accent, #c96442)', borderBottom: '2px solid var(--claude-accent, #c96442)', backgroundColor: 'rgba(201, 100, 66, 0.06)', transition: 'border-color 150ms ease, background-color 150ms ease' } as React.CSSProperties : undefined}
                                 onClick={() => {
                                   setSelectedEntry(entry);
                                   setDetailPanelOpen(true);
                                   setPreviewOpen(true);
+                                  setPreviewTab('details');
                                   if (isMobile) setBottomSheetSnap(0.5);
                                   setFocusedRowIndex(idx);
                                   // Trigger pulse animation
@@ -4966,7 +5012,7 @@ export default function PdbTracker() {
                                     <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                   </a>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                <TooltipContent side="right" className="p-0 border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                   <PdbTooltipContent entry={entry} />
                                 </TooltipContent>
                               </Tooltip>
@@ -5009,7 +5055,7 @@ export default function PdbTracker() {
                                   </span>
                                 </TooltipTrigger>
                                 {entry.organisms && (
-                                  <TooltipContent side="top" className="max-w-64 bg-[#2b2926] text-white text-[11px] rounded px-2 py-1 border-0 shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                  <TooltipContent side="top" className="max-w-64 bg-claude-surface dark:bg-[#2b2926] text-claude-text dark:text-white text-[11px] rounded px-2 py-1 border border-claude-border dark:border-0 shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                     <p className="text-xs">{entry.organisms.replace(/\|/g, ', ')}</p>
                                   </TooltipContent>
                                 )}
@@ -5037,7 +5083,7 @@ export default function PdbTracker() {
                                         {lig}
                                       </span>
                                     </PopoverTrigger>
-                                    <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
+                                    <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
                                       {ligandCache[lig] ? (
                                         <LigandTooltipContent ligand={ligandCache[lig]} />
                                       ) : (
@@ -5071,7 +5117,7 @@ export default function PdbTracker() {
                             <ContextMenuContent className="w-52 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
                               <ContextMenuItem
                                 className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
+                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('details'); }}
                               >
                                 <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
                                 View Details
@@ -5249,7 +5295,7 @@ export default function PdbTracker() {
                                       <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                     </a>
                                   </TooltipTrigger>
-                                  <TooltipContent side="right" className="p-0 border border-claude-border shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                  <TooltipContent side="right" className="p-0 border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                     {structResult ? (
                                       <PdbTooltipContent entry={structResult} />
                                     ) : blastResult ? (
@@ -5342,7 +5388,7 @@ export default function PdbTracker() {
                                             {lig}
                                           </span>
                                         </PopoverTrigger>
-                                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
+                                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
                                           {ligandCache[lig] ? (
                                             <LigandTooltipContent ligand={ligandCache[lig]} />
                                           ) : (
@@ -5418,7 +5464,7 @@ export default function PdbTracker() {
                 animate={{ width: previewWidth, opacity: hasLoaded ? 1 : 0 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, delay: hasLoaded ? 0 : 0.3 }}
-                className={`hidden xl:flex flex-col flex-shrink-0 bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
+                className={`hidden lg:flex flex-col flex-shrink-0 bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
               >
                 {/* Close button */}
                 <button
@@ -5433,7 +5479,7 @@ export default function PdbTracker() {
                   onMouseDown={handlePreviewMouseDown}
                   className={`absolute top-0 left-0 bottom-0 w-1 hover:bg-claude-accent/30 transition-colors duration-150 cursor-col-resize z-10 ${resizingPreview ? 'bg-claude-accent/50' : ''}`}
                 />
-                <div className="flex-1 overflow-hidden min-h-0">
+                <div className="flex-1 overflow-y-auto min-h-0 preview-scroll">
                   {renderPreviewPanel()}
                 </div>
               </motion.aside>
@@ -5449,7 +5495,7 @@ export default function PdbTracker() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
-                  className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm xl:hidden"
+                  className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm lg:hidden"
                   onClick={() => setMobilePreviewOpen(false)}
                 />
                 <motion.aside
@@ -5457,7 +5503,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: 380 }}
                   transition={{ duration: 0.2 }}
-                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl border-l border-claude-border dark:border-[#3d3832] flex flex-col xl:hidden no-print glassmorphism-panel preview-inner-glow"
+                  className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl border-l border-claude-border dark:border-[#3d3832] flex flex-col lg:hidden no-print glassmorphism-panel preview-inner-glow"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border dark:border-[#3d3832]">
                     <span className="text-xs font-semibold text-claude-text">Details</span>
@@ -5812,7 +5858,7 @@ export default function PdbTracker() {
                     <span className={`text-2xl font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
                       {selectedEntry.resolution.toFixed(2)}Å
                     </span>
-                    <div className="flex-1 h-2.5 bg-claude-border-light rounded-full overflow-hidden">
+                    <div className="flex-1 h-2.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                       <div
                         className="h-full rounded-full transition-all duration-500"
                         style={{
@@ -5857,7 +5903,7 @@ export default function PdbTracker() {
                   <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Organisms</h3>
                   <div className="flex flex-wrap gap-1">
                     {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
-                      <span key={`org-${i}`} className="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-claude-border-light text-claude-text-secondary italic">
+                      <span key={`org-${i}`} className="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary italic">
                         {org.trim()}
                       </span>
                     ))}
@@ -5880,7 +5926,7 @@ export default function PdbTracker() {
                             {lig}
                           </span>
                         </PopoverTrigger>
-                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border shadow-lg">
+                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
                           {ligandCache[lig] ? (
                             <LigandTooltipContent ligand={ligandCache[lig]} />
                           ) : (
@@ -6952,9 +6998,10 @@ export default function PdbTracker() {
   function renderPreviewPanel() {
     const previewTabs = [
       { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
+      { value: 'details', icon: <Eye className="h-3 w-3 mr-1" />, label: 'Details' },
       { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
       { value: 'heatmap', icon: <Grid3x3 className="h-3 w-3 mr-1" />, label: 'Heatmap' },
-      { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Full Report' },
+      { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Report' },
     ];
 
     return (
@@ -7014,13 +7061,204 @@ export default function PdbTracker() {
                 <p className="text-xs">Select an item to view summary</p>
               </div>
             )
+          ) : previewTab === 'details' ? (
+            /* Details Tab - show selected entry info */
+            selectedEntry ? (
+              <div className="p-4 space-y-4">
+                {/* Header */}
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
+                    {getMethodLabel(selectedEntry.method)}
+                  </span>
+                </div>
+                {/* Tags */}
+                {(() => {
+                  const tags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
+                  return tags.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {tags.map((tag, i) => <TagPill key={`pv-tag-${i}-${tag.label}`} tag={tag} size="xs" />)}
+                    </div>
+                  ) : null;
+                })()}
+                {/* 3D Viewer */}
+                <MoleculeViewer pdbId={selectedEntry.pdbId} />
+                {/* Title */}
+                <div>
+                  <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h4>
+                  <p className="text-xs text-claude-text leading-relaxed">{selectedEntry.title}</p>
+                </div>
+                {/* Quality Score */}
+                {(() => {
+                  const qs = computeQualityScore(selectedEntry);
+                  return (
+                    <div>
+                      <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Quality Score</h4>
+                      <div className="flex items-center gap-3 p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                        <div className="relative flex-shrink-0">
+                          <svg width="64" height="64" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
+                            <circle cx="32" cy="32" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 - (qs.total / 100) * 2 * Math.PI * 28} transform="rotate(-90 32 32)" className="transition-all duration-700" />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-sm font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="text-xs font-semibold" style={{ color: qs.color }}>{qs.label}</div>
+                          <div className="text-[9px] text-claude-text-muted">
+                            Res: {qs.resolutionScore}/35 · Method: {qs.methodScore}/25 · IF: {qs.ifScore}/30
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+                {/* Resolution */}
+                {selectedEntry.resolution != null && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Resolution</h4>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-lg font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
+                        {selectedEntry.resolution.toFixed(2)}Å
+                      </span>
+                      <div className="flex-1 h-2 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all duration-500"
+                          style={{
+                            width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
+                            backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Journal */}
+                {selectedEntry.journal && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Journal</h4>
+                    <div className="flex items-start gap-2">
+                      <span className="text-xs text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
+                      {selectedEntry.journalIf != null && (
+                        <span className={`flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
+                          IF {selectedEntry.journalIf.toFixed(1)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {/* Date */}
+                <div>
+                  <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Release Date</h4>
+                  <span className="text-xs text-claude-text-secondary">{formatDate(selectedEntry.releaseDate)}</span>
+                </div>
+                {/* Organisms */}
+                {selectedEntry.organisms && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Organisms</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
+                        <span key={`pv-org-${i}`} className="inline-flex px-1.5 py-0.5 rounded-md text-[10px] bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary italic">
+                          {org.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Ligands */}
+                {parseLigands(selectedEntry.ligands).length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Ligands</h4>
+                    <div className="flex flex-wrap gap-1">
+                      {parseLigands(selectedEntry.ligands).map((lig, i) => (
+                        <Popover key={`pv-lig-${i}-${lig}`}>
+                          <PopoverTrigger asChild>
+                            <span className="ligand-chip cursor-pointer" onMouseEnter={() => fetchLigandInfo(lig)}>
+                              {lig}
+                            </span>
+                          </PopoverTrigger>
+                          <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
+                            {ligandCache[lig] ? (
+                              <LigandTooltipContent ligand={ligandCache[lig]} />
+                            ) : (
+                              <div className="p-3 flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
+                                <span className="text-xs text-claude-text-muted">Loading...</span>
+                              </div>
+                            )}
+                          </PopoverContent>
+                        </Popover>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Authors */}
+                {selectedEntry.authors && (
+                  <div>
+                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Authors</h4>
+                    <p className="text-[11px] text-claude-text-secondary leading-relaxed">{selectedEntry.authors.replace(/\|/g, ', ')}</p>
+                  </div>
+                )}
+                {/* Links */}
+                <div>
+                  <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Links</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <a
+                      href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all duration-150 external-link-hover"
+                    >
+                      <ExternalLink className="h-3 w-3 ext-arrow" />
+                      RCSB PDB
+                    </a>
+                    {selectedEntry.doi && (
+                      <a
+                        href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 transition-all duration-150 external-link-hover"
+                      >
+                        <ExternalLink className="h-3 w-3 ext-arrow" />
+                        DOI
+                      </a>
+                    )}
+                    {selectedEntry.pubmedId && (
+                      <a
+                        href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all duration-150 external-link-hover"
+                      >
+                        <ExternalLink className="h-3 w-3 ext-arrow" />
+                        PubMed
+                      </a>
+                    )}
+                  </div>
+                </div>
+                {/* Open Full Detail Button */}
+                <button
+                  onClick={() => setDetailPanelOpen(true)}
+                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#2b2926] hover:bg-claude-border-light dark:hover:bg-[#3d3832] text-xs text-claude-text-secondary hover:text-claude-text transition-all duration-150"
+                >
+                  <PanelRightOpen className="h-3.5 w-3.5" />
+                  Open Full Detail View
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
+                <Eye className="h-8 w-8 mb-2 opacity-30" />
+                <p className="text-xs">Click a row to view entry details</p>
+              </div>
+            )
           ) : previewTab === 'timeline' ? (
             /* Timeline Tab */
             mode === 'weekly' && selectedSnapshot && entries.length > 0 ? (
               <WeeklyTimeline
                 entries={entries}
                 snapshot={selectedSnapshot}
-                onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); }}
+                onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('details'); }}
                 onHighlightEntry={setHighlightedEntry}
                 highlightedEntry={highlightedEntry}
               />
@@ -9191,7 +9429,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
               </thead>
               <tbody>
                 {sortedBlastResults.slice(0, 10).map((br, i) => (
-                  <tr key={br.id || i} className={`border-b border-claude-border-light/50 ${i % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`}>
+                  <tr key={br.id || i} className={`border-b border-claude-border-light/50 dark:border-[#3d3832]/50 ${i % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`}>
                     <td className="px-2 py-1.5">
                       <span className="font-mono font-semibold text-claude-accent">{br.uniprotRef || br.pdbId || '—'}</span>
                     </td>

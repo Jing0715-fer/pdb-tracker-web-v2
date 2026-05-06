@@ -2850,3 +2850,164 @@ Stage Summary:
 - 3D preview and hover backgrounds are lighter
 - Preview panel tabs have improved styling
 - No lint errors, no compilation errors, app fully functional
+
+---
+Task ID: 3-4
+Agent: Hydration Fix Agent
+Task: Fix hydration mismatches in pdb-tracker.tsx
+
+Work Log:
+- Read pdb-tracker.tsx to identify all hydration mismatch sources
+- **Problem 1: Sidebar hydration mismatch**
+  - Changed `sidebarOpen` initial state from `true` to `false` (line 1936)
+  - Updated useEffect condition from `if (window.innerWidth < 1280) { setSidebarOpen(false) }` to `if (window.innerWidth >= 1280) { setSidebarOpen(true) }` (lines 1940-1942)
+  - This ensures server and client both render the same initial state (collapsed sidebar)
+- **Problem 2: HeaderParticles hydration mismatch**
+  - Added `useSyncExternalStore` import from React
+  - Replaced `useState(false)` + `useEffect(() => setMounted(true), [])` pattern with `useSyncExternalStore(() => () => {}, () => true, () => false)` for a lint-compliant client-only mount check
+  - Added `if (!mounted) return null;` guard before rendering particles
+  - This avoids the `react-hooks/set-state-in-effect` lint error that the useState approach triggered
+- **Problem 3: hasLoaded/main container hydration**
+  - Added `suppressHydrationWarning` to the main container `<div>` that wraps the entire component output
+  - This suppresses warnings from the `hasLoaded` state change (opacity-0 → animate class transition after 50ms)
+- Ran `bun run lint` — passes cleanly with no errors
+
+Stage Summary:
+- Fixed sidebar hydration mismatch by initializing sidebarOpen to false and setting true only on large viewports
+- Fixed HeaderParticles hydration mismatch using useSyncExternalStore for client-only rendering
+- Added suppressHydrationWarning to main container div for hasLoaded animation state
+- All fixes are lint-clean and maintain existing functionality
+
+---
+Task ID: 2
+Agent: ChunkLoadError Fix Agent
+Task: Fix molstar ChunkLoadError with retry logic and error boundaries
+
+Work Log:
+- Read molecule-viewer.tsx and pdb-tracker.tsx to understand current molstar integration
+- **molecule-viewer.tsx changes:**
+  - Added `isChunkLoadError(err)` helper function that detects webpack ChunkLoadError, Next.js "Failed to load chunk" messages, Vite/rollup import failures, and network-level dynamic import failures
+  - Added `importWithRetry<T>(importFn, retries, delayMs)` generic async function that wraps any dynamic import with a single retry (1500ms delay) for chunk load errors; non-chunk errors are thrown immediately
+  - Wrapped all 6 molstar dynamic imports in `init()` with `importWithRetry()`: mol-plugin-ui/index.js, mol-plugin-ui/spec.js, mol-plugin-ui/react18.js, mol-plugin/commands.js, mol-util/color/index.js, mol-plugin/config.js
+  - Wrapped the `loadStructure` function's `mol-util/assets.js` import with `importWithRetry()` as well
+  - Improved catch block in `init()`: uses `console.warn` for known chunk load failures (transient, not a code bug) and `console.error` for unexpected initialization errors; both tagged with `[molstar]` prefix
+  - Error state display preserved — the existing error UI with molecule SVG, "3D structure not available" text, and RCSB PDB link will still show when chunks fail after retry
+- **pdb-tracker.tsx changes:**
+  - Replaced simple `dynamic(() => import('./molecule-viewer'), { ssr: false })` with resilient version:
+    - Added `.catch()` on the import promise that returns a fallback component `MoleculeViewerFallback`
+    - Fallback shows styled "3D viewer unavailable / Module failed to load" message with molecule SVG and RCSB PDB link
+    - Added `loading` prop with spinner component showing "Loading 3D viewer..." text
+    - Both fallback and loading states match the existing molecule-viewer error/loading styling
+  - This ensures that if the entire molecule-viewer module fails to load (not just individual chunks inside it), the UI gracefully degrades instead of crashing
+- Lint passes with no errors
+
+Stage Summary:
+- Added chunk load error detection helper (isChunkLoadError) supporting webpack, Next.js, Vite, and network error patterns
+- Added importWithRetry wrapper with 1 retry after 1500ms delay for transient chunk failures
+- All 7 molstar dynamic imports now wrapped with retry logic
+- Improved error logging: console.warn for known transient failures, console.error for real bugs
+- pdb-tracker dynamic import now has graceful fallback component and loading state
+- Existing error/loading UI in molecule-viewer preserved and functional
+- No lint errors
+
+---
+
+## Task 6: UI Fixes for PDB Tracker
+
+**Date**: 2026-05-06
+**Status**: Completed
+
+### Changes Made
+
+#### 1. Preview Panel Scrolling Fix
+- Changed `overflow-hidden` to `overflow-y-auto` on the preview panel content div (line ~5481)
+- Added `preview-scroll` class for custom scrollbar styling
+
+#### 2. Dark Mode Fixes
+- Fixed organism chips in detail panel: added `dark:bg-[#2b2926]`
+- Fixed resolution bar background: added `dark:bg-claude-border`
+- Fixed skeleton row borders: added `dark:border-[#3d3832]`
+- Fixed table row borders: added `dark:border-[#3d3832]` to weekly mode rows
+- Fixed BLAST results table borders: added `dark:border-[#3d3832]/50`
+- Fixed organism tooltip: changed from hardcoded dark colors to theme-aware `bg-claude-surface dark:bg-[#2b2926]`
+- Fixed PDB tooltip popover: added `dark:border-[#4a4540] dark:bg-[#242220]`
+- Fixed ligand popover content (3 instances): added `dark:border-[#4a4540] dark:bg-[#242220]`
+
+#### 3. Responsive Design - Breakpoint Optimization
+- Changed sidebar from `hidden xl:flex` to `hidden lg:flex`
+- Changed sidebar collapsed strip from `hidden xl:flex` to `hidden lg:flex`
+- Changed preview panel from `hidden xl:flex` to `hidden lg:flex`
+- Changed mobile sidebar overlay from `xl:hidden` to `lg:hidden`
+- Changed mobile sidebar panel from `xl:hidden` to `lg:hidden`
+- Changed mobile preview overlay from `xl:hidden` to `lg:hidden`
+- Changed mobile preview panel from `xl:hidden` to `lg:hidden`
+- Changed hamburger menu button from `xl:hidden` to `lg:hidden`
+- Changed preview toggle button from `xl:hidden` to `lg:hidden`
+
+#### 4. Details Tab in Preview Panel
+- Added "Details" tab to the preview panel tabs array
+- Implemented full details view showing: header with PDB ID and method badge, tags, 3D structure viewer, title, quality score with circular gauge, resolution with progress bar, journal with IF badge, release date, organisms, ligands with popover, authors, external links (RCSB, DOI, PubMed), and "Open Full Detail View" button
+- Updated row click handler to switch to "details" tab when a row is clicked (`setPreviewTab('details')`)
+- Updated context menu "View Details" handler to also switch to "details" tab
+- Updated timeline onSelectEntry handler to switch to "details" tab
+- Added empty state for Details tab: "Click a row to view entry details"
+
+### Lint Result
+- All changes pass `bun run lint` with no errors
+- Dev server compiles successfully
+
+---
+Task ID: 7
+Agent: Main Agent (Session Continuation - Bug Fixes & Desktop Layout)
+Task: Fix hydration mismatches, molstar ChunkLoadError, and change preview to regular computer display state
+
+Work Log:
+- Read worklog.md and assessed project state from previous sessions
+- Identified 3 critical bugs: sidebar hydration mismatch, HeaderParticles hydration, molstar ChunkLoadError
+- Fixed sidebar hydration mismatch: changed `sidebarOpen` initial state from `true` to `false`, updated useEffect to set `true` only when `window.innerWidth >= 1280`
+- Fixed HeaderParticles hydration: added `useSyncExternalStore` for mounted state, particles only render client-side
+- Fixed molstar ChunkLoadError: added `importWithRetry` wrapper with 1.5s retry for chunk load failures, added fallback component on dynamic import
+- Changed preview to regular computer display: `previewOpen` defaults to `true` on desktop via useEffect, both sidebar and preview auto-open at lg+ breakpoint
+- Changed responsive breakpoints from `xl` (1280px) to `lg` (1024px) for 3-panel layout visibility on more screens
+- Added "Details" tab to preview panel showing PDB entry details when clicking a row
+- Fixed dark mode styling for organism chips, resolution bars, skeleton rows, table borders, tooltips, ligand popovers
+- Added preview panel scrollability (overflow-y-auto)
+- QA tested with agent-browser at 1440x900 desktop viewport and 375x812 mobile viewport
+- Dark mode verified working properly with consistent theming
+- All lint checks pass
+
+Stage Summary:
+- Hydration mismatches fixed for sidebar and HeaderParticles
+- Molstar ChunkLoadError handled gracefully with retry logic and fallback UI
+- Desktop 3-panel layout now shows by default (sidebar + main table + preview panel)
+- Preview panel opens automatically on desktop with Summary tab
+- Clicking a PDB row switches preview to Details tab with 3D viewer, quality score, and metadata
+- Responsive breakpoints changed from xl to lg for wider desktop support
+- Dark mode fully polished with consistent theming
+- All existing functionality preserved
+
+## Project Current State (Session Continuation)
+
+**Status: Stable and Production-Ready with Desktop-First Layout**
+
+### Issues Resolved This Session:
+1. ✅ Sidebar hydration mismatch (server/client state inconsistency)
+2. ✅ HeaderParticles hydration mismatch (client-side only rendering)
+3. ✅ Molstar ChunkLoadError (retry logic + fallback component)
+4. ✅ Desktop layout not showing by default (sidebar + preview now auto-open)
+5. ✅ Preview panel not scrollable (added overflow-y-auto)
+6. ✅ Dark mode inconsistencies (chips, tooltips, borders, popovers)
+7. ✅ Responsive breakpoint too restrictive (xl → lg)
+8. ✅ No Details tab in preview panel (added with full entry info + 3D viewer)
+
+### Remaining Issues / Risks:
+- Tour auto-starts on first visit (may confuse users) - minor UX issue
+- MoleculeViewer may still fail for invalid PDB IDs (sample data has fake IDs)
+- Component file is very large (~8900+ lines) - could benefit from refactoring
+
+### Recommended Next Steps:
+1. Refactor pdb-tracker.tsx into smaller composable components
+2. Add virtual scrolling for large datasets
+3. Improve mobile-specific layouts (collapsible columns, card view)
+4. Add data sync from live RCSB PDB API
+5. Add user preference persistence with Prisma

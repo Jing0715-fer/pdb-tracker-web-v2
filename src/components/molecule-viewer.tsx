@@ -7,6 +7,44 @@ interface MoleculeViewerProps {
   pdbId: string;
 }
 
+/**
+ * Detects whether an error is a chunk load failure (webpack/Next.js dynamic import issue).
+ * These errors occur when the build hash changes or there's a transient network issue.
+ */
+function isChunkLoadError(err: unknown): boolean {
+  if (err instanceof Error) {
+    const name = err.name;
+    const message = err.message || '';
+    // webpack ChunkLoadError
+    if (name === 'ChunkLoadError') return true;
+    // Generic dynamic import failures in Next.js
+    if (message.includes('Failed to load chunk') || message.includes('Loading chunk')) return true;
+    // Vite/rollup style errors
+    if (message.includes('Importing a module script failed')) return true;
+    // Network-level failures during import
+    if (name === 'TypeError' && message.includes('Failed to fetch dynamically imported module')) return true;
+  }
+  return false;
+}
+
+/**
+ * Wraps a dynamic import with a single retry after a short delay, specifically
+ * for chunk load failures. Other errors are thrown immediately.
+ */
+async function importWithRetry<T>(importFn: () => Promise<T>, retries = 1, delayMs = 1500): Promise<T> {
+  try {
+    return await importFn();
+  } catch (err) {
+    if (retries > 0 && isChunkLoadError(err)) {
+      // Suppress noisy console output for known transient chunk failures
+      console.warn('[molstar] Chunk load failed, retrying in', delayMs, 'ms...', err instanceof Error ? err.message : err);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      return importWithRetry(importFn, retries - 1, delayMs);
+    }
+    throw err;
+  }
+}
+
 export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pluginRef = useRef<any>(null);
@@ -20,12 +58,12 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
 
     async function init() {
       try {
-        // Dynamic imports for browser-only molstar
-        const { createPluginUI } = await import('molstar/lib/mol-plugin-ui/index.js');
-        const { DefaultPluginUISpec } = await import('molstar/lib/mol-plugin-ui/spec.js');
-        const { renderReact18 } = await import('molstar/lib/mol-plugin-ui/react18.js');
-        const { PluginCommands } = await import('molstar/lib/mol-plugin/commands.js');
-        const { Color } = await import('molstar/lib/mol-util/color/index.js');
+        // Dynamic imports for browser-only molstar with retry logic for chunk load failures
+        const { createPluginUI } = await importWithRetry(() => import('molstar/lib/mol-plugin-ui/index.js'));
+        const { DefaultPluginUISpec } = await importWithRetry(() => import('molstar/lib/mol-plugin-ui/spec.js'));
+        const { renderReact18 } = await importWithRetry(() => import('molstar/lib/mol-plugin-ui/react18.js'));
+        const { PluginCommands } = await importWithRetry(() => import('molstar/lib/mol-plugin/commands.js'));
+        const { Color } = await importWithRetry(() => import('molstar/lib/mol-util/color/index.js'));
 
         if (destroyed || !containerRef.current) return;
 
@@ -54,7 +92,7 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
           },
           config: [
             [
-              (await import('molstar/lib/mol-plugin/config.js')).PluginConfig.General.IsBusyTimeout,
+              (await importWithRetry(() => import('molstar/lib/mol-plugin/config.js'))).PluginConfig.General.IsBusyTimeout,
               0,
             ],
           ],
@@ -87,7 +125,13 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
           setLoading(false);
         }
       } catch (err) {
-        console.error('Failed to initialize Molstar viewer:', err);
+        // Use console.warn for known chunk load failures (transient, not a code bug)
+        // Use console.error for unexpected initialization errors
+        if (isChunkLoadError(err)) {
+          console.warn('[molstar] Chunk load failed after retry — viewer unavailable.', err instanceof Error ? err.message : err);
+        } else {
+          console.error('[molstar] Failed to initialize viewer:', err);
+        }
         if (!destroyed) {
           setError(err instanceof Error ? err.message : 'Failed to load viewer');
           setLoading(false);
@@ -167,7 +211,7 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
 }
 
 async function loadStructure(plugin: any, pdbId: string) {
-  const { Asset } = await import('molstar/lib/mol-util/assets.js');
+  const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
 
   // Download CIF file from RCSB
   const data = await plugin.builders.data.download(
