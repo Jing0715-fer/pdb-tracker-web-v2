@@ -291,16 +291,17 @@ function HeaderParticles() {
         <div
           key={p.key}
           className="header-particle"
+          suppressHydrationWarning
           style={{
-            width: `${p.size}px`,
-            height: `${p.size}px`,
+            width: `${p.size.toFixed(1)}px`,
+            height: `${p.size.toFixed(1)}px`,
             left: `${p.left}%`,
             top: `${p.top}%`,
             backgroundColor: p.color,
             '--particle-duration': `${p.duration}s`,
             '--particle-delay': `${p.delay}s`,
-            '--particle-min-opacity': p.minOpacity,
-            '--particle-max-opacity': p.maxOpacity,
+            '--particle-min-opacity': `${p.minOpacity}`,
+            '--particle-max-opacity': `${p.maxOpacity}`,
             '--particle-dx1': `${p.dx1}px`,
             '--particle-dy1': `${p.dy1}px`,
             '--particle-dx2': `${p.dx2}px`,
@@ -1932,12 +1933,31 @@ export default function PdbTracker() {
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   // ── Desktop Sidebar Toggle State ──
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return window.innerWidth >= 1280;
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
+
+  // Initialize sidebarOpen based on viewport width on mount (hydration-safe)
+  useEffect(() => {
+    if (window.innerWidth < 1280) {
+      setSidebarOpen(false);
     }
-    return true;
-  });
+    // Load persisted preferences from localStorage
+    try {
+      const savedBookmarks = localStorage.getItem('pdb-bookmarks');
+      if (savedBookmarks) setBookmarks(new Set(JSON.parse(savedBookmarks) as string[]));
+    } catch { /* ignore */ }
+    try {
+      const savedHidden = localStorage.getItem('pdb-hidden-columns');
+      if (savedHidden) setHiddenColumns(new Set(JSON.parse(savedHidden) as string[]));
+    } catch { /* ignore */ }
+    try {
+      const savedCompact = localStorage.getItem('pdb-compact-mode');
+      if (savedCompact !== null) setCompactMode(savedCompact === 'true');
+    } catch { /* ignore */ }
+    try {
+      const savedSidebarCompact = localStorage.getItem('pdb-sidebar-compact');
+      if (savedSidebarCompact !== null) setSidebarCompact(savedSidebarCompact === 'true');
+    } catch { /* ignore */ }
+  }, []);
 
   // Auto-close sidebar when resizing below xl breakpoint
   useEffect(() => {
@@ -1999,13 +2019,7 @@ export default function PdbTracker() {
   }, []);
 
   // ── Bookmarks ──
-  const [bookmarks, setBookmarks] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('pdb-bookmarks');
-      if (saved) return new Set(JSON.parse(saved) as string[]);
-    } catch { /* ignore */ }
-    return new Set<string>();
-  });
+  const [bookmarks, setBookmarks] = useState<Set<string>>(new Set<string>());
   const [showBookmarksOnly, setShowBookmarksOnly] = useState(false);
   const [bookmarksExpanded, setBookmarksExpanded] = useState(true);
 
@@ -2083,22 +2097,10 @@ export default function PdbTracker() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
 
   // ── Column Visibility ──
-  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(() => {
-    try {
-      const saved = localStorage.getItem('pdb-hidden-columns');
-      if (saved) return new Set(JSON.parse(saved) as string[]);
-    } catch { /* ignore */ }
-    return new Set<string>();
-  });
+  const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set<string>());
 
   // ── Data Density ──
-  const [compactMode, setCompactMode] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('pdb-compact-mode');
-      if (saved !== null) return saved === 'true';
-    } catch { /* ignore */ }
-    return false;
-  });
+  const [compactMode, setCompactMode] = useState<boolean>(false);
 
   // Persist compact mode to localStorage
   useEffect(() => {
@@ -2108,13 +2110,7 @@ export default function PdbTracker() {
   }, [compactMode]);
 
   // ── Sidebar Compact Mode ──
-  const [sidebarCompact, setSidebarCompact] = useState<boolean>(() => {
-    try {
-      const saved = localStorage.getItem('pdb-sidebar-compact');
-      if (saved !== null) return saved === 'true';
-    } catch { /* ignore */ }
-    return false;
-  });
+  const [sidebarCompact, setSidebarCompact] = useState<boolean>(false);
 
   // Persist sidebar compact mode to localStorage
   useEffect(() => {
@@ -3659,7 +3655,7 @@ export default function PdbTracker() {
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar - visible when open on xl+ */}
           {sidebarOpen && (
-            <aside className={`hidden xl:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarCompact ? 180 : sidebarWidth }}>
+            <aside className={`hidden xl:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
               {/* Sidebar gradient mesh overlay */}
               <div className="sidebar-mesh-overlay" />
               {renderSidebar()}
@@ -3781,9 +3777,9 @@ export default function PdbTracker() {
                     <SelectTrigger className="w-[120px] sm:w-[150px] h-7 text-[11px]">
                       <SelectValue placeholder="Select week" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="text-[11px]">
                       {snapshots.map(s => (
-                        <SelectItem key={s.weekId} value={s.weekId} className="text-[11px]">
+                        <SelectItem key={s.weekId} value={s.weekId} className="text-[11px] py-1">
                           <span className="font-mono">{s.weekId}</span>
                           <span className="text-claude-text-muted ml-2">({s.totalStructures})</span>
                         </SelectItem>
@@ -3796,12 +3792,12 @@ export default function PdbTracker() {
                     <SelectTrigger className="w-[110px] sm:w-[140px] h-7 text-[11px]">
                       <SelectValue placeholder="Method" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Methods</SelectItem>
-                      <SelectItem value="Cryo-EM">Cryo-EM</SelectItem>
-                      <SelectItem value="X-RAY DIFFRACTION">X-ray</SelectItem>
-                      <SelectItem value="SOLUTION NMR">NMR</SelectItem>
-                      <SelectItem value="ELECTRON CRYSTALLOGRAPHY">Electron Crystallography</SelectItem>
+                    <SelectContent className="text-[11px]">
+                      <SelectItem value="all" className="text-[11px] py-1">All Methods</SelectItem>
+                      <SelectItem value="Cryo-EM" className="text-[11px] py-1">Cryo-EM</SelectItem>
+                      <SelectItem value="X-RAY DIFFRACTION" className="text-[11px] py-1">X-ray</SelectItem>
+                      <SelectItem value="SOLUTION NMR" className="text-[11px] py-1">NMR</SelectItem>
+                      <SelectItem value="ELECTRON CRYSTALLOGRAPHY" className="text-[11px] py-1">Electron Crystallography</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -4396,11 +4392,11 @@ export default function PdbTracker() {
                       <SelectTrigger className="w-[140px] h-7 min-h-[44px] sm:min-h-0 text-[11px]">
                         <SelectValue placeholder="Compare with..." />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="text-[11px]">
                         {snapshots
                           .filter(s => s.weekId !== selectedWeekId)
                           .map(s => (
-                            <SelectItem key={s.weekId} value={s.weekId}>
+                            <SelectItem key={s.weekId} value={s.weekId} className="text-[11px] py-1">
                               <span className="font-mono">{s.weekId}</span>
                               <span className="text-claude-text-muted ml-2">({s.totalStructures})</span>
                             </SelectItem>
@@ -5739,7 +5735,7 @@ export default function PdbTracker() {
 
           // ── Shared detail content renderer ──
           const detailContent = (
-            <div className={isMobile ? 'p-5 space-y-5' : 'p-4 space-y-5'}>
+            <div className={isMobile ? 'p-5 space-y-5' : 'p-6 space-y-5 max-w-4xl mx-auto'}>
               {/* Swipe Navigation Hint (mobile only) */}
               {isMobile && (
                 <div className="flex items-center justify-center gap-2 text-[10px] text-claude-text-muted/60 select-none pb-1">
@@ -6164,7 +6160,7 @@ export default function PdbTracker() {
             );
           }
 
-          // ── Desktop: Slide-over from right ──
+          // ── Desktop: Centered Modal ──
           return (
             <>
               <motion.div
@@ -6173,16 +6169,17 @@ export default function PdbTracker() {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
-                className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
+                className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
                 onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
               />
-              <motion.aside
+              <motion.div
                 key={`desktop-detail-panel-${selectedEntry.pdbId}`}
-                initial={{ x: 420 }}
-                animate={{ x: 0 }}
-                exit={{ x: 420 }}
-                transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-claude-surface dark:bg-[#242220] border-l border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden"
+                initial={{ opacity: 0, scale: 0.97, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97, y: 12 }}
+                transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
+                className="fixed inset-4 sm:inset-8 md:inset-12 lg:inset-16 z-50 bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden"
+                onClick={(e) => e.stopPropagation()}
               >
                 {/* Detail Header */}
                 <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832]">
@@ -6223,7 +6220,7 @@ export default function PdbTracker() {
                     {detailContent}
                   </motion.div>
                 </ScrollArea>
-              </motion.aside>
+              </motion.div>
             </>
           );
         })()}
@@ -6369,111 +6366,6 @@ export default function PdbTracker() {
 
   // ── Sidebar Render Function ──
   function renderSidebar() {
-    // ── Compact Sidebar Mode ──
-    if (sidebarCompact) {
-      return (
-        <div className="flex flex-col h-full">
-          {/* Compact Mode Switcher - Small Tabs */}
-          <div className="px-2 pt-2 pb-1.5 border-b border-claude-border dark:border-[#3d3832]">
-            <div className="flex rounded-lg bg-claude-border-light dark:bg-[#2b2926] p-0.5">
-              <button
-                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition-all duration-150 ${
-                  mode === 'weekly'
-                    ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
-                    : 'text-claude-text-muted hover:text-claude-text-secondary'
-                }`}
-              >
-                <Calendar className="h-3 w-3" />
-                Weekly
-              </button>
-              <button
-                onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
-                className={`flex-1 flex items-center justify-center gap-1 py-1.5 px-2 rounded-md text-[10px] font-medium transition-all duration-150 ${
-                  mode === 'evaluation'
-                    ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
-                    : 'text-claude-text-muted hover:text-claude-text-secondary'
-                }`}
-              >
-                <Microscope className="h-3 w-3" />
-                Eval
-              </button>
-            </div>
-          </div>
-
-          {/* Compact Content */}
-          <ScrollArea className="flex-1 sidebar-scroll">
-            <div className="px-2 py-1.5 flex flex-col gap-1">
-              {mode === 'weekly' ? (
-                <>
-                  {loadingSnapshots ? (
-                    [1,2,3,4].map(i => (
-                      <div key={i} className="w-full h-9 rounded-lg shimmer-skeleton" />
-                    ))
-                  ) : (
-                    snapshots.map(snap => (
-                      <button
-                        key={snap.weekId}
-                        onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
-                        className={`w-full text-left px-2 py-1.5 rounded-md flex items-center justify-between transition-all duration-150 ${
-                          selectedWeekId === snap.weekId
-                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                            : 'text-claude-text-muted dark:text-[#9b9590] hover:bg-claude-border-light dark:hover:bg-[#2b2926] hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
-                        }`}
-                      >
-                        <span className="font-mono text-[10px] font-semibold">W{snap.weekId.replace(/.*-W/, '')}</span>
-                        <span className="text-[9px] opacity-70">{snap.totalStructures}</span>
-                      </button>
-                    ))
-                  )}
-                </>
-              ) : (
-                <>
-                  {loadingEvals ? (
-                    [1,2,3,4].map(i => (
-                      <div key={i} className="w-full h-10 rounded-lg shimmer-skeleton" />
-                    ))
-                  ) : (
-                    filteredEvals.map(ev => {
-                      const geneName = ev.geneNames || ev.proteinName || ev.entryName || '';
-                      return (
-                        <button
-                          key={ev.uniprotId}
-                          onClick={() => { setSelectedEvalId(ev.uniprotId); setMobileSidebarOpen(false); }}
-                          className={`w-full text-left px-2 py-1.5 rounded-md transition-all duration-150 ${
-                            selectedEvalId === ev.uniprotId
-                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                              : 'text-claude-text-muted dark:text-[#9b9590] hover:bg-claude-border-light dark:hover:bg-[#2b2926] hover:text-claude-text-secondary dark:hover:text-[#e8e4dd]'
-                          }`}
-                        >
-                          <div className="font-mono text-[10px] font-semibold leading-tight text-claude-accent">{ev.uniprotId}</div>
-                          {geneName && (
-                            <div className="text-[9px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight mt-0.5">{geneName}</div>
-                          )}
-                        </button>
-                      );
-                    })
-                  )}
-                </>
-              )}
-            </div>
-          </ScrollArea>
-
-          {/* Compact Mode Toggle */}
-          <div className="px-2 py-1.5 border-t border-claude-border dark:border-[#3d3832]">
-            <button
-              onClick={() => setSidebarCompact(false)}
-              className="w-full h-7 rounded-md flex items-center justify-center gap-1 text-[10px] text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
-            >
-              <PanelRightOpen className="h-3 w-3" />
-              Expand
-            </button>
-          </div>
-        </div>
-      );
-    }
-
-    // ── Full Sidebar Mode ──
     return (
       <>
         {/* Mode Switcher */}
@@ -6503,17 +6395,6 @@ export default function PdbTracker() {
                 Evaluation
               </button>
             </div>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={() => setSidebarCompact(true)}
-                  className="ml-2 h-7 w-7 flex items-center justify-center rounded-md text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
-                >
-                  <PanelRightClose className="h-3.5 w-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="text-xs">Compact sidebar</TooltipContent>
-            </Tooltip>
           </div>
         </div>
 
@@ -7052,6 +6933,17 @@ export default function PdbTracker() {
             </div>
           )}
         </ScrollArea>
+
+        {/* Collapse Sidebar Button */}
+        <div className="px-3 py-2 border-t border-claude-border dark:border-[#3d3832]">
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="w-full h-7 rounded-md flex items-center justify-center gap-1.5 text-[10px] text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary transition-colors duration-150"
+          >
+            <PanelLeftClose className="h-3.5 w-3.5" />
+            Collapse sidebar
+          </button>
+        </div>
       </>
     );
   }
@@ -7067,13 +6959,13 @@ export default function PdbTracker() {
 
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col min-h-0">
-        <div className="px-4 pt-3 border-b border-claude-border dark:border-[#3d3832]">
-          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative">
+        <div className="px-3 pt-2 border-b border-claude-border dark:border-[#3d3832]">
+          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative rounded-md">
             {previewTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="tab-gradient-active flex-1 text-[10px] h-7 relative z-[1] data-[state=active]:text-white data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200"
+                className="tab-gradient-active flex-1 text-[10px] h-7 relative z-[1] data-[state=active]:text-white data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200 rounded-md"
               >
                 {previewTab === tab.value && (
                   <motion.div

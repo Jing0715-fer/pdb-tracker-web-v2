@@ -2817,3 +2817,36 @@ Stage Summary:
 - Week/method selectors use smaller text matching toolbar
 - Both top-right toggle buttons removed (sidebar + preview)
 - All changes pass lint, no compilation errors
+
+---
+Task ID: 11
+Agent: Main Agent (Bug Fix Round)
+Task: Fix hydration mismatch, right sidebar, blue box collapse, PDB popup centering, and various UI bugs
+
+Work Log:
+- Fixed HeaderParticles hydration mismatch by using `suppressHydrationWarning` on particle divs and string-typed CSS custom properties
+- Fixed sidebarOpen hydration mismatch by initializing as `true` (matching SSR) and using useEffect to adjust on client mount
+- Fixed compactMode, sidebarCompact, hiddenColumns, bookmarks hydration issues by removing `typeof window !== 'undefined'` from useState initializers and loading from localStorage in useEffect instead
+- Removed sidebarCompact mode entirely (removed compact toggle button from sidebar header, removed compact sidebar rendering code)
+- Added "Collapse sidebar" button at bottom of full sidebar with PanelLeftClose icon
+- Simplified sidebar width to always use sidebarWidth (no sidebarCompact toggle)
+- Changed PDB detail panel from right-side slide-over to centered modal with proper sizing (inset-4 to inset-16 based on breakpoint)
+- Made detail content wider with max-w-4xl mx-auto for desktop
+- Improved 3D preview background: lighter dark mode color (#3d3832 instead of #2b2926)
+- Made PDB hover background lighter: #fdf8f5 (light) and #332f2c (dark)
+- Reduced ligand chip font size from 0.6rem to 0.55rem and padding from 1px 5px to 0px 4px
+- Added text-[11px] and py-1 to SelectContent and SelectItem for week/method/compare dropdowns
+- Improved preview panel tab styling with rounded-md on TabsList and TabsTrigger
+- All changes pass lint with no errors
+- App verified working with agent-browser: week selection, PDB row click, detail modal, dark mode toggle
+
+Stage Summary:
+- Hydration mismatch errors fully resolved (sidebarOpen, localStorage states, HeaderParticles)
+- PDB entry detail panel now shows as centered modal with full content
+- Sidebar compact mode removed; only sidebarOpen (full/collapsed strip) remains
+- Collapse sidebar button added at bottom of sidebar
+- All dropdown selectors use consistent small text
+- Ligand chips are smaller
+- 3D preview and hover backgrounds are lighter
+- Preview panel tabs have improved styling
+- No lint errors, no compilation errors, app fully functional

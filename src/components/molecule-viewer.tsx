@@ -109,10 +109,10 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
   }, [pdbId]);
 
   return (
-    <div className="relative w-full h-[300px] rounded-lg overflow-hidden bg-[#f5f0eb] dark:bg-[#2b2926] border border-claude-border dark:border-[#3d3832]">
+    <div className="relative w-full h-[300px] rounded-lg overflow-hidden bg-[#f5f0eb] dark:bg-[#3d3832] border border-claude-border dark:border-[#4a4540]">
       <div ref={containerRef} className="w-full h-full" />
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb] dark:bg-[#2b2926] z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb] dark:bg-[#3d3832] z-10">
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="h-6 w-6 text-claude-accent animate-spin" />
             <span className="text-[11px] text-claude-text-muted dark:text-[#9b9590]">Loading 3D structure...</span>
@@ -120,7 +120,7 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb] dark:bg-[#2b2926] z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb] dark:bg-[#3d3832] z-10">
           <div className="flex flex-col items-center gap-3 text-center px-6">
             {/* Stylized molecule SVG placeholder */}
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-70">
