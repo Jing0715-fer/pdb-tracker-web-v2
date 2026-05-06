@@ -388,7 +388,6 @@
 
 .claude-hover:hover {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  transform: translateY(-1px);
 }
 
 .dark .claude-hover:hover {
@@ -852,9 +851,11 @@
   left: 0;
   right: 0;
   height: 120px;
+  max-height: 100%;
   background: linear-gradient(180deg, #faf8f5 0%, #f5f0eb 100%);
   pointer-events: none;
   z-index: 0;
+  border-radius: inherit;
 }
 
 .dark .sidebar-gradient::before {

@@ -34,7 +34,7 @@ export async function GET(
       return NextResponse.json({
         code: code.toUpperCase(),
         ...ligandInfo,
-        imageUrl: `https://www.rcsb.org/chemical-viewer?chemid=${code.toUpperCase()}&defaultSvg`,
+        imageUrl: `https://www.ebi.ac.uk/pdbe-srv/pdbechem/image/image/500/${code.toUpperCase()}`,
       });
     }
 
@@ -46,7 +46,7 @@ export async function GET(
       weight: 'N/A',
       type: 'UNKNOWN',
       description: 'No detailed information available for this ligand.',
-      imageUrl: `https://www.rcsb.org/chemical-viewer?chemid=${code.toUpperCase()}&defaultSvg`,
+      imageUrl: `https://www.ebi.ac.uk/pdbe-srv/pdbechem/image/image/500/${code.toUpperCase()}`,
     });
   } catch (error) {
     console.error('Error fetching ligand:', error);

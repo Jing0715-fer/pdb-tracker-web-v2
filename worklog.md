@@ -3058,3 +3058,29 @@ Stage Summary:
 - Component file is still very large (~8900 lines) - refactoring recommended
 - Molstar 3D viewer may still fail for sample data PDB IDs (expected)
 - Could add more mobile-specific optimizations (card view, collapsible columns)
+
+---
+Task ID: 9
+Agent: Main Agent
+Task: Fix hover popup backgrounds, ligand hover, modal centering, and UI polish
+
+Work Log:
+- Updated TooltipContent component to use light backgrounds (bg-white) instead of dark bg-primary
+- Updated LigandTooltipContent with image container, type badge, dark mode colors
+- Updated PdbTooltipContent with correct RCSB CDN image URL and dark mode colors
+- Updated BlastHomologTooltipContent with dark mode text colors
+- Fixed organism tooltip background to bg-white dark:bg-[#2b2926]
+- Updated ligand API image URL to EBI PDBe Chem API
+- Removed translateY(-1px) from .claude-hover:hover CSS
+- Added max-height: 100 0x0p+0nd border-radius: inherit to .sidebar-gradient::before
+- Verified detail panel modal is properly centered
+- Verified ligand HoverCards work correctly
+- Lint passes, dev server working
+
+Stage Summary:
+- All hover popups use light backgrounds in light mode
+- Ligand hover shows thumbnail + info via HoverCard
+- PDB entry popup is centered
+- Button/card hover movement removed
+- Sidebar background overflow prevented
+- All tooltip content has dark mode support

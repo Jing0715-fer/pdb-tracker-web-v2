@@ -886,19 +886,20 @@ function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
     <div className="w-80 p-3 space-y-2">
       <div className="flex items-start gap-2">
         <img
-          src={`https://www.rcsb.org/structure/${entry.pdbId}`}
+          src={`https://cdn.rcsb.org/images/rfree/${entry.pdbId.substring(1, 3).toLowerCase()}/${entry.pdbId.toLowerCase()}/${entry.pdbId.toLowerCase()}_rfree_250.jpeg`}
           alt={entry.pdbId}
-          className="w-20 h-20 rounded-md bg-claude-border-light object-cover flex-shrink-0"
+          className="w-20 h-20 rounded-md bg-claude-border-light dark:bg-[#3d3832] object-cover flex-shrink-0 border border-claude-border-light dark:border-[#3d3832]"
+          loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className="font-mono font-semibold text-claude-text text-sm">{entry.pdbId}</span>
+            <span className="font-mono font-semibold text-claude-text dark:text-[#e8e4dd] text-sm">{entry.pdbId}</span>
             <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>
               {getMethodLabel(method)}
             </span>
           </div>
-          <p className="text-xs text-claude-text-secondary line-clamp-2 leading-relaxed">
+          <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] line-clamp-2 leading-relaxed">
             {entry.title}
           </p>
         </div>
@@ -906,19 +907,19 @@ function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
         {entry.resolution != null && (
           <div>
-            <span className="text-claude-text-muted">Resolution:</span>{' '}
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Resolution:</span>{' '}
             <span className={`font-medium ${getResolutionColor(entry.resolution)}`}>{entry.resolution}Å</span>
           </div>
         )}
         <div>
-          <span className="text-claude-text-muted">Date:</span>{' '}
-          <span className="text-claude-text-secondary">{formatDate(entry.releaseDate)}</span>
+          <span className="text-claude-text-muted dark:text-[#6b6560]">Date:</span>{' '}
+          <span className="text-claude-text-secondary dark:text-[#9b9590]">{formatDate(entry.releaseDate)}</span>
         </div>
         {'journal' in entry && entry.journal && (
           <div className="col-span-2">
-            <span className="text-claude-text-muted">Journal:</span>{' '}
-            <span className="text-claude-text-secondary">{entry.journal}</span>
-            {entry.journalIf && <span className="text-claude-text-muted ml-1">({entry.journalIf.toFixed(1)})</span>}
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Journal:</span>{' '}
+            <span className="text-claude-text-secondary dark:text-[#9b9590]">{entry.journal}</span>
+            {entry.journalIf && <span className="text-claude-text-muted dark:text-[#6b6560] ml-1">({entry.journalIf.toFixed(1)})</span>}
           </div>
         )}
       </div>
@@ -927,7 +928,7 @@ function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
           {ligandList.slice(0, 6).map((l, i) => (
             <span key={`tt-lig-${i}-${l}`} className="ligand-chip">{l}</span>
           ))}
-          {ligandList.length > 6 && <span className="text-[10px] text-claude-text-muted">+{ligandList.length - 6}</span>}
+          {ligandList.length > 6 && <span className="text-[10px] text-claude-text-muted dark:text-[#6b6560]">+{ligandList.length - 6}</span>}
         </div>
       )}
     </div>
@@ -938,35 +939,50 @@ function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
 
 function LigandTooltipContent({ ligand }: { ligand: LigandInfo }) {
   return (
-    <div className="w-64 p-3 space-y-2">
-      <div className="flex items-start gap-2">
-        <img
-          src={ligand.imageUrl}
-          alt={ligand.name}
-          className="w-24 h-24 rounded-md bg-white dark:bg-[#1a1917] border border-claude-border dark:border-[#3d3832] flex-shrink-0 object-contain p-1"
-          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-        />
+    <div className="w-72 p-3 space-y-2">
+      <div className="flex items-start gap-3">
+        <div className="w-24 h-24 rounded-lg bg-white dark:bg-[#1a1917] border border-claude-border dark:border-[#3d3832] flex-shrink-0 flex items-center justify-center overflow-hidden p-1">
+          <img
+            src={ligand.imageUrl}
+            alt={ligand.name}
+            className="max-w-full max-h-full object-contain"
+            loading="lazy"
+            onError={(e) => {
+              const img = e.target as HTMLImageElement;
+              img.style.display = 'none';
+              const parent = img.parentElement;
+              if (parent) {
+                parent.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;color:#9b9590;font-size:10px;font-family:monospace;text-align:center;padding:4px">' + ligand.code + '</div>';
+              }
+            }}
+          />
+        </div>
         <div className="flex-1 min-w-0">
-          <div className="font-semibold text-claude-text text-sm">{ligand.code}</div>
-          <div className="text-xs text-claude-text-secondary leading-relaxed">{ligand.name}</div>
+          <div className="font-semibold text-claude-text dark:text-[#e8e4dd] text-sm font-mono">{ligand.code}</div>
+          <div className="text-xs text-claude-text-secondary dark:text-[#9b9590] leading-relaxed mt-0.5">{ligand.name}</div>
+          <div className="mt-1.5">
+            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium ${
+              ligand.type === 'NUCLEOTIDE' ? 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400' :
+              ligand.type === 'COENZYME' ? 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400' :
+              ligand.type === 'ION' ? 'bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400' :
+              ligand.type === 'PROSTHETIC GROUP' ? 'bg-rose-50 text-rose-700 dark:bg-rose-900/20 dark:text-rose-400' :
+              'bg-gray-50 text-gray-700 dark:bg-gray-800/30 dark:text-gray-400'
+            }`}>{ligand.type}</span>
+          </div>
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs pt-1 border-t border-claude-border-light dark:border-[#3d3832]">
         <div>
-          <span className="text-claude-text-muted">Formula:</span>{' '}
-          <span className="font-mono text-claude-text-secondary">{ligand.formula}</span>
+          <span className="text-claude-text-muted dark:text-[#6b6560]">Formula:</span>{' '}
+          <span className="font-mono text-claude-text-secondary dark:text-[#9b9590]">{ligand.formula}</span>
         </div>
         <div>
-          <span className="text-claude-text-muted">MW:</span>{' '}
-          <span className="font-mono text-claude-text-secondary">{ligand.weight}</span>
-        </div>
-        <div className="col-span-2">
-          <span className="text-claude-text-muted">Type:</span>{' '}
-          <span className="text-claude-text-secondary">{ligand.type}</span>
+          <span className="text-claude-text-muted dark:text-[#6b6560]">MW:</span>{' '}
+          <span className="font-mono text-claude-text-secondary dark:text-[#9b9590]">{ligand.weight}</span>
         </div>
       </div>
       {ligand.description && (
-        <p className="text-[10px] text-claude-text-muted leading-relaxed">{ligand.description}</p>
+        <p className="text-[10px] text-claude-text-muted dark:text-[#6b6560] leading-relaxed">{ligand.description}</p>
       )}
     </div>
   );
@@ -977,41 +993,41 @@ function LigandTooltipContent({ ligand }: { ligand: LigandInfo }) {
 function BlastHomologTooltipContent({ result }: { result: EvalBlastResult }) {
   return (
     <div className="w-64 p-3 space-y-2">
-      <div className="text-sm font-semibold text-claude-text mb-1">BLAST Homolog</div>
+      <div className="text-sm font-semibold text-claude-text dark:text-[#e8e4dd] mb-1">BLAST Homolog</div>
       {result.pdbId && (
         <div className="font-mono text-xs text-claude-accent">{result.pdbId}</div>
       )}
       {result.description && (
-        <p className="text-xs text-claude-text-secondary line-clamp-2">{result.description}</p>
+        <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] line-clamp-2">{result.description}</p>
       )}
       <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
         {result.identity != null && (
           <div>
-            <span className="text-claude-text-muted">Identity:</span>{' '}
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Identity:</span>{' '}
             <span className={`font-medium ${getIdentityColor(result.identity)}`}>{result.identity}%</span>
           </div>
         )}
         {result.evalue != null && (
           <div>
-            <span className="text-claude-text-muted">E-value:</span>{' '}
-            <span className="font-mono text-claude-text-secondary">{formatEvalue(result.evalue)}</span>
+            <span className="text-claude-text-muted dark:text-[#6b6560]">E-value:</span>{' '}
+            <span className="font-mono text-claude-text-secondary dark:text-[#9b9590]">{formatEvalue(result.evalue)}</span>
           </div>
         )}
         {result.queryCoverage != null && (
           <div>
-            <span className="text-claude-text-muted">Q. Coverage:</span>{' '}
-            <span className="font-medium text-claude-text-secondary">{result.queryCoverage}%</span>
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Q. Coverage:</span>{' '}
+            <span className="font-medium text-claude-text-secondary dark:text-[#9b9590]">{result.queryCoverage}%</span>
           </div>
         )}
         {result.method && (
           <div>
-            <span className="text-claude-text-muted">Method:</span>{' '}
-            <span className="text-claude-text-secondary">{getMethodLabel(result.method)}</span>
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Method:</span>{' '}
+            <span className="text-claude-text-secondary dark:text-[#9b9590]">{getMethodLabel(result.method)}</span>
           </div>
         )}
         {result.resolution != null && (
           <div>
-            <span className="text-claude-text-muted">Resolution:</span>{' '}
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Resolution:</span>{' '}
             <span className={`font-medium ${getResolutionColor(result.resolution)}`}>{result.resolution}Å</span>
           </div>
         )}
@@ -3475,7 +3491,7 @@ export default function PdbTracker() {
                 <Keyboard className="h-4 w-4 text-claude-text-secondary" />
               </button>
             </PopoverTrigger>
-            <PopoverContent side="bottom" align="end" className="w-56 p-3 dark:bg-[#2b2926] dark:border-[#4a4540]">
+            <PopoverContent side="bottom" align="end" className="w-56 p-3 bg-white dark:bg-[#2b2926] dark:border-[#4a4540]">
               <div className="text-xs font-semibold text-claude-text mb-2">Keyboard Shortcuts</div>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -3805,7 +3821,7 @@ export default function PdbTracker() {
                         <ChevronDown className="h-3 w-3 opacity-50" />
                       </button>
                     </PopoverTrigger>
-                    <PopoverContent align="start" className="w-64 p-0 dark:bg-[#2b2926] dark:border-[#4a4540]">
+                    <PopoverContent align="start" className="w-64 p-0 bg-white dark:bg-[#2b2926] dark:border-[#4a4540]">
                       <div className="p-2 border-b border-claude-border dark:border-[#4a4540]">
                         <div className="flex items-center justify-between">
                           <span className="text-xs font-semibold text-claude-text">Filter by Tag</span>
@@ -4955,7 +4971,7 @@ export default function PdbTracker() {
                                     <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                   </a>
                                 </TooltipTrigger>
-                                <TooltipContent side="right" className="p-0 border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                <TooltipContent side="right" className="p-0 bg-white border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                   <PdbTooltipContent entry={entry} />
                                 </TooltipContent>
                               </Tooltip>
@@ -4998,7 +5014,7 @@ export default function PdbTracker() {
                                   </span>
                                 </TooltipTrigger>
                                 {entry.organisms && (
-                                  <TooltipContent side="top" className="max-w-64 bg-claude-surface dark:bg-[#2b2926] text-claude-text dark:text-white text-[11px] rounded px-2 py-1 border border-claude-border dark:border-0 shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                  <TooltipContent side="top" className="max-w-64 bg-white dark:bg-[#2b2926] text-claude-text dark:text-[#e8e4dd] text-[11px] rounded px-2 py-1 border border-claude-border dark:border-[#4a4540] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                     <p className="text-xs">{entry.organisms.replace(/\|/g, ', ')}</p>
                                   </TooltipContent>
                                 )}
@@ -5017,16 +5033,16 @@ export default function PdbTracker() {
                             <td className="px-3 py-2">
                               <div className="flex flex-wrap gap-1">
                                 {ligandList.slice(0, 3).map((lig, i) => (
-                                  <Popover key={`tbl-lig-pop-${i}-${lig}`}>
-                                    <PopoverTrigger asChild>
+                                  <HoverCard key={`tbl-lig-pop-${i}-${lig}`} openDelay={200} closeDelay={100}>
+                                    <HoverCardTrigger asChild>
                                       <span
                                         className="ligand-chip"
                                         onMouseEnter={() => fetchLigandInfo(lig)}
                                       >
                                         {lig}
                                       </span>
-                                    </PopoverTrigger>
-                                    <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
+                                    </HoverCardTrigger>
+                                    <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
                                       {ligandCache[lig] ? (
                                         <LigandTooltipContent ligand={ligandCache[lig]} />
                                       ) : (
@@ -5035,8 +5051,8 @@ export default function PdbTracker() {
                                           <span className="text-xs text-claude-text-muted">Loading...</span>
                                         </div>
                                       )}
-                                    </PopoverContent>
-                                  </Popover>
+                                    </HoverCardContent>
+                                  </HoverCard>
                                 ))}
                                 {ligandList.length > 3 && (
                                   <Tooltip>
@@ -5238,7 +5254,7 @@ export default function PdbTracker() {
                                       <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                     </a>
                                   </TooltipTrigger>
-                                  <TooltipContent side="right" className="p-0 border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
+                                  <TooltipContent side="right" className="p-0 bg-white border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                     {structResult ? (
                                       <PdbTooltipContent entry={structResult} />
                                     ) : blastResult ? (
@@ -5259,7 +5275,7 @@ export default function PdbTracker() {
                                       Homolog
                                     </span>
                                   </TooltipTrigger>
-                                  <TooltipContent side="top" className="p-0 border border-claude-border shadow-lg">
+                                  <TooltipContent side="top" className="p-0 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg">
                                     {blastResult && <BlastHomologTooltipContent result={blastResult} />}
                                   </TooltipContent>
                                 </Tooltip>
@@ -5322,16 +5338,16 @@ export default function PdbTracker() {
                                   if (evalLigands.length === 0) return <span className="text-claude-text-muted">—</span>;
                                   return (<>
                                     {evalLigands.slice(0, 3).map((lig, li) => (
-                                      <Popover key={`eval-lig-pop-${li}-${lig}`}>
-                                        <PopoverTrigger asChild>
+                                      <HoverCard key={`eval-lig-pop-${li}-${lig}`} openDelay={200} closeDelay={100}>
+                                        <HoverCardTrigger asChild>
                                           <span
                                             className="ligand-chip"
                                             onMouseEnter={() => fetchLigandInfo(lig)}
                                           >
                                             {lig}
                                           </span>
-                                        </PopoverTrigger>
-                                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
+                                        </HoverCardTrigger>
+                                        <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
                                           {ligandCache[lig] ? (
                                             <LigandTooltipContent ligand={ligandCache[lig]} />
                                           ) : (
@@ -5340,8 +5356,8 @@ export default function PdbTracker() {
                                               <span className="text-xs text-claude-text-muted">Loading...</span>
                                             </div>
                                           )}
-                                        </PopoverContent>
-                                      </Popover>
+                                        </HoverCardContent>
+                                      </HoverCard>
                                     ))}
                                     {evalLigands.length > 3 && (
                                       <Tooltip>
@@ -5860,16 +5876,16 @@ export default function PdbTracker() {
                   <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
                   <div className="flex flex-wrap gap-1">
                     {parseLigands(selectedEntry.ligands).map((lig, i) => (
-                      <Popover key={`detail-lig-${i}-${lig}`}>
-                        <PopoverTrigger asChild>
+                      <HoverCard key={`detail-lig-${i}-${lig}`} openDelay={200} closeDelay={100}>
+                        <HoverCardTrigger asChild>
                           <span
                             className="ligand-chip cursor-pointer"
                             onMouseEnter={() => fetchLigandInfo(lig)}
                           >
                             {lig}
                           </span>
-                        </PopoverTrigger>
-                        <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
+                        </HoverCardTrigger>
+                        <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
                           {ligandCache[lig] ? (
                             <LigandTooltipContent ligand={ligandCache[lig]} />
                           ) : (
@@ -5878,8 +5894,8 @@ export default function PdbTracker() {
                               <span className="text-xs text-claude-text-muted">Loading...</span>
                             </div>
                           )}
-                        </PopoverContent>
-                      </Popover>
+                        </HoverCardContent>
+                      </HoverCard>
                     ))}
                   </div>
                 </div>
@@ -6161,13 +6177,14 @@ export default function PdbTracker() {
                 className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
                 onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
               />
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none">
               <motion.div
                 key={`desktop-detail-panel-${selectedEntry.pdbId}`}
                 initial={{ opacity: 0, scale: 0.97, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97, y: 12 }}
                 transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="fixed inset-4 sm:inset-8 md:inset-12 lg:inset-16 z-50 bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden"
+                className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto"
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Detail Header */}
@@ -6210,6 +6227,7 @@ export default function PdbTracker() {
                   </motion.div>
                 </ScrollArea>
               </motion.div>
+              </div>
             </>
           );
         })()}
@@ -6490,16 +6508,7 @@ export default function PdbTracker() {
                       <HoverCardTrigger asChild>
                         <button
                           onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
-                          onMouseMove={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const x = (e.clientX - rect.left) / rect.width - 0.5;
-                            const y = (e.clientY - rect.top) / rect.height - 0.5;
-                            e.currentTarget.style.transform = `translate3d(${-x * 2}px, ${-y * 2}px, 0)`;
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translate3d(0, 0, 0)';
-                          }}
-                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] week-card-parallax ${
+                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                             isSelected
                               ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe breathe-glow-active week-card-active-border'
                               : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
@@ -7115,13 +7124,13 @@ export default function PdbTracker() {
                     <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Ligands</h4>
                     <div className="flex flex-wrap gap-1">
                       {parseLigands(selectedEntry.ligands).map((lig, i) => (
-                        <Popover key={`pv-lig-${i}-${lig}`}>
-                          <PopoverTrigger asChild>
+                        <HoverCard key={`pv-lig-${i}-${lig}`} openDelay={200} closeDelay={100}>
+                          <HoverCardTrigger asChild>
                             <span className="ligand-chip cursor-pointer" onMouseEnter={() => fetchLigandInfo(lig)}>
                               {lig}
                             </span>
-                          </PopoverTrigger>
-                          <PopoverContent side="top" className="p-0 w-auto border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg">
+                          </HoverCardTrigger>
+                          <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
                             {ligandCache[lig] ? (
                               <LigandTooltipContent ligand={ligandCache[lig]} />
                             ) : (
@@ -7130,8 +7139,8 @@ export default function PdbTracker() {
                                 <span className="text-xs text-claude-text-muted">Loading...</span>
                               </div>
                             )}
-                          </PopoverContent>
-                        </Popover>
+                          </HoverCardContent>
+                        </HoverCard>
                       ))}
                     </div>
                   </div>
