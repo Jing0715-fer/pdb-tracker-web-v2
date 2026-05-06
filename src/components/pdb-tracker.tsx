@@ -231,60 +231,6 @@ function AnimatedNumber({ value, decimals = 0, suffix = '' }: { value: number; d
   );
 }
 
-// ─── useMagneticEffect Hook ──────────────────────────────────────────────────
-
-function useMagneticEffect<T extends HTMLElement>(strength: number = 0.3) {
-  const ref = useRef<T>(null);
-  const isDesktop = useRef(false);
-  const rafRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    isDesktop.current = window.matchMedia('(hover: hover)').matches;
-  }, []);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el || !isDesktop.current) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        const rect = el.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        const dx = e.clientX - centerX;
-        const dy = e.clientY - centerY;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const radius = 50;
-
-        if (distance < radius) {
-          el.style.transform = `translate(${dx * strength}px, ${dy * strength}px)`;
-          el.classList.add('magnetic-element-active');
-          el.classList.remove('magnetic-element');
-        }
-      });
-    };
-
-    const handleMouseLeave = () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      el.style.transform = '';
-      el.classList.remove('magnetic-element-active');
-      el.classList.add('magnetic-element');
-    };
-
-    el.classList.add('magnetic-element');
-    el.addEventListener('mousemove', handleMouseMove);
-    el.addEventListener('mouseleave', handleMouseLeave);
-    return () => {
-      el.removeEventListener('mousemove', handleMouseMove);
-      el.removeEventListener('mouseleave', handleMouseLeave);
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    };
-  }, [strength]);
-
-  return ref;
-}
-
 // ─── HeaderParticles Component ──────────────────────────────────────────────
 
 function HeaderParticles() {
@@ -2514,14 +2460,11 @@ export default function PdbTracker() {
   const tourPreviewRef = useRef<HTMLDivElement>(null);
   const tourShortcutsRef = useRef<HTMLButtonElement>(null);
 
-  // ── Magnetic Effect Refs ──
-  const magneticHeaderBtns = useMagneticEffect<HTMLDivElement>(0.25);
-  const magneticModeSwitcher = useMagneticEffect<HTMLDivElement>(0.2);
-  const magneticToolbar = useMagneticEffect<HTMLDivElement>(0.2);
-
   // ── Tour Auto-Start ──
   useEffect(() => {
     if (!mounted) return;
+    // Don't auto-start tour on mobile - it overlaps content
+    if (window.innerWidth < 768) return;
     try {
       const completed = localStorage.getItem('pdb-tour-completed');
       if (!completed) {
@@ -3503,8 +3446,8 @@ export default function PdbTracker() {
             </div>
           </div>
 
-          {/* Header Action Buttons - Magnetic wrapper */}
-          <div ref={magneticHeaderBtns} className="flex items-center gap-1 relative z-10 ml-auto">
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-1 relative z-10 ml-auto">
           {/* Command Palette Button */}
           <Tooltip>
             <TooltipTrigger asChild>
@@ -3665,7 +3608,7 @@ export default function PdbTracker() {
           {/* Dark mode toggle */}
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="hidden sm:inline-flex items-center justify-center sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
             aria-label="Toggle dark mode"
           >
             {mounted && theme === 'dark' ? (
@@ -3678,7 +3621,7 @@ export default function PdbTracker() {
           {/* Mobile/tablet hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
-            className="lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="lg:hidden inline-flex items-center justify-center h-9 w-9 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150"
             aria-label="Open navigation menu"
           >
             <Menu className="h-5 w-5 text-claude-text-secondary" />
@@ -3687,7 +3630,7 @@ export default function PdbTracker() {
           {/* Mobile/tablet preview toggle */}
           <button
             onClick={() => setMobilePreviewOpen(true)}
-            className="ml-1 lg:hidden inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
+            className="ml-0.5 lg:hidden inline-flex items-center justify-center h-9 w-9 sm:h-8 sm:w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150"
             aria-label="Open preview panel"
           >
             <BarChart3 className="h-5 w-5 text-claude-text-secondary" />
@@ -3700,7 +3643,7 @@ export default function PdbTracker() {
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar - visible when open on xl+ */}
           {sidebarOpen && (
-            <aside className={`hidden lg:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
+            <aside className={`hidden lg:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient overflow-hidden relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
               {/* Sidebar gradient mesh overlay */}
               <div className="sidebar-mesh-overlay" />
               {renderSidebar()}
@@ -3714,7 +3657,7 @@ export default function PdbTracker() {
 
           {/* Desktop sidebar collapsed strip - when sidebarOpen is false on xl+ */}
           {!sidebarOpen && (
-            <div className="hidden lg:flex w-12 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-2 no-print sidebar-gradient relative">
+            <div className="hidden lg:flex w-12 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-2 no-print sidebar-gradient overflow-hidden relative">
               <div className="sidebar-mesh-overlay" />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3782,7 +3725,7 @@ export default function PdbTracker() {
                   animate={{ x: 0 }}
                   exit={{ x: -280 }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-claude-surface dark:bg-[#242220] border-r border-claude-border dark:border-[#3d3832] flex flex-col lg:hidden shadow-2xl sidebar-gradient relative"
+                  className="fixed left-0 top-0 bottom-0 z-50 w-[280px] max-w-[85vw] bg-claude-surface dark:bg-[#242220] border-r border-claude-border dark:border-[#3d3832] flex flex-col lg:hidden shadow-2xl sidebar-gradient overflow-hidden relative"
                 >
                   <div className="sidebar-mesh-overlay" />
                   {/* Close button header */}
@@ -3995,7 +3938,7 @@ export default function PdbTracker() {
                   </div>
 
                   {/* Active Filter Chips */}
-                  <div ref={magneticToolbar} className="hidden sm:flex items-center gap-1.5 flex-wrap no-print">
+                  <div className="hidden sm:flex items-center gap-1.5 flex-wrap no-print">
                     {/* Bookmark Filter Button */}
                     <button
                       onClick={() => {
@@ -6417,7 +6360,7 @@ export default function PdbTracker() {
         {/* Mode Switcher */}
         <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border dark:border-[#3d3832]">
           <div className="flex items-center justify-between mb-2">
-            <div ref={magneticModeSwitcher} className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
+            <div className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
               <button
                 onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${

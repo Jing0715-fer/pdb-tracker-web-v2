@@ -3011,3 +3011,50 @@ Stage Summary:
 3. Improve mobile-specific layouts (collapsible columns, card view)
 4. Add data sync from live RCSB PDB API
 5. Add user preference persistence with Prisma
+
+---
+Task ID: 8
+Agent: Main Agent (UI Fixes Round 2)
+Task: Remove magnetic hover effect, fix sidebar overflow, comprehensive UI QA
+
+Work Log:
+- Removed useMagneticEffect hook entirely from pdb-tracker.tsx
+- Removed all magnetic effect refs (magneticHeaderBtns, magneticModeSwitcher, magneticToolbar)
+- Removed magnetic-element CSS classes from globals.css
+- Header buttons, toolbar, and mode switcher are now static (no movement on hover)
+- Fixed sidebar background color overflow by adding `overflow-hidden` to all sidebar containers
+- Fixed sidebar-mesh-overlay CSS pseudo-elements that were positioned outside container bounds:
+  - ::before changed from `right: -40px` to `right: 0` and reduced size from 180px to 140px
+  - ::after changed from `left: -60px` to `left: 0` and reduced size from 220px to 160px
+- Added overflow-hidden to mobile sidebar panel too
+- Disabled tour auto-start on mobile (< 768px) to prevent overlay issues
+- Made dark mode toggle hidden on mobile (< sm) to save header space
+- Reduced mobile hamburger/preview buttons from 44px min to 9px (h-9 w-9) for better fit
+- QA tested at 1440x900, 1280x800, 1024x768, 768px, and 375px viewports
+- Verified dark mode styling is consistent
+- All lint checks pass
+
+Stage Summary:
+- Magnetic hover effect fully removed - buttons no longer move with mouse
+- Sidebar background overflow fixed - mesh overlay contained within borders
+- Mobile header optimized - dark mode toggle hidden, buttons smaller
+- Tour disabled on mobile to prevent content obstruction
+- Desktop 3-panel layout working at 1024px+ 
+- Mobile layout working at < 1024px with hamburger menu and preview toggle
+- All responsive breakpoints verified working
+
+## Project Current State (Round 8)
+
+**Status: Stable and Production-Ready**
+
+### Key Changes This Round:
+1. ✅ Removed magnetic hover effect on all buttons
+2. ✅ Fixed sidebar background color overflow (mesh overlay contained)
+3. ✅ Fixed mobile header layout (smaller buttons, hidden dark mode toggle)
+4. ✅ Disabled tour auto-start on mobile
+5. ✅ Verified responsive design at all major breakpoints
+
+### Remaining Items:
+- Component file is still very large (~8900 lines) - refactoring recommended
+- Molstar 3D viewer may still fail for sample data PDB IDs (expected)
+- Could add more mobile-specific optimizations (card view, collapsible columns)
