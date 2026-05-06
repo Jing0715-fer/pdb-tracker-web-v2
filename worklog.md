@@ -2788,3 +2788,32 @@ Stage Summary:
 - HeaderParticles hydration mismatch resolved with deterministic math
 - geneNames field now displayed in both compact and full sidebar modes
 - All changes pass lint, dev server compiling successfully
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Fix multiple UI bugs reported by user - hydration, sidebar, preview panel, ligands, etc.
+
+Work Log:
+- Fixed HeaderParticles hydration mismatch: replaced Math.sin-based values with fully static hardcoded particle definitions
+- Removed desktop sidebar toggle button from header (user said it overlaps with sidebar's own toggle)
+- Removed header preview panel toggle button (preview panel now auto-opens on row click)
+- Fixed preview panel: default closed (was open), auto-opens when clicking a PDB entry row, added close (X) button
+- Fixed preview panel scrolling: added min-h-0 to ScrollArea and parent flex containers
+- Fixed molecule viewer: changed 3D background from dark (#1a1917) to light cream (#f5f0eb) with dark mode support
+- Fixed ligand chip styling: reduced font-size from 0.6875rem to 0.6rem, padding from 2px 8px to 1px 5px
+- Fixed table row hover background: changed from #fdf0eb to lighter #faf5f0, removed transform translateY
+- Fixed week selector font size: reduced from text-xs to text-[11px], reduced height from h-8 to h-7
+- Fixed method filter font size to match
+- Fixed detail panel overflow: added overflow-hidden to desktop detail panel aside
+- QA verified: no hydration errors, preview auto-opens, close button works, scrolling works, ligand chips smaller, 3D viewer light background
+
+Stage Summary:
+- HeaderParticles hydration fully resolved with static values
+- Preview panel: default closed, auto-opens on row click, has close button, scrolling works
+- 3D viewer now uses light cream background (was dark)
+- Ligand chips significantly smaller and more compact
+- Table row hover is subtler (lighter color, no transform)
+- Week/method selectors use smaller text matching toolbar
+- Both top-right toggle buttons removed (sidebar + preview)
+- All changes pass lint, no compilation errors

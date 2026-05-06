@@ -254,32 +254,35 @@ function useMagneticEffect<T extends HTMLElement>(strength: number = 0.3) {
 // ─── HeaderParticles Component ──────────────────────────────────────────────
 
 function HeaderParticles() {
-  // Deterministic particle positions using index-based formulas (no Math.random, no hydration mismatch)
+  // Static particle definitions to avoid SSR/CSR hydration mismatch (no Math.random, no Math.sin)
   const particles = useMemo(() => {
-    const count = 18;
-    // Simple hash-like function based on index
-    const h = (i: number, offset: number) => {
-      const v = Math.sin(i * 127.1 + offset * 311.7) * 43758.5453;
-      return v - Math.floor(v);
-    };
-    return Array.from({ length: count }, (_, i) => {
-      const size = 2 + h(i, 0) * 1;
-      const duration = 8 + h(i, 1) * 7;
-      const delay = h(i, 2) * -15;
-      const left = h(i, 3) * 100;
-      const top = h(i, 4) * 100;
-      const minOpacity = 0.05 + h(i, 5) * 0.08;
-      const maxOpacity = 0.2 + h(i, 6) * 0.2;
-      const dx1 = -20 + h(i, 7) * 40;
-      const dy1 = -20 + h(i, 8) * 40;
-      const dx2 = -20 + h(i, 9) * 40;
-      const dy2 = -20 + h(i, 10) * 40;
-      const dx3 = -20 + h(i, 11) * 40;
-      const dy3 = -20 + h(i, 12) * 40;
-      // Alternate between accent and muted colors
-      const color = i % 3 === 0 ? 'rgba(201, 100, 66, 0.15)' : i % 3 === 1 ? 'rgba(155, 149, 144, 0.12)' : 'rgba(201, 100, 66, 0.1)';
-      return { size, duration, delay, left, top, minOpacity, maxOpacity, dx1, dy1, dx2, dy2, dx3, dy3, color, key: `hp-${i}` };
-    });
+    const defs = [
+      { s: 2.4, d: 10.2, dl: -8.5, l: 12.3, t: 68.1, mo: 0.06, xo: 0.28, dx1: 15, dy1: -8, dx2: -12, dy2: 5, dx3: 8, dy3: -15 },
+      { s: 2.7, d: 13.5, dl: -3.2, l: 45.6, t: 22.8, mo: 0.08, xo: 0.35, dx1: -18, dy1: 12, dx2: 6, dy2: -10, dx3: -5, dy3: 8 },
+      { s: 2.1, d: 9.8, dl: -11.3, l: 78.2, t: 55.4, mo: 0.05, xo: 0.22, dx1: 10, dy1: 18, dx2: -8, dy2: -15, dx3: 12, dy3: 6 },
+      { s: 2.8, d: 11.7, dl: -6.7, l: 33.9, t: 89.2, mo: 0.07, xo: 0.31, dx1: -5, dy1: -12, dx2: 18, dy2: 8, dx3: -10, dy3: 15 },
+      { s: 2.2, d: 14.1, dl: -1.5, l: 67.4, t: 35.7, mo: 0.09, xo: 0.38, dx1: 8, dy1: 5, dx2: -15, dy2: -18, dx3: 3, dy3: -8 },
+      { s: 2.5, d: 8.9, dl: -9.8, l: 91.1, t: 72.3, mo: 0.06, xo: 0.25, dx1: -12, dy1: 15, dx2: 5, dy2: -8, dx3: 18, dy3: -3 },
+      { s: 2.3, d: 12.6, dl: -4.3, l: 18.7, t: 43.6, mo: 0.07, xo: 0.32, dx1: 16, dy1: -10, dx2: -3, dy2: 12, dx3: -8, dy3: 18 },
+      { s: 2.6, d: 10.8, dl: -7.1, l: 55.2, t: 16.9, mo: 0.08, xo: 0.27, dx1: -8, dy1: 6, dx2: 12, dy2: -15, dx3: 5, dy3: -12 },
+      { s: 2.0, d: 15.2, dl: -2.6, l: 82.5, t: 61.8, mo: 0.05, xo: 0.20, dx1: 10, dy1: -18, dx2: -6, dy2: 8, dx3: -15, dy3: 5 },
+      { s: 2.9, d: 9.3, dl: -10.4, l: 27.3, t: 94.5, mo: 0.09, xo: 0.36, dx1: -15, dy1: 10, dx2: 8, dy2: -5, dx3: 12, dy3: -10 },
+      { s: 2.1, d: 13.8, dl: -5.9, l: 60.8, t: 28.4, mo: 0.06, xo: 0.29, dx1: 5, dy1: 15, dx2: -18, dy2: 12, dx3: -3, dy3: 8 },
+      { s: 2.4, d: 11.1, dl: -8.7, l: 95.2, t: 79.6, mo: 0.07, xo: 0.33, dx1: -10, dy1: -5, dx2: 15, dy2: -12, dx3: 8, dy3: 15 },
+      { s: 2.7, d: 14.5, dl: -0.8, l: 41.6, t: 51.3, mo: 0.08, xo: 0.24, dx1: 18, dy1: -8, dx2: -5, dy2: 18, dx3: -12, dy3: -6 },
+      { s: 2.3, d: 10.5, dl: -6.2, l: 73.9, t: 8.5, mo: 0.05, xo: 0.21, dx1: -3, dy1: 12, dx2: 10, dy2: -8, dx3: 15, dy3: -18 },
+      { s: 2.5, d: 12.9, dl: -3.5, l: 8.4, t: 65.7, mo: 0.09, xo: 0.37, dx1: 12, dy1: -15, dx2: -10, dy2: 5, dx3: -8, dy3: 12 },
+      { s: 2.0, d: 9.6, dl: -11.8, l: 48.7, t: 37.2, mo: 0.06, xo: 0.26, dx1: -18, dy1: 8, dx2: 3, dy2: 15, dx3: 10, dy3: -5 },
+      { s: 2.8, d: 15.8, dl: -1.2, l: 86.3, t: 83.9, mo: 0.07, xo: 0.30, dx1: 6, dy1: -3, dx2: -15, dy2: -10, dx3: -5, dy3: 18 },
+      { s: 2.2, d: 11.4, dl: -7.9, l: 22.1, t: 46.8, mo: 0.08, xo: 0.34, dx1: -5, dy1: 18, dx2: 12, dy2: -3, dx3: 8, dy3: -12 },
+    ];
+    return defs.map((p, i) => ({
+      size: p.s, duration: p.d, delay: p.dl, left: p.l, top: p.t,
+      minOpacity: p.mo, maxOpacity: p.xo,
+      dx1: p.dx1, dy1: p.dy1, dx2: p.dx2, dy2: p.dy2, dx3: p.dx3, dy3: p.dy3,
+      color: i % 3 === 0 ? 'rgba(201,100,66,0.15)' : i % 3 === 1 ? 'rgba(155,149,144,0.12)' : 'rgba(201,100,66,0.1)',
+      key: `hp-${i}`
+    }));
   }, []);
 
   return (
@@ -1829,7 +1832,7 @@ export default function PdbTracker() {
   const [currentPage, setCurrentPage] = useState(1);
 
   // ── Preview Panel ──
-  const [previewOpen, setPreviewOpen] = useState(true);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const [previewTab, setPreviewTab] = useState<string>('summary');
 
   // ── Compare Mode ──
@@ -3631,15 +3634,6 @@ export default function PdbTracker() {
             )}
           </button>
 
-          {/* Desktop sidebar toggle */}
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="hidden xl:inline-flex items-center justify-center h-8 w-8 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press ripple-btn"
-            aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
-          >
-            <PanelLeftClose className={`h-4 w-4 text-claude-text-secondary transition-transform duration-200 ${sidebarOpen ? '' : 'rotate-180'}`} />
-          </button>
-
           {/* Mobile/tablet hamburger menu */}
           <button
             onClick={() => setMobileSidebarOpen(true)}
@@ -3784,12 +3778,12 @@ export default function PdbTracker() {
                 <>
                   {/* Week Select */}
                   <Select value={selectedWeekId || ''} onValueChange={setSelectedWeekId}>
-                    <SelectTrigger className="w-[130px] sm:w-[160px] h-8 sm:min-h-[44px] sm:h-8 text-xs">
+                    <SelectTrigger className="w-[120px] sm:w-[150px] h-7 text-[11px]">
                       <SelectValue placeholder="Select week" />
                     </SelectTrigger>
                     <SelectContent>
                       {snapshots.map(s => (
-                        <SelectItem key={s.weekId} value={s.weekId}>
+                        <SelectItem key={s.weekId} value={s.weekId} className="text-[11px]">
                           <span className="font-mono">{s.weekId}</span>
                           <span className="text-claude-text-muted ml-2">({s.totalStructures})</span>
                         </SelectItem>
@@ -3799,7 +3793,7 @@ export default function PdbTracker() {
 
                   {/* Method Filter */}
                   <Select value={methodFilter} onValueChange={setMethodFilter}>
-                    <SelectTrigger className="w-[120px] sm:w-[150px] h-8 sm:min-h-[44px] sm:h-8 text-xs">
+                    <SelectTrigger className="w-[110px] sm:w-[140px] h-7 text-[11px]">
                       <SelectValue placeholder="Method" />
                     </SelectTrigger>
                     <SelectContent>
@@ -4432,27 +4426,7 @@ export default function PdbTracker() {
                 </>
               )}
 
-              {/* Preview Toggle (desktop) */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPreviewOpen(!previewOpen)}
-                    className={`hidden xl:inline-flex h-7 px-2 text-[10px] gap-1 transition-colors duration-150 ${
-                      previewOpen
-                        ? 'text-claude-text-muted border-claude-border hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text'
-                        : 'text-claude-accent border-claude-accent/30 bg-claude-accent-light dark:bg-[#3d2a22] hover:bg-claude-accent-light/80'
-                    }`}
-                  >
-                    {previewOpen ? <PanelRightClose className="h-3 w-3" /> : <PanelRightOpen className="h-3 w-3" />}
-                    <span className="hidden xl:inline">{previewOpen ? 'Hide' : 'Show'}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom" className="text-xs">
-                  {previewOpen ? 'Hide preview panel (⌘\\)' : 'Show preview panel (⌘\\)'}
-                </TooltipContent>
-              </Tooltip>
+              {/* Preview Toggle (desktop) - removed; sidebar auto-opens on row click */}
             </div>
 
             {/* Advanced Filter Panel */}
@@ -4908,6 +4882,7 @@ export default function PdbTracker() {
                                 onClick={() => {
                                   setSelectedEntry(entry);
                                   setDetailPanelOpen(true);
+                                  setPreviewOpen(true);
                                   if (isMobile) setBottomSheetSnap(0.5);
                                   setFocusedRowIndex(idx);
                                   // Trigger pulse animation
@@ -5447,14 +5422,24 @@ export default function PdbTracker() {
                 animate={{ width: previewWidth, opacity: hasLoaded ? 1 : 0 }}
                 exit={{ width: 0, opacity: 0 }}
                 transition={{ duration: 0.2, delay: hasLoaded ? 0 : 0.3 }}
-                className={`hidden xl:flex flex-shrink-0 bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
+                className={`hidden xl:flex flex-col flex-shrink-0 bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
               >
+                {/* Close button */}
+                <button
+                  onClick={() => setPreviewOpen(false)}
+                  className="absolute top-2 right-2 z-20 h-6 w-6 flex items-center justify-center rounded-md bg-claude-surface/80 dark:bg-[#2b2926]/80 hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 shadow-sm"
+                  aria-label="Close preview panel"
+                >
+                  <X className="h-3.5 w-3.5 text-claude-text-muted" />
+                </button>
                 {/* Preview panel resize handle */}
                 <div
                   onMouseDown={handlePreviewMouseDown}
                   className={`absolute top-0 left-0 bottom-0 w-1 hover:bg-claude-accent/30 transition-colors duration-150 cursor-col-resize z-10 ${resizingPreview ? 'bg-claude-accent/50' : ''}`}
                 />
-                {renderPreviewPanel()}
+                <div className="flex-1 overflow-hidden min-h-0">
+                  {renderPreviewPanel()}
+                </div>
               </motion.aside>
             )}
           </AnimatePresence>
@@ -6164,7 +6149,7 @@ export default function PdbTracker() {
                   </div>
 
                   {/* Detail Content with horizontal slide transition */}
-                  <ScrollArea className="flex-1 preview-scroll">
+                  <ScrollArea className="flex-1 preview-scroll min-h-0">
                     <motion.div
                       key={selectedEntry.pdbId}
                       initial={{ x: detailSlideDirection === 'left' ? 60 : detailSlideDirection === 'right' ? -60 : 0, opacity: 0 }}
@@ -6197,7 +6182,7 @@ export default function PdbTracker() {
                 animate={{ x: 0 }}
                 exit={{ x: 420 }}
                 transition={{ duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-claude-surface dark:bg-[#242220] border-l border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print"
+                className="fixed right-0 top-0 bottom-0 z-50 w-[420px] max-w-[90vw] bg-claude-surface dark:bg-[#242220] border-l border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden"
               >
                 {/* Detail Header */}
                 <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832]">
@@ -6228,7 +6213,7 @@ export default function PdbTracker() {
                 </div>
 
                 {/* Detail Content */}
-                <ScrollArea className="flex-1 preview-scroll">
+                <ScrollArea className="flex-1 preview-scroll min-h-0">
                   <motion.div
                     key={selectedEntry.pdbId}
                     initial={{ x: detailSlideDirection === 'left' ? 30 : detailSlideDirection === 'right' ? -30 : 0, opacity: 0 }}
@@ -7081,7 +7066,7 @@ export default function PdbTracker() {
     ];
 
     return (
-      <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col">
+      <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col min-h-0">
         <div className="px-4 pt-3 border-b border-claude-border dark:border-[#3d3832]">
           <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative">
             {previewTabs.map((tab) => (
@@ -7107,7 +7092,7 @@ export default function PdbTracker() {
           </TabsList>
         </div>
 
-        <ScrollArea className="flex-1 preview-scroll">
+        <ScrollArea className="flex-1 preview-scroll min-h-0">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={previewTab}

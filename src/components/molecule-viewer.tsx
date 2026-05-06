@@ -73,10 +73,10 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
 
         pluginRef.current = plugin;
 
-        // Set dark background
+        // Set light background
         PluginCommands.Canvas3D.SetSettings(plugin, {
           settings: (props: any) => {
-            props.renderer.backgroundColor = Color(0x1a1917);
+            props.renderer.backgroundColor = Color(0xf5f0eb);
           },
         });
 
@@ -109,18 +109,18 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
   }, [pdbId]);
 
   return (
-    <div className="relative w-full h-[300px] rounded-lg overflow-hidden bg-[#1a1917] border border-claude-border">
+    <div className="relative w-full h-[300px] rounded-lg overflow-hidden bg-[#f5f0eb] dark:bg-[#2b2926] border border-claude-border dark:border-[#3d3832]">
       <div ref={containerRef} className="w-full h-full" />
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1917] z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb] dark:bg-[#2b2926] z-10">
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="h-6 w-6 text-claude-accent animate-spin" />
-            <span className="text-[11px] text-claude-text-muted">Loading 3D structure...</span>
+            <span className="text-[11px] text-claude-text-muted dark:text-[#9b9590]">Loading 3D structure...</span>
           </div>
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#1a1917] z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-[#f5f0eb] dark:bg-[#2b2926] z-10">
           <div className="flex flex-col items-center gap-3 text-center px-6">
             {/* Stylized molecule SVG placeholder */}
             <svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-70">
@@ -145,8 +145,8 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
               <line x1="39" y1="25" x2="51" y2="14" stroke="#c9872e" strokeWidth="1" strokeLinecap="round" opacity="0.4" />
             </svg>
             <div className="flex flex-col items-center gap-1.5">
-              <span className="text-[13px] font-medium text-[#e8e4dd]">3D structure not available</span>
-              <span className="text-[11px] text-[#9b9590] max-w-[220px] leading-relaxed">
+              <span className="text-[13px] font-medium text-claude-text dark:text-[#e8e4dd]">3D structure not available</span>
+              <span className="text-[11px] text-claude-text-muted dark:text-[#9b9590] max-w-[220px] leading-relaxed">
                 PDB structure data is available for real RCSB entries
               </span>
             </div>
@@ -154,7 +154,7 @@ export default function MoleculeViewer({ pdbId }: MoleculeViewerProps) {
               href={`https://www.rcsb.org/structure/${pdbId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#2b2926] hover:bg-[#3d3832] border border-[#4a4540] text-[11px] font-medium text-[#d4784f] transition-colors duration-200"
+              className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-claude-border-light dark:bg-[#2b2926] hover:bg-claude-border dark:hover:bg-[#3d3832] border border-claude-border dark:border-[#4a4540] text-[11px] font-medium text-claude-accent transition-colors duration-200"
             >
               View on RCSB PDB
               <ExternalLink className="h-3 w-3" />

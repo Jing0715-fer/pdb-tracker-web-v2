@@ -476,9 +476,9 @@
 .ligand-chip {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-size: 0.6875rem;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.6rem;
   font-family: var(--font-geist-mono), monospace;
   font-weight: 500;
   background: #f0ece5;
@@ -486,6 +486,7 @@
   border: 1px solid #e8e4dd;
   cursor: pointer;
   transition: all 0.15s ease;
+  line-height: 1.2;
 }
 
 .ligand-chip:hover {
@@ -670,17 +671,15 @@
 }
 
 .table-row-hover-enhanced:hover {
-  background-color: #fdf0eb;
+  background-color: #faf5f0;
   border-left-color: #c96442;
-  box-shadow: 0 1px 4px rgba(201, 100, 66, 0.08);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(201, 100, 66, 0.06);
 }
 
 .dark .table-row-hover-enhanced:hover {
   background-color: #2b2926;
   border-left-color: #d4784f;
-  box-shadow: 0 1px 4px rgba(212, 120, 79, 0.1);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 3px rgba(212, 120, 79, 0.08);
 }
 
 /* ─── Method Badge Enhancement ──────────────────────────────────────────── */
