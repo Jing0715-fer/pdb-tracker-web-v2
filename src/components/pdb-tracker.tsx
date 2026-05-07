@@ -1015,16 +1015,52 @@ function LigandTooltipContent({ ligand }: { ligand: LigandInfo }) {
 // ─── Blast Homolog Tooltip Component ─────────────────────────────────────────
 
 function BlastHomologTooltipContent({ result }: { result: EvalBlastResult }) {
+  const ligandList = parseLigands(result.ligand);
+  const method = result.method || '';
+  const methodColors = getMethodColor(method);
+
   return (
-    <div className="w-64 p-3 space-y-2">
-      <div className="text-sm font-semibold text-claude-text dark:text-[#e8e4dd] mb-1">BLAST Homolog</div>
-      {result.pdbId && (
-        <div className="font-mono text-xs text-claude-accent">{result.pdbId}</div>
-      )}
-      {result.description && (
-        <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] line-clamp-2">{result.description}</p>
-      )}
-      <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+    <div className="w-[400px] p-3 space-y-2">
+      <div className="flex items-start gap-2">
+        <img
+          src={`https://cdn.rcsb.org/images/structures/${(result.pdbId || '').toLowerCase()}_assembly-1.jpeg`}
+          alt={result.pdbId}
+          className="w-40 h-40 rounded-md bg-claude-border-light dark:bg-[#3d3832] object-cover flex-shrink-0 border border-claude-border-light dark:border-[#3d3832]"
+          loading="lazy"
+          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-mono font-semibold text-claude-text dark:text-[#e8e4dd] text-sm">{result.pdbId}</span>
+            {method && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>
+                {getMethodLabel(method)}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] line-clamp-2 leading-relaxed">
+            {result.title || result.description}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+        {result.resolution != null && (
+          <div>
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Resolution:</span>{' '}
+            <span className={`font-medium ${getResolutionColor(result.resolution)}`}>{result.resolution}Å</span>
+          </div>
+        )}
+        <div>
+          <span className="text-claude-text-muted dark:text-[#6b6560]">Date:</span>{' '}
+          <span className="text-claude-text-secondary dark:text-[#9b9590]">{formatDate(result.releaseDate)}</span>
+        </div>
+        {result.journal && (
+          <div className="col-span-2">
+            <span className="text-claude-text-muted dark:text-[#6b6560]">Journal:</span>{' '}
+            <span className="text-claude-text-secondary dark:text-[#9b9590]">{result.journal}</span>
+            {result.journalIf && <span className="text-claude-text-muted dark:text-[#6b6560] ml-1">({safeNum(result.journalIf, 1)})</span>}
+          </div>
+        )}
         {result.identity != null && (
           <div>
             <span className="text-claude-text-muted dark:text-[#6b6560]">Identity:</span>{' '}
@@ -1043,19 +1079,21 @@ function BlastHomologTooltipContent({ result }: { result: EvalBlastResult }) {
             <span className="font-medium text-claude-text-secondary dark:text-[#9b9590]">{result.queryCoverage}%</span>
           </div>
         )}
-        {result.method && (
+        {result.uniprotRef && (
           <div>
-            <span className="text-claude-text-muted dark:text-[#6b6560]">Method:</span>{' '}
-            <span className="text-claude-text-secondary dark:text-[#9b9590]">{getMethodLabel(result.method)}</span>
-          </div>
-        )}
-        {result.resolution != null && (
-          <div>
-            <span className="text-claude-text-muted dark:text-[#6b6560]">Resolution:</span>{' '}
-            <span className={`font-medium ${getResolutionColor(result.resolution)}`}>{result.resolution}Å</span>
+            <span className="text-claude-text-muted dark:text-[#6b6560]">UniProt:</span>{' '}
+            <span className="font-mono text-claude-text-secondary dark:text-[#9b9590]">{result.uniprotRef}</span>
           </div>
         )}
       </div>
+      {ligandList.length > 0 && (
+        <div className="flex flex-wrap gap-1 pt-1">
+          {ligandList.slice(0, 6).map((l, i) => (
+            <span key={`tt-blast-lig-${i}-${l}`} className="ligand-chip">{l}</span>
+          ))}
+          {ligandList.length > 6 && <span className="text-[10px] text-claude-text-muted dark:text-[#6b6560]">+{ligandList.length - 6}</span>}
+        </div>
+      )}
     </div>
   );
 }
