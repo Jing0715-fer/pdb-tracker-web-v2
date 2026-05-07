@@ -665,11 +665,20 @@ function formatDate(dateStr: string | null): string {
 
 function parseLigands(ligands: string | null): string[] {
   if (!ligands) return [];
-  // Handle both pipe-separated (weekly format: "CODE:Name|Other:Name2") and semicolon-separated (eval format: "NAG; FOR; NAD")
-  const separators = ligands.includes('|') ? '|' : /[;]+/;
-  return ligands.split(separators).map(l => {
-    const parts = l.split(':');
-    return parts[0].trim();
+  // Handle pipe-separated (weekly: "CODE:Name|Other:Name2"), semicolon-separated (eval: "NAG; FOR; NAD"), and comma-separated (BLAST: "CA, NAG")
+  let parts: string[];
+  if (ligands.includes('|')) {
+    parts = ligands.split('|');
+  } else if (ligands.includes(';')) {
+    parts = ligands.split(/[;]+/);
+  } else if (ligands.includes(',')) {
+    parts = ligands.split(/[,]+/);
+  } else {
+    parts = [ligands];
+  }
+  return parts.map(l => {
+    const colonParts = l.split(':');
+    return colonParts[0].trim();
   }).filter(Boolean);
 }
 
@@ -891,7 +900,9 @@ function computeQualityScore(entry: PdbEntry | EvalPdbStructure): QualityScoreRe
 // ─── PDB Tooltip Component ───────────────────────────────────────────────────
 
 function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
-  const ligandList = parseLigands('ligands' in entry ? entry.ligands : null);
+  // Support both 'ligands' (weekly) and 'ligand' (eval/BLAST) field names
+  const ligandString = 'ligands' in entry ? entry.ligands : ('ligand' in entry ? entry.ligand : null);
+  const ligandList = parseLigands(ligandString);
   const method = entry.method || '';
   const methodColors = getMethodColor(method);
 
