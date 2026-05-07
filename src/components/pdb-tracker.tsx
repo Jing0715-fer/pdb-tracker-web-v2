@@ -6443,7 +6443,7 @@ export default function PdbTracker() {
         </div>
 
         {/* Sidebar Content */}
-        <ScrollArea className="flex-1 sidebar-scroll">
+        <div className="flex-1 overflow-y-auto sidebar-scroll custom-scrollbar">
           {mode === 'weekly' ? (
             <div ref={tourSidebarRef} className="p-3 space-y-2">
               {/* Back button */}
@@ -6936,7 +6936,7 @@ export default function PdbTracker() {
               )}
             </div>
           )}
-        </ScrollArea>
+        </div>
 
         {/* Collapse Sidebar Button */}
         <div className="px-3 py-2 border-t border-claude-border dark:border-[#3d3832]">
@@ -7028,10 +7028,18 @@ export default function PdbTracker() {
                 onHighlightEntry={setHighlightedEntry}
                 highlightedEntry={highlightedEntry}
               />
+            ) : mode === 'evaluation' && selectedEval && selectedEval.pdbStructures && selectedEval.pdbStructures.length > 0 ? (
+              <EvaluationTimeline
+                pdbStructures={selectedEval.pdbStructures}
+                onSelectPdb={(pdbId) => {
+                  const entry = entries.find(e => e.pdbId === pdbId);
+                  if (entry) { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }
+                }}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Clock className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-xs">Select a week to view timeline</p>
+                <p className="text-xs">{mode === 'evaluation' ? 'No PDB structures for timeline' : 'Select a week to view timeline'}</p>
               </div>
             )
           ) : previewTab === 'heatmap' ? (
@@ -7042,10 +7050,12 @@ export default function PdbTracker() {
                 snapshots={snapshots}
                 loading={heatmapLoading}
               />
+            ) : mode === 'evaluation' && selectedEval && selectedEval.pdbStructures && selectedEval.pdbStructures.length > 0 ? (
+              <EvaluationHeatmap pdbStructures={selectedEval.pdbStructures} />
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-xs">Heatmap available in weekly mode</p>
+                <p className="text-xs">{mode === 'evaluation' ? 'No PDB structures for heatmap' : 'Heatmap available in weekly mode'}</p>
               </div>
             )
           ) : (
@@ -7066,32 +7076,43 @@ export default function PdbTracker() {
                   </button>
                 ))}
               </div>
-            ) : mode === 'evaluation' && selectedEvalId ? (
+            ) : mode === 'evaluation' && selectedEval ? (
               (() => {
-                const filteredReports = evalReports.filter(r => r.uniprotId === selectedEvalId);
-                if (filteredReports.length === 0) {
-                  return (
-                    <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
-                      <FileText className="h-8 w-8 mb-2 opacity-30" />
-                      <p className="text-xs">No evaluation reports for this entry</p>
-                    </div>
-                  );
-                }
+                const filteredReports = evalReports.filter(r => r.uniprotId === selectedEval.uniprotId);
                 return (
                   <div className="p-4 space-y-2">
-                    {filteredReports.map(report => (
+                    {filteredReports.length > 0 ? filteredReports.map(report => (
                       <button
                         key={report.id}
-                        onClick={() => openReport(report.id, report.title || 'Evaluation Report')}
+                        onClick={() => openEvalReport(report.id, report.title || 'Evaluation Report')}
                         className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <FileText className="h-3.5 w-3.5 text-claude-accent" />
-                          <span className="text-xs font-medium text-claude-text">{report.title || 'Evaluation Report'}</span>
+                          <span className="text-xs font-medium text-claude-text">{report.title?.startsWith('#') ? 'Evaluation Report' : report.title || 'Evaluation Report'}</span>
                         </div>
                         <div className="text-[10px] text-claude-text-muted">{formatDate(report.createdAt)}</div>
                       </button>
-                    ))}
+                    )) : null}
+                    {selectedEval.report ? (
+                      <button
+                        key="embedded-report"
+                        onClick={() => setReportModal({ isOpen: true, title: selectedEval.proteinName || selectedEval.uniprotId + ' Report', content: selectedEval.report || '' })}
+                        className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText className="h-3.5 w-3.5 text-claude-accent" />
+                          <span className="text-xs font-medium text-claude-text">Embedded Report</span>
+                        </div>
+                        <div className="text-[10px] text-claude-text-muted">Full evaluation report</div>
+                      </button>
+                    ) : null}
+                    {filteredReports.length === 0 && !selectedEval.report ? (
+                      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+                        <FileText className="h-8 w-8 mb-2 opacity-30" />
+                        <p className="text-xs">No evaluation reports for this entry</p>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })()
@@ -9283,6 +9304,165 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
           <FileText className="h-3.5 w-3.5 mr-1.5" />
           View Full Report
         </Button>
+      )}
+    </div>
+  );
+}
+
+// ── Evaluation Timeline Component ─────────────────────────────────────────────
+function EvaluationTimeline({
+  pdbStructures,
+  onSelectPdb,
+}: {
+  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null }[];
+  onSelectPdb: (pdbId: string) => void;
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  // Group by method
+  const methodGroups = useMemo(() => {
+    const groups: Record<string, typeof pdbStructures> = {};
+    pdbStructures.forEach(s => {
+      const method = s.method || 'Unknown';
+      if (!groups[method]) groups[method] = [];
+      groups[method].push(s);
+    });
+    // Sort within each group by resolution
+    Object.keys(groups).forEach(k => {
+      groups[k].sort((a, b) => (a.resolution || 999) - (b.resolution || 999));
+    });
+    return groups;
+  }, [pdbStructures]);
+
+  const methodColors: Record<string, string> = {
+    'X-RAY DIFFRACTION': isDark ? '#d4784f' : '#c96442',
+    'ELECTRON MICROSCOPY': isDark ? '#5b9bd5' : '#2980b9',
+    'SOLUTION NMR': isDark ? '#6c5ce7' : '#8e44ad',
+  };
+
+  return (
+    <div className="p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-claude-text">PDB Structures by Method</h3>
+        <span className="text-[10px] text-claude-text-muted">{pdbStructures.length} structures</span>
+      </div>
+      {Object.entries(methodGroups).map(([method, structures]) => (
+        <div key={method} className="space-y-2">
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: methodColors[method] || (isDark ? '#888' : '#666') }} />
+            <span className="text-[11px] font-medium text-claude-text">{method}</span>
+            <span className="text-[10px] text-claude-text-muted">({structures.length})</span>
+          </div>
+          <div className="space-y-1.5 pl-4">
+            {structures.slice(0, 5).map(s => (
+              <button
+                key={s.pdbId}
+                onClick={() => onSelectPdb(s.pdbId)}
+                className="w-full text-left p-2 rounded-md border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-colors"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] text-claude-accent">{s.pdbId}</span>
+                  {s.resolution && <span className="text-[10px] text-claude-text-muted">{s.resolution} Å</span>}
+                </div>
+                <p className="text-[10px] text-claude-text-secondary line-clamp-1 mt-0.5">{s.title || 'No title'}</p>
+                {s.ligand && <p className="text-[9px] text-claude-text-muted mt-0.5">Ligands: {s.ligand}</p>}
+              </button>
+            ))}
+            {structures.length > 5 && (
+              <p className="text-[10px] text-claude-text-muted pl-2">+ {structures.length - 5} more</p>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Evaluation Heatmap Component ─────────────────────────────────────────────
+function EvaluationHeatmap({
+  pdbStructures,
+}: {
+  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null }[];
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const [hoveredPdb, setHoveredPdb] = useState<typeof pdbStructures[0] | null>(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+
+  // Group by method
+  const methodGroups = useMemo(() => {
+    const groups: Record<string, typeof pdbStructures> = {};
+    pdbStructures.forEach(s => {
+      const method = s.method || 'Unknown';
+      if (!groups[method]) groups[method] = [];
+      groups[method].push(s);
+    });
+    return groups;
+  }, [pdbStructures]);
+
+  const methodColors: Record<string, string> = {
+    'X-RAY DIFFRACTION': isDark ? '#d4784f' : '#c96442',
+    'ELECTRON MICROSCOPY': isDark ? '#5b9bd5' : '#2980b9',
+    'SOLUTION NMR': isDark ? '#6c5ce7' : '#8e44ad',
+  };
+
+  // Sort structures by resolution for display
+  const sortedStructures = useMemo(() => {
+    return [...pdbStructures].sort((a, b) => (a.resolution || 999) - (b.resolution || 999));
+  }, [pdbStructures]);
+
+  return (
+    <div className="p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-claude-text">Structure Quality Overview</h3>
+        <span className="text-[10px] text-claude-text-muted">{pdbStructures.length} structures</span>
+      </div>
+      {/* Legend */}
+      <div className="flex flex-wrap gap-3">
+        {Object.entries(methodGroups).map(([method, structs]) => (
+          <div key={method} className="flex items-center gap-1.5">
+            <div className="w-3 h-3 rounded" style={{ backgroundColor: methodColors[method] || '#888' }} />
+            <span className="text-[10px] text-claude-text-muted">{method.replace(' DIFFRACTION', '').replace(' MICROSCOPY', ' EM').replace(' NMR', '')} ({structs.length})</span>
+          </div>
+        ))}
+      </div>
+      {/* Resolution bars */}
+      <div className="space-y-1.5">
+        {sortedStructures.map((s) => (
+          <div
+            key={s.pdbId}
+            className="relative h-6 rounded bg-claude-border-light/50 dark:bg-[#2b2926] cursor-pointer group"
+            onMouseEnter={(e) => { setHoveredPdb(s); setTooltipPos({ x: e.clientX, y: e.clientY }); }}
+            onMouseLeave={() => setHoveredPdb(null)}
+            onClick={() => {/* Could open detail */}}
+          >
+            <div
+              className="absolute inset-y-0 left-0 rounded-l"
+              style={{
+                width: `${Math.max(5, 100 - (s.resolution || 3) * 15)}%`,
+                backgroundColor: methodColors[s.method || ''] || (isDark ? '#888' : '#666'),
+              }}
+            />
+            <div className="absolute inset-0 flex items-center px-2">
+              <span className="font-mono text-[10px] text-claude-text font-medium">{s.pdbId}</span>
+              {s.resolution && <span className="ml-auto text-[9px] text-claude-text-muted">{s.resolution} Å</span>}
+            </div>
+          </div>
+        ))}
+      </div>
+      {/* Hover tooltip */}
+      {hoveredPdb && (
+        <div
+          className="fixed z-50 p-2.5 rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#1a1917] shadow-lg text-[11px] max-w-xs pointer-events-none"
+          style={{ left: tooltipPos.x + 10, top: tooltipPos.y + 10 }}
+        >
+          <div className="font-mono font-semibold text-claude-accent mb-1">{hoveredPdb.pdbId}</div>
+          <div className="text-claude-text-muted">{hoveredPdb.method}</div>
+          {hoveredPdb.resolution && <div className="text-claude-text-muted">Resolution: {hoveredPdb.resolution} Å</div>}
+          {hoveredPdb.title && <div className="text-claude-text-secondary mt-1 line-clamp-2">{hoveredPdb.title}</div>}
+          {hoveredPdb.ligand && <div className="text-claude-text-muted mt-1">Ligands: {hoveredPdb.ligand}</div>}
+        </div>
       )}
     </div>
   );

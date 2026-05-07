@@ -29,7 +29,28 @@ export async function GET(request: NextRequest) {
         sequenceLength: true,
         coverage: true,
         scores: true,
+        report: true,
         updatedAt: true,
+        pdbStructures: {
+          select: {
+            pdbId: true,
+            method: true,
+            resolution: true,
+            title: true,
+            ligand: true,
+          },
+        },
+        blastResults: {
+          select: {
+            id: true,
+            pdbId: true,
+            uniprotRef: true,
+            description: true,
+            identity: true,
+            evalue: true,
+            queryCoverage: true,
+          },
+        },
         _count: {
           select: {
             pdbStructures: true,
