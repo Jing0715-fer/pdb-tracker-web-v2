@@ -5327,7 +5327,9 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}>
+                          <ContextMenu>
+                            <ContextMenuTrigger asChild>
+                              <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}>
                             <td className="px-3 py-2">
                               {row.pdbId ? (
                                 <Tooltip>
@@ -5467,6 +5469,89 @@ export default function PdbTracker() {
                             </td>
                             )}
                           </tr>
+                            </ContextMenuTrigger>
+                            <ContextMenuContent className="w-52 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => {
+                                  if (structResult) {
+                                    setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
+                                    setDetailPanelOpen(true);
+                                    setPreviewTab('summary');
+                                  } else if (blastResult) {
+                                    setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                                    setDetailPanelOpen(true);
+                                    setPreviewTab('summary');
+                                  }
+                                }}
+                              >
+                                <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                View Detail
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => {
+                                  if (row.pdbId) {
+                                    navigator.clipboard.writeText(row.pdbId).catch(() => {});
+                                  }
+                                }}
+                              >
+                                <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Copy PDB ID
+                              </ContextMenuItem>
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => {
+                                  if (row.pdbId) {
+                                    window.open(`https://www.rcsb.org/structure/${row.pdbId}`, '_blank');
+                                  }
+                                }}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Open in RCSB PDB
+                              </ContextMenuItem>
+                              {('pubmedId' in row && row.pubmedId) || ('journal' in row && row.journal) ? (
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => {
+                                  const pubmedId = 'pubmedId' in row ? row.pubmedId : null;
+                                  const journal = 'journal' in row ? row.journal : null;
+                                  const title = row.title || '';
+                                  if (pubmedId) {
+                                    window.open(`https://pubmed.ncbi.nlm.nih.gov/${pubmedId}/`, '_blank');
+                                  } else if (journal) {
+                                    const query = encodeURIComponent(`${title} ${journal}`);
+                                    window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${query}`, '_blank');
+                                  }
+                                }}
+                              >
+                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Search PubMed
+                              </ContextMenuItem>
+                              ) : null}
+                              <ContextMenuSeparator className="bg-claude-border-light my-1" />
+                              <ContextMenuItem
+                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                                onClick={() => {
+                                  if (row.pdbId) {
+                                    const data = [
+                                      row.pdbId,
+                                      isBlast ? 'Homolog' : 'Structure',
+                                      row.method || '',
+                                      row.resolution != null ? String(row.resolution) : '',
+                                      row.title || '',
+                                      row.releaseDate || '',
+                                      'ligand' in row ? (row.ligand || '') : '',
+                                    ].join('\t');
+                                    navigator.clipboard.writeText(data).catch(() => {});
+                                  }
+                                }}
+                              >
+                                <Download className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                                Export Row
+                              </ContextMenuItem>
+                            </ContextMenuContent>
+                          </ContextMenu>
                         );
                       })}
                     </tbody>
