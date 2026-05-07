@@ -8938,6 +8938,17 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
     } catch { /* ignore */ }
   }, [ligandCache]);
 
+  // Preload all unique ligands on mount
+  useEffect(() => {
+    const allCodes = new Set<string>();
+    pdbStructures.forEach(s => {
+      if (s.ligand) {
+        s.ligand.split(/[;,\s]+/).filter(Boolean).forEach(c => allCodes.add(c.trim()));
+      }
+    });
+    allCodes.forEach(code => fetchLigandInfo(code));
+  }, [evalData.uniprotId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     async function load() {
       try {
