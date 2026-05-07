@@ -1882,6 +1882,7 @@ export default function PdbTracker() {
   // ── Evaluation Mode Data ──
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
+  const [selectedEvalStructure, setSelectedEvalStructure] = useState<(EvalPdbStructure & { isBlast?: boolean }) | null>(null);
   const [evalReports, setEvalReports] = useState<EvaluationReport[]>([]);
 
   // ── Filters & Sort ──
@@ -7078,12 +7079,24 @@ export default function PdbTracker() {
                 onHighlightEntry={setHighlightedEntry}
                 highlightedEntry={highlightedEntry}
               />
-            ) : mode === 'evaluation' && selectedEval && selectedEval.pdbStructures && selectedEval.pdbStructures.length > 0 ? (
+            ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
               <EvaluationTimeline
-                pdbStructures={selectedEval.pdbStructures}
+                pdbStructures={selectedEval.pdbStructures || []}
+                blastResults={selectedEval.blastResults || []}
                 onSelectPdb={(pdbId) => {
-                  const entry = entries.find(e => e.pdbId === pdbId);
-                  if (entry) { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }
+                  // Find in PDB structures first, then BLAST results
+                  const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
+                  const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
+                  if (struct) {
+                    setSelectedEntry({ ...struct, _type: 'weekly' } as unknown as PdbEntry);
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  } else if (blast) {
+                    // For BLAST results, set a temporary selected eval structure
+                    setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  }
                 }}
               />
             ) : (
@@ -7100,8 +7113,24 @@ export default function PdbTracker() {
                 snapshots={snapshots}
                 loading={heatmapLoading}
               />
-            ) : mode === 'evaluation' && selectedEval && selectedEval.pdbStructures && selectedEval.pdbStructures.length > 0 ? (
-              <EvaluationHeatmap pdbStructures={selectedEval.pdbStructures} />
+            ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
+              <EvaluationHeatmap
+                pdbStructures={selectedEval.pdbStructures || []}
+                blastResults={selectedEval.blastResults || []}
+                onSelectPdb={(pdbId) => {
+                  const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
+                  const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
+                  if (struct) {
+                    setSelectedEntry({ ...struct, _type: 'weekly' } as unknown as PdbEntry);
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  } else if (blast) {
+                    setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  }
+                }}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
@@ -9371,96 +9400,367 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
 }
 
 // ── Evaluation Timeline Component ─────────────────────────────────────────────
+// Unified type for evaluation timeline
+type EvalTimelineItem = {
+  pdbId: string;
+  method: string | null;
+  resolution: number | null;
+  title: string | null;
+  ligand: string | null;
+  releaseDate: string | null;
+  journal: string | null;
+  journalIf: number | null;
+  isBlast: boolean;
+  identity?: number | null;
+};
+
 function EvaluationTimeline({
   pdbStructures,
+  blastResults,
   onSelectPdb,
 }: {
-  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null }[];
+  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null }[];
+  blastResults: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; identity: number | null }[];
   onSelectPdb: (pdbId: string) => void;
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(350);
+  const [tooltipData, setTooltipData] = useState<{
+    item: EvalTimelineItem;
+    x: number;
+    y: number;
+  } | null>(null);
 
-  // Group by method
-  const methodGroups = useMemo(() => {
-    const groups: Record<string, typeof pdbStructures> = {};
-    pdbStructures.forEach(s => {
-      const method = s.method || 'Unknown';
-      if (!groups[method]) groups[method] = [];
-      groups[method].push(s);
+  // Combine PDB structures and BLAST results
+  const allItems: EvalTimelineItem[] = useMemo(() => {
+    const pdbItems: EvalTimelineItem[] = pdbStructures.map(s => ({
+      ...s,
+      isBlast: false,
+    }));
+    const blastItems: EvalTimelineItem[] = blastResults.map(b => ({
+      pdbId: b.pdbId || '',
+      method: b.method,
+      resolution: b.resolution,
+      title: b.title,
+      ligand: b.ligand,
+      releaseDate: b.releaseDate,
+      journal: b.journal,
+      journalIf: b.journalIf,
+      isBlast: true,
+      identity: b.identity,
+    }));
+    return [...pdbItems, ...blastItems].filter(i => i.pdbId && i.releaseDate);
+  }, [pdbStructures, blastResults]);
+
+  // Responsive container width
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
     });
-    // Sort within each group by resolution
-    Object.keys(groups).forEach(k => {
-      groups[k].sort((a, b) => (a.resolution || 999) - (b.resolution || 999));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Date range
+  const dateRange = useMemo(() => {
+    if (allItems.length === 0) return { start: new Date(), end: new Date() };
+    const dates = allItems.map(i => new Date(i.releaseDate!)).filter(d => !isNaN(d.getTime()));
+    if (dates.length === 0) return { start: new Date(), end: new Date() };
+    const start = new Date(Math.min(...dates.map(d => d.getTime())));
+    const end = new Date(Math.max(...dates.map(d => d.getTime())));
+    // Add some padding
+    start.setDate(start.getDate() - 7);
+    end.setDate(end.getDate() + 7);
+    return { start, end };
+  }, [allItems]);
+
+  const totalDays = Math.max(1, Math.round((dateRange.end.getTime() - dateRange.start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+
+  // Generate day labels
+  const dayLabels = useMemo(() => {
+    const days: { date: Date; dayName: string; dateLabel: string }[] = [];
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(dateRange.start);
+      d.setDate(d.getDate() + i);
+      days.push({
+        date: d,
+        dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
+        dateLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      });
+    }
+    return days;
+  }, [dateRange]);
+
+  // Group entries by day
+  const entriesByDay = useMemo(() => {
+    const groups: Record<string, EvalTimelineItem[]> = {};
+    for (let i = 0; i < totalDays; i++) {
+      const d = new Date(dateRange.start);
+      d.setDate(d.getDate() + i);
+      const key = d.toISOString().split('T')[0];
+      groups[key] = [];
+    }
+    allItems.forEach(item => {
+      if (!item.releaseDate) return;
+      const entryDate = item.releaseDate.split('T')[0];
+      if (groups[entryDate]) {
+        groups[entryDate].push(item);
+      } else {
+        // Find closest day
+        const closest = Object.keys(groups).reduce((prev, curr) =>
+          Math.abs(new Date(curr).getTime() - new Date(entryDate).getTime()) <
+          Math.abs(new Date(prev).getTime() - new Date(entryDate).getTime()) ? curr : prev
+        );
+        groups[closest].push(item);
+      }
     });
     return groups;
-  }, [pdbStructures]);
+  }, [allItems, dateRange, totalDays]);
 
-  const methodColors: Record<string, string> = {
-    'X-RAY DIFFRACTION': isDark ? '#d4784f' : '#c96442',
-    'ELECTRON MICROSCOPY': isDark ? '#5b9bd5' : '#2980b9',
-    'SOLUTION NMR': isDark ? '#6c5ce7' : '#8e44ad',
+  // Timeline stats
+  const timelineStats = useMemo(() => {
+    const dayCounts = Object.values(entriesByDay).map(e => e.length);
+    const maxCount = Math.max(...dayCounts, 0);
+    const peakDayIdx = dayCounts.indexOf(maxCount);
+    const peakDay = peakDayIdx >= 0 ? dayLabels[peakDayIdx] : null;
+    const avgPerDay = allItems.length > 0 ? (allItems.length / totalDays).toFixed(1) : '0';
+    return { maxCount, peakDay, avgPerDay };
+  }, [entriesByDay, dayLabels, allItems, totalDays]);
+
+  // SVG dimensions
+  const svgHeight = 280;
+  const marginLeft = 8;
+  const marginRight = 8;
+  const marginTop = 24;
+  const axisY = svgHeight - 50;
+  const dayLabelY = axisY + 14;
+  const dateLabelY = dayLabelY + 12;
+  const usableWidth = containerWidth - marginLeft - marginRight;
+  const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
+
+  // Get dot color by method
+  const getDotColor = (item: EvalTimelineItem): string => {
+    const m = item.method?.toUpperCase() || '';
+    if (m.includes('CRYO') || m.includes('ELECTRON MICROSCOPY')) return METHOD_COLORS['Cryo-EM'];
+    if (m.includes('X-RAY') || m.includes('XRAY')) return METHOD_COLORS['X-ray'];
+    if (m.includes('NMR')) return METHOD_COLORS['NMR'];
+    return METHOD_COLORS['Other'];
   };
 
-  return (
-    <div className="p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-claude-text">PDB Structures by Method</h3>
-        <span className="text-[10px] text-claude-text-muted">{pdbStructures.length} structures</span>
+  // Get dot size by IF
+  const getDotSize = (item: EvalTimelineItem): number => {
+    const if_ = item.journalIf ?? 0;
+    return Math.min(16, Math.max(6, (if_ / 50) * 10 + 6));
+  };
+
+  // Calculate dot positions
+  const dotPositions = useMemo(() => {
+    const positions: { item: EvalTimelineItem; cx: number; cy: number; size: number; color: string; dayIndex: number }[] = [];
+    const dayKeys = Object.keys(entriesByDay).sort();
+    const maxDotsPerStack = 8;
+    const dotSpacing = 10;
+
+    dayKeys.forEach((dayKey, dayIdx) => {
+      const dayEntries = entriesByDay[dayKey];
+      const cx = marginLeft + dayIdx * dayWidth + dayWidth / 2;
+
+      // Sort by IF descending
+      const sortedEntries = [...dayEntries].sort((a, b) => (b.journalIf ?? 0) - (a.journalIf ?? 0));
+
+      sortedEntries.forEach((item, stackIdx) => {
+        const size = getDotSize(item);
+        const stackGroup = Math.floor(stackIdx / maxDotsPerStack);
+        const stackPos = stackIdx % maxDotsPerStack;
+        const actualStackPos = stackGroup % 2 === 0 ? stackPos : maxDotsPerStack - 1 - stackPos;
+        const rawCY = axisY - 5 - actualStackPos * (size + 2);
+        const cy = Math.max(rawCY, marginTop + 10);
+        const groupOffset = stackGroup * dotSpacing;
+        positions.push({
+          item,
+          cx: cx + groupOffset,
+          cy,
+          size,
+          color: getDotColor(item),
+          dayIndex: dayIdx,
+        });
+      });
+    });
+    return positions;
+  }, [entriesByDay, dayWidth, marginLeft, axisY]);
+
+  const axisStroke = isDark ? '#4a4540' : '#e8e4dd';
+  const textColor = isDark ? '#9b9590' : '#7c756e';
+
+  if (allItems.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
+        <Clock className="h-8 w-8 mb-2 opacity-30" />
+        <p className="text-xs">No structures with release dates</p>
       </div>
-      {Object.entries(methodGroups).map(([method, structures]) => (
-        <div key={method} className="space-y-2">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: methodColors[method] || (isDark ? '#888' : '#666') }} />
-            <span className="text-[11px] font-medium text-claude-text">{method}</span>
-            <span className="text-[10px] text-claude-text-muted">({structures.length})</span>
-          </div>
-          <div className="space-y-1.5 pl-4">
-            {structures.slice(0, 5).map(s => (
-              <button
-                key={s.pdbId}
-                onClick={() => onSelectPdb(s.pdbId)}
-                className="w-full text-left p-2 rounded-md border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] text-claude-accent">{s.pdbId}</span>
-                  {s.resolution && <span className="text-[10px] text-claude-text-muted">{s.resolution} Å</span>}
-                </div>
-                <p className="text-[10px] text-claude-text-secondary line-clamp-1 mt-0.5">{s.title || 'No title'}</p>
-                {s.ligand && <p className="text-[9px] text-claude-text-muted mt-0.5">Ligands: {s.ligand}</p>}
-              </button>
-            ))}
-            {structures.length > 5 && (
-              <p className="text-[10px] text-claude-text-muted pl-2">+ {structures.length - 5} more</p>
-            )}
-          </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-4" ref={containerRef}>
+      {/* Timeline Stats */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-xs font-semibold text-claude-text">Publication Timeline</h4>
+          <span className="text-[10px] text-claude-text-muted">{allItems.length} structures</span>
         </div>
-      ))}
+        <div className="flex items-center gap-3 text-[10px]">
+          <span className="text-claude-text-secondary">
+            Peak day: <span className="font-semibold text-claude-text">{timelineStats.peakDay?.dayName || '—'}</span>
+            <span className="text-claude-text-muted"> ({timelineStats.maxCount} structures)</span>
+          </span>
+          <span className="text-claude-text-muted">·</span>
+          <span className="text-claude-text-secondary">
+            Avg/day: <span className="font-semibold text-claude-text">{timelineStats.avgPerDay}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Timeline SVG Chart */}
+      <div className="relative">
+        <svg width={containerWidth} height={svgHeight} className="overflow-visible">
+          {/* Axis line */}
+          <line
+            x1={marginLeft}
+            y1={axisY}
+            x2={containerWidth - marginRight}
+            y2={axisY}
+            stroke={axisStroke}
+            strokeWidth={1}
+          />
+
+          {/* Day labels */}
+          {dayLabels.filter((_, i) => i % Math.max(1, Math.floor(totalDays / 7)) === 0).map((day, i) => {
+            const x = marginLeft + i * Math.max(1, Math.floor(totalDays / 7)) * dayWidth + dayWidth / 2;
+            return (
+              <g key={`day-${i}`}>
+                <line x1={x} y1={axisY} x2={x} y2={axisY + 4} stroke={axisStroke} strokeWidth={1} />
+                <text x={x} y={dayLabelY} textAnchor="middle" className="text-[9px] fill-current" style={{ color: textColor }}>
+                  {day.dayName}
+                </text>
+                <text x={x} y={dateLabelY} textAnchor="middle" className="text-[8px] fill-current" style={{ color: textColor }}>
+                  {day.dateLabel}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Dots */}
+          {dotPositions.map((pos, i) => (
+            <circle
+              key={`dot-${i}-${pos.item.pdbId}`}
+              cx={pos.cx}
+              cy={pos.cy}
+              r={pos.size / 2}
+              fill={pos.color}
+              fillOpacity={pos.item.isBlast ? 0.6 : 0.9}
+              stroke={isDark ? '#242220' : 'white'}
+              strokeWidth={1}
+              className="cursor-pointer transition-all duration-150 hover:stroke-[2px] hover:stroke-claude-accent"
+              onClick={() => { setTooltipData({ item: pos.item, x: pos.cx, y: pos.cy }); }}
+            />
+          ))}
+        </svg>
+
+        {/* Tooltip */}
+        {tooltipData && (
+          <div
+            className="absolute z-50 w-48 p-2 rounded-lg border border-claude-border dark:border-[#4a4540] bg-white dark:bg-[#242220] shadow-lg text-xs space-y-1"
+            style={{
+              left: Math.min(tooltipData.x + 10, containerWidth - 200),
+              top: Math.max(tooltipData.y - 60, 10),
+            }}
+            onClick={() => onSelectPdb(tooltipData.item.pdbId)}
+          >
+            <div className="flex items-center gap-1.5">
+              <span className="font-mono font-semibold text-claude-accent">{tooltipData.item.pdbId}</span>
+              {tooltipData.item.isBlast && (
+                <span className="text-[9px] px-1 py-0.5 rounded bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent">Homolog</span>
+              )}
+            </div>
+            <p className="text-claude-text-secondary dark:text-[#9b9590] line-clamp-2 text-[10px]">{tooltipData.item.title || 'No title'}</p>
+            <div className="flex items-center gap-2 text-[10px] text-claude-text-muted">
+              {tooltipData.item.resolution && <span>{tooltipData.item.resolution}Å</span>}
+              {tooltipData.item.journalIf && <span>IF: {tooltipData.item.journalIf}</span>}
+            </div>
+            {tooltipData.item.isBlast && tooltipData.item.identity && (
+              <div className="text-[10px] text-claude-text-muted">Identity: {tooltipData.item.identity}%</div>
+            )}
+            <div className="text-[9px] text-claude-accent mt-1">Click to view details →</div>
+          </div>
+        )}
+      </div>
+
+      {/* Click hint */}
+      <p className="text-[9px] text-claude-text-muted text-center">Click a dot to view structure details</p>
     </div>
   );
 }
 
 // ── Evaluation Heatmap Component ─────────────────────────────────────────────
+// Literature list type
+type EvalLitItem = {
+  pdbId: string;
+  method: string | null;
+  resolution: number | null;
+  title: string | null;
+  ligand: string | null;
+  releaseDate: string | null;
+  journal: string | null;
+  journalIf: number | null;
+  pubmedId: string | null;
+  isBlast: boolean;
+  identity?: number | null;
+};
+
 function EvaluationHeatmap({
   pdbStructures,
+  blastResults,
+  onSelectPdb,
 }: {
-  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null }[];
+  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[];
+  blastResults: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null }[];
+  onSelectPdb: (pdbId: string) => void;
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [hoveredPdb, setHoveredPdb] = useState<typeof pdbStructures[0] | null>(null);
-  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const [sortDesc, setSortDesc] = useState(true);
 
-  // Group by method
-  const methodGroups = useMemo(() => {
-    const groups: Record<string, typeof pdbStructures> = {};
-    pdbStructures.forEach(s => {
-      const method = s.method || 'Unknown';
-      if (!groups[method]) groups[method] = [];
-      groups[method].push(s);
+  // Combine and sort by IF
+  const allLiterature: EvalLitItem[] = useMemo(() => {
+    const pdbItems: EvalLitItem[] = pdbStructures.map(s => ({ ...s, isBlast: false }));
+    const blastItems: EvalLitItem[] = blastResults.map(b => ({
+      pdbId: b.pdbId || '',
+      method: b.method,
+      resolution: b.resolution,
+      title: b.title,
+      ligand: b.ligand,
+      releaseDate: b.releaseDate,
+      journal: b.journal,
+      journalIf: b.journalIf,
+      pubmedId: b.pubmedId || null,
+      isBlast: true,
+      identity: b.identity,
+    }));
+    const combined = [...pdbItems, ...blastItems].filter(i => i.pdbId && (i.journal || i.pubmedId));
+    // Sort by IF descending (unknown IF at end)
+    combined.sort((a, b) => {
+      const ifA = a.journalIf ?? -1;
+      const ifB = b.journalIf ?? -1;
+      return sortDesc ? ifB - ifA : ifA - ifB;
     });
-    return groups;
-  }, [pdbStructures]);
+    return combined;
+  }, [pdbStructures, blastResults, sortDesc]);
 
   const methodColors: Record<string, string> = {
     'X-RAY DIFFRACTION': isDark ? '#d4784f' : '#c96442',
@@ -9468,63 +9768,102 @@ function EvaluationHeatmap({
     'SOLUTION NMR': isDark ? '#6c5ce7' : '#8e44ad',
   };
 
-  // Sort structures by resolution for display
-  const sortedStructures = useMemo(() => {
-    return [...pdbStructures].sort((a, b) => (a.resolution || 999) - (b.resolution || 999));
-  }, [pdbStructures]);
+  const getMethodLabel = (method: string | null) => {
+    if (!method) return 'Unknown';
+    if (method.includes('CRYO') || method.includes('ELECTRON')) return 'Cryo-EM';
+    if (method.includes('X-RAY') || method.includes('XRAY')) return 'X-ray';
+    if (method.includes('NMR')) return 'NMR';
+    return method.split(' ')[0];
+  };
+
+  const getPubmedUrl = (item: EvalLitItem) => {
+    if (item.pubmedId) return `https://pubmed.ncbi.nlm.nih.gov/${item.pubmedId}/`;
+    if (item.journal) {
+      // Try to construct a search URL
+      const query = encodeURIComponent(`${item.title || item.pdbId} ${item.journal}`);
+      return `https://pubmed.ncbi.nlm.nih.gov/?term=${query}`;
+    }
+    return `https://www.rcsb.org/structure/${item.pdbId}`;
+  };
+
+  if (allLiterature.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
+        <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
+        <p className="text-xs">No literature data available</p>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold text-claude-text">Structure Quality Overview</h3>
-        <span className="text-[10px] text-claude-text-muted">{pdbStructures.length} structures</span>
+        <h3 className="text-xs font-semibold text-claude-text">Literature</h3>
+        <button
+          onClick={() => setSortDesc(!sortDesc)}
+          className="flex items-center gap-1 text-[10px] text-claude-accent hover:text-claude-accent-hover transition-colors"
+        >
+          <ArrowUpDown className="h-3 w-3" />
+          {sortDesc ? 'Highest IF' : 'Lowest IF'}
+        </button>
       </div>
-      {/* Legend */}
-      <div className="flex flex-wrap gap-3">
-        {Object.entries(methodGroups).map(([method, structs]) => (
-          <div key={method} className="flex items-center gap-1.5">
-            <div className="w-3 h-3 rounded" style={{ backgroundColor: methodColors[method] || '#888' }} />
-            <span className="text-[10px] text-claude-text-muted">{method.replace(' DIFFRACTION', '').replace(' MICROSCOPY', ' EM').replace(' NMR', '')} ({structs.length})</span>
-          </div>
-        ))}
-      </div>
-      {/* Resolution bars */}
-      <div className="space-y-1.5">
-        {sortedStructures.map((s) => (
+
+      <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
+        {allLiterature.map((item, idx) => (
           <div
-            key={s.pdbId}
-            className="relative h-6 rounded bg-claude-border-light/50 dark:bg-[#2b2926] cursor-pointer group"
-            onMouseEnter={(e) => { setHoveredPdb(s); setTooltipPos({ x: e.clientX, y: e.clientY }); }}
-            onMouseLeave={() => setHoveredPdb(null)}
-            onClick={() => {/* Could open detail */}}
+            key={`${item.isBlast ? 'b' : 'p'}-${item.pdbId}-${idx}`}
+            className="group p-2.5 rounded-lg border border-claude-border-light dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:border-claude-accent/40 dark:hover:border-claude-accent/40 hover:shadow-md transition-all duration-150 cursor-pointer"
+            onClick={() => onSelectPdb(item.pdbId)}
           >
-            <div
-              className="absolute inset-y-0 left-0 rounded-l"
-              style={{
-                width: `${Math.max(5, 100 - (s.resolution || 3) * 15)}%`,
-                backgroundColor: methodColors[s.method || ''] || (isDark ? '#888' : '#666'),
-              }}
-            />
-            <div className="absolute inset-0 flex items-center px-2">
-              <span className="font-mono text-[10px] text-claude-text font-medium">{s.pdbId}</span>
-              {s.resolution && <span className="ml-auto text-[9px] text-claude-text-muted">{s.resolution} Å</span>}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="font-mono text-[11px] font-semibold text-claude-accent">{item.pdbId}</span>
+                  {item.isBlast && (
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
+                      Homolog
+                    </span>
+                  )}
+                  <span className={`text-[9px] px-1 py-0.5 rounded ${methodColors[item.method || ''] ? '' : 'bg-claude-border-light dark:bg-[#2b2926] text-claude-text-muted'}`}
+                    style={methodColors[item.method || ''] ? { backgroundColor: methodColors[item.method || ''] + '20', color: methodColors[item.method || ''] } : {}}>
+                    {getMethodLabel(item.method)}
+                  </span>
+                </div>
+                <p className="text-[10px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-relaxed">
+                  {item.title || 'No title'}
+                </p>
+              </div>
+              <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                {item.journalIf ? (
+                  <span className="text-[11px] font-semibold text-claude-accent">
+                    {item.journalIf >= 10 ? (
+                      <span className="text-claude-accent">{item.journalIf.toFixed(1)}</span>
+                    ) : (
+                      <span className="text-claude-text-secondary">{item.journalIf.toFixed(1)}</span>
+                    )}
+                  </span>
+                ) : item.journal ? (
+                  <span className="text-[9px] text-claude-text-muted">TBD</span>
+                ) : null}
+                <a
+                  href={getPubmedUrl(item)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-[9px] text-claude-accent hover:text-claude-accent-hover opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5"
+                >
+                  PubMed <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-1.5 text-[9px] text-claude-text-muted">
+              {item.journal && <span className="truncate max-w-[120px]">{item.journal}</span>}
+              {item.resolution && <span>{item.resolution}Å</span>}
+              {item.releaseDate && <span>{item.releaseDate.split('T')[0]}</span>}
             </div>
           </div>
         ))}
       </div>
-      {/* Hover tooltip */}
-      {hoveredPdb && (
-        <div
-          className="fixed z-50 p-2.5 rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#1a1917] shadow-lg text-[11px] max-w-xs pointer-events-none"
-          style={{ left: tooltipPos.x + 10, top: tooltipPos.y + 10 }}
-        >
-          <div className="font-mono font-semibold text-claude-accent mb-1">{hoveredPdb.pdbId}</div>
-          <div className="text-claude-text-muted">{hoveredPdb.method}</div>
-          {hoveredPdb.resolution && <div className="text-claude-text-muted">Resolution: {hoveredPdb.resolution} Å</div>}
-          {hoveredPdb.title && <div className="text-claude-text-secondary mt-1 line-clamp-2">{hoveredPdb.title}</div>}
-          {hoveredPdb.ligand && <div className="text-claude-text-muted mt-1">Ligands: {hoveredPdb.ligand}</div>}
-        </div>
-      )}
     </div>
   );
 }
