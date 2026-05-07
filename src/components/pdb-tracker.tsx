@@ -6909,6 +6909,8 @@ export default function PdbTracker() {
                   const topJournals = snap.topJournals ? snap.topJournals.split('|').filter(Boolean).slice(0, 2) : [];
 
                   return (
+                    <ContextMenu>
+                      <ContextMenuTrigger asChild>
                     <HoverCard key={snap.weekId} openDelay={500} closeDelay={100}>
                       <HoverCardTrigger asChild>
                         <button
@@ -7026,6 +7028,32 @@ export default function PdbTracker() {
                         </div>
                       </HoverCardContent>
                     </HoverCard>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent className="w-48 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
+                        <ContextMenuItem
+                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                          onClick={() => { setSelectedWeekId(snap.weekId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          View Week
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                          onClick={() => { navigator.clipboard.writeText(snap.weekId).catch(() => {}); }}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          Copy Week ID
+                        </ContextMenuItem>
+                        <ContextMenuSeparator className="bg-claude-border-light my-1" />
+                        <ContextMenuItem
+                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                          onClick={() => { window.open(`/api/reports?weekId=${snap.weekId}`, '_blank'); }}
+                        >
+                          <FileText className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          View Reports
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })
               )}
@@ -7262,8 +7290,9 @@ export default function PdbTracker() {
                   const avgScore = getAvgScore(ev.scores);
                   const scoreColor = getScoreColor(avgScore);
                   return (
+                    <ContextMenu key={ev.uniprotId}>
+                      <ContextMenuTrigger asChild>
                     <button
-                      key={ev.uniprotId}
                       onClick={() => { setSelectedEvalId(ev.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                         selectedEvalId === ev.uniprotId
@@ -7299,6 +7328,35 @@ export default function PdbTracker() {
                         )}
                       </div>
                     </button>
+                      </ContextMenuTrigger>
+                      <ContextMenuContent className="w-48 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
+                        <ContextMenuItem
+                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                          onClick={() => { setSelectedEvalId(ev.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                        >
+                          <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          View Evaluation
+                        </ContextMenuItem>
+                        <ContextMenuItem
+                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                          onClick={() => { navigator.clipboard.writeText(ev.uniprotId).catch(() => {}); }}
+                        >
+                          <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          Copy UniProt ID
+                        </ContextMenuItem>
+                        <ContextMenuSeparator className="bg-claude-border-light my-1" />
+                        <ContextMenuItem
+                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
+                          onClick={() => {
+                            const url = `${window.location.origin}?mode=evaluation&eval=${ev.uniprotId}`;
+                            navigator.clipboard.writeText(url).catch(() => {});
+                          }}
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
+                          Copy Link
+                        </ContextMenuItem>
+                      </ContextMenuContent>
+                    </ContextMenu>
                   );
                 })
               )}
