@@ -3694,10 +3694,12 @@ export default function PdbTracker() {
           {/* ═══════════ LEFT SIDEBAR ═══════════ */}
           {/* Desktop sidebar - visible when open on xl+ */}
           {sidebarOpen && (
-            <aside className={`hidden lg:flex flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient overflow-hidden relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
+            <aside className={`hidden lg:flex h-full flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col no-print sidebar-gradient overflow-hidden relative ${hasLoaded ? 'animate-load-sidebar' : 'opacity-0'}`} style={{ width: sidebarWidth }}>
               {/* Sidebar gradient mesh overlay */}
               <div className="sidebar-mesh-overlay" />
-              {renderSidebar()}
+              <div className="flex flex-col flex-1 min-h-0">
+                {renderSidebar()}
+              </div>
               {/* Sidebar resize handle */}
               <div
                 onMouseDown={handleSidebarMouseDown}
@@ -3790,7 +3792,7 @@ export default function PdbTracker() {
                       <X className="h-4 w-4 text-claude-text-muted" />
                     </button>
                   </div>
-                  <div className="flex-1 overflow-hidden relative z-[1]">
+                  <div className="flex-1 min-h-0 overflow-hidden relative z-[1]">
                     {renderSidebar()}
                   </div>
                 </motion.div>
@@ -6411,7 +6413,7 @@ export default function PdbTracker() {
     return (
       <>
         {/* Mode Switcher */}
-        <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border dark:border-[#3d3832]">
+        <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border dark:border-[#3d3832] flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <div className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
               <button
@@ -8901,6 +8903,19 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
   const [blastSortField, setBlastSortField] = useState<string>('identity');
   const [blastSortDir, setBlastSortDir] = useState<'asc' | 'desc'>('desc');
 
+  // Ligand cache for PDB structure tooltips
+  const [ligandCache, setLigandCache] = useState<Record<string, LigandInfo>>({});
+  const fetchLigandInfo = useCallback(async (code: string) => {
+    if (ligandCache[code] || !code) return;
+    try {
+      const res = await fetch(`/api/ligand/${code}`);
+      if (res.ok) {
+        const data = await res.json();
+        setLigandCache(prev => ({ ...prev, [code]: data }));
+      }
+    } catch { /* ignore */ }
+  }, [ligandCache]);
+
   useEffect(() => {
     async function load() {
       try {
@@ -9170,16 +9185,19 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
             {pdbStructures.map((s) => {
               const methodColors = s.method ? getMethodColor(s.method) : null;
               const methodLabel = s.method ? getMethodLabel(s.method) : '—';
+              const ligandList = s.ligand ? s.ligand.split(/[;,\s]+/).filter(Boolean) : [];
               return (
-                <a
+                <div
                   key={`${s.uniprotId}-${s.pdbId}`}
-                  href={`https://www.rcsb.org/structure/${s.pdbId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="block p-2 rounded-lg border border-claude-border/60 bg-claude-border-light/20 dark:bg-[#1a1917]/60 hover:bg-claude-border-light/50 dark:hover:bg-[#2b2926] transition-all duration-150 group"
                 >
                   <div className="flex items-center gap-1.5 mb-1">
-                    <span className="font-mono text-[11px] font-bold text-claude-accent group-hover:text-claude-accent-hover transition-colors">{s.pdbId}</span>
+                    <a
+                      href={`https://www.rcsb.org/structure/${s.pdbId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[11px] font-bold text-claude-accent group-hover:text-claude-accent-hover transition-colors"
+                    >{s.pdbId}</a>
                     {methodColors && (
                       <span className={`text-[8px] px-1 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text} leading-none`}>
                         {methodLabel}
@@ -9194,76 +9212,49 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
                   {s.title && (
                     <div className="text-[9px] text-claude-text-muted line-clamp-1 mt-0.5">{s.title}</div>
                   )}
-                </a>
+                  {ligandList.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {ligandList.slice(0, 3).map((lig, i) => (
+                        <HoverCard key={`eval-lig-${s.pdbId}-${i}-${lig}`} openDelay={200} closeDelay={100}>
+                          <HoverCardTrigger asChild>
+                            <span
+                              className="ligand-chip"
+                              onMouseEnter={() => fetchLigandInfo(lig)}
+                            >
+                              {lig}
+                            </span>
+                          </HoverCardTrigger>
+                          <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
+                            {ligandCache[lig] ? (
+                              <LigandTooltipContent ligand={ligandCache[lig]} />
+                            ) : (
+                              <div className="p-3 flex items-center gap-2">
+                                <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
+                                <span className="text-xs text-claude-text-muted">Loading...</span>
+                              </div>
+                            )}
+                          </HoverCardContent>
+                        </HoverCard>
+                      ))}
+                      {ligandList.length > 3 && (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="ligand-chip cursor-default">+{ligandList.length - 3}</span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="flex flex-wrap gap-1 max-w-48">
+                              {ligandList.map((l, li) => (
+                                <span key={`eval-lig-all-${s.pdbId}-${li}`} className="ligand-chip">{l}</span>
+                              ))}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
+                  )}
+                </div>
               );
             })}
-          </div>
-        </div>
-      )}
-
-      {/* ── BLAST Results Table ── */}
-      {blastResults.length > 0 && (
-        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
-          <h4 className="text-xs font-semibold text-claude-text">
-            BLAST Homologs <span className="text-claude-text-muted font-normal">({blastResults.length})</span>
-          </h4>
-          <div className="overflow-x-auto -mx-1">
-            <table className="w-full text-[10px]">
-              <thead>
-                <tr className="border-b border-claude-border">
-                  {[
-                    { field: 'accession', label: 'Accession' },
-                    { field: 'organism', label: 'Organism' },
-                    { field: 'identity', label: 'Identity %' },
-                    { field: 'evalue', label: 'E-value' },
-                    { field: 'score', label: 'Score' },
-                  ].map(col => (
-                    <th
-                      key={col.field}
-                      onClick={() => handleBlastSort(col.field)}
-                      className={`table-header-cell px-2 py-1.5 text-left font-semibold text-claude-text-secondary cursor-pointer hover:text-claude-text transition-colors whitespace-nowrap ${blastSortField === col.field ? 'sort-active' : ''}`}
-                    >
-                      <span className="inline-flex items-center gap-0.5">
-                        {col.label}
-                        {blastSortField === col.field && (
-                          blastSortDir === 'asc' ? <ArrowUp className="h-2.5 w-2.5" /> : <ArrowDown className="h-2.5 w-2.5" />
-                        )}
-                      </span>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sortedBlastResults.slice(0, 10).map((br, i) => (
-                  <tr key={br.id || i} className={`border-b border-claude-border-light/50 dark:border-[#3d3832]/50 ${i % 2 === 0 ? 'table-row-even' : 'table-row-odd'} table-row-hover`}>
-                    <td className="px-2 py-1.5">
-                      <span className="font-mono font-semibold text-claude-accent">{br.uniprotRef || br.pdbId || '—'}</span>
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <span className="text-claude-text-secondary line-clamp-1 max-w-[100px]">{br.description || '—'}</span>
-                    </td>
-                    <td className="px-2 py-1.5">
-                      {br.identity != null ? (
-                        <span className={`font-mono font-medium ${br.identity > 90 ? 'text-green-600 dark:text-green-400' : br.identity >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-500 dark:text-red-400'}`}>
-                          {br.identity}%
-                        </span>
-                      ) : '—'}
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <span className="font-mono text-claude-text-secondary">{formatEvalue(br.evalue)}</span>
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <span className="font-mono text-claude-text-secondary">{br.queryCoverage ?? '—'}{br.queryCoverage != null ? '%' : ''}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {blastResults.length > 10 && (
-              <div className="text-[10px] text-claude-text-muted text-center pt-1">
-                + {blastResults.length - 10} more homologs
-              </div>
-            )}
           </div>
         </div>
       )}
