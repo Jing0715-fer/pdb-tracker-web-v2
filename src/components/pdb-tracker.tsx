@@ -128,6 +128,14 @@ import {
   CommandShortcut,
 } from '@/components/ui/command';
 
+// Safe number formatting helper to prevent toFixed errors on non-numeric values
+const safeNum = (val: any, decimals: number = 0, fallback: string = '—'): string => {
+  if (val == null) return fallback;
+  const num = typeof val === 'number' ? val : parseFloat(String(val));
+  if (isNaN(num)) return fallback;
+  return num.toFixed(decimals);
+};
+
 const MoleculeViewer = dynamic(() => import('./molecule-viewer').catch(() => {
   // Return a fallback component when the module fails to load
   return { default: function MoleculeViewerFallback({ pdbId }: { pdbId: string }) {
@@ -657,7 +665,11 @@ function formatDate(dateStr: string | null): string {
 
 function parseLigands(ligands: string | null): string[] {
   if (!ligands) return [];
-  return ligands.split('|').filter(Boolean);
+  // 只返回冒号前的缩写
+  return ligands.split('|').map(l => {
+    const parts = l.split(':');
+    return parts[0].trim();
+  }).filter(Boolean);
 }
 
 function formatEvalue(evalue: number | null): string {
@@ -883,12 +895,12 @@ function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
   const methodColors = getMethodColor(method);
 
   return (
-    <div className="w-80 p-3 space-y-2">
+    <div className="w-[400px] p-3 space-y-2">
       <div className="flex items-start gap-2">
         <img
-          src={`https://cdn.rcsb.org/images/rfree/${entry.pdbId.substring(1, 3).toLowerCase()}/${entry.pdbId.toLowerCase()}/${entry.pdbId.toLowerCase()}_rfree_250.jpeg`}
+          src={`https://cdn.rcsb.org/images/structures/${entry.pdbId.toLowerCase()}_assembly-1.jpeg`}
           alt={entry.pdbId}
-          className="w-20 h-20 rounded-md bg-claude-border-light dark:bg-[#3d3832] object-cover flex-shrink-0 border border-claude-border-light dark:border-[#3d3832]"
+          className="w-40 h-40 rounded-md bg-claude-border-light dark:bg-[#3d3832] object-cover flex-shrink-0 border border-claude-border-light dark:border-[#3d3832]"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
         />
@@ -919,7 +931,7 @@ function PdbTooltipContent({ entry }: { entry: PdbEntry | EvalPdbStructure }) {
           <div className="col-span-2">
             <span className="text-claude-text-muted dark:text-[#6b6560]">Journal:</span>{' '}
             <span className="text-claude-text-secondary dark:text-[#9b9590]">{entry.journal}</span>
-            {entry.journalIf && <span className="text-claude-text-muted dark:text-[#6b6560] ml-1">({entry.journalIf.toFixed(1)})</span>}
+            {entry.journalIf && <span className="text-claude-text-muted dark:text-[#6b6560] ml-1">({safeNum(entry.journalIf, 1)})</span>}
           </div>
         )}
       </div>
@@ -1073,6 +1085,9 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
+  // Strip YAML frontmatter (---...---)
+  const strippedContent = content.replace(/^---[\s\S]*?---\s*/m, '');
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -1089,7 +1104,7 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.97, y: 8 }}
             transition={{ duration: 0.2 }}
-            className="bg-claude-surface dark:bg-[#242220] rounded-[10px] shadow-xl max-w-3xl w-full mx-4 max-h-[85vh] flex flex-col"
+            className="bg-claude-surface dark:bg-[#242220] rounded-[10px] shadow-xl max-w-[66rem] w-full mx-4 max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between p-4 border-b border-claude-border dark:border-[#3d3832]">
@@ -1099,8 +1114,8 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 custom-scrollbar preview-scroll">
-              <div className="markdown-content">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+              <div className="markdown-content report-markdown">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{strippedContent}</ReactMarkdown>
               </div>
             </div>
           </motion.div>
@@ -1817,6 +1832,7 @@ export default function PdbTracker() {
   // ── Evaluation Mode Data ──
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
+  const [evalReports, setEvalReports] = useState<EvaluationReport[]>([]);
 
   // ── Filters & Sort ──
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -2723,7 +2739,9 @@ export default function PdbTracker() {
       try {
         const res = await fetch('/api/reports');
         const data: WeeklyReport[] = await res.json();
-        setWeeklyReports(data.filter(r => r.weekId === selectedWeekId));
+        // Match reports by comparing report weekId (date) with snapshot weekStart
+        const snap = snapshots.find(s => s.weekId === selectedWeekId);
+        setWeeklyReports(snap ? data.filter(r => r.weekId === snap.weekEnd) : []);
       } catch (e) { console.error('Failed to fetch reports:', e); }
     }
     load();
@@ -2814,6 +2832,23 @@ export default function PdbTracker() {
     load();
     return () => { cancelled = true; };
   }, [mode, selectedEvalId]);
+
+  // ── Fetch Evaluation Reports ──
+  useEffect(() => {
+    if (mode !== 'evaluation') return;
+    let cancelled = false;
+    async function load() {
+      try {
+        const res = await fetch('/api/evaluation-reports');
+        if (!cancelled) {
+          const data = await res.json();
+          setEvalReports(data);
+        }
+      } catch (e) { console.error('Failed to fetch evaluation reports:', e); }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [mode]);
 
   // ── Fetch Ligand Info (on demand) ──
   const fetchLigandInfo = useCallback(async (code: string) => {
@@ -3261,7 +3296,7 @@ export default function PdbTracker() {
     if (!sortedEntries.length) return;
     const headers = ['PDB ID', 'Method', 'Resolution', 'IF', 'Organism', 'Title', 'Date'];
     const rows = sortedEntries.map(entry =>
-      `| ${entry.pdbId} | ${getMethodLabel(entry.method)} | ${entry.resolution != null ? entry.resolution + 'Å' : '—'} | ${entry.journalIf != null ? entry.journalIf.toFixed(1) : '—'} | ${(entry.organisms || '—').split('|')[0]?.trim() || '—'} | ${entry.title || '—'} | ${entry.releaseDate || '—'} |`
+      `| ${entry.pdbId} | ${getMethodLabel(entry.method)} | ${entry.resolution != null ? entry.resolution + 'Å' : '—'} | ${entry.journalIf != null ? safeNum(entry.journalIf, 1) : '—'} | ${(entry.organisms || '—').split('|')[0]?.trim() || '—'} | ${entry.title || '—'} | ${entry.releaseDate || '—'} |`
     );
     const separator = `| ${headers.map(() => '---').join(' | ')} |`;
     const md = [`| ${headers.join(' | ')} |`, separator, ...rows].join('\n');
@@ -3691,7 +3726,7 @@ export default function PdbTracker() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); }}
+                      onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setSearchDropdownOpen(false); }}
                       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 ${
                         mode === 'weekly'
                           ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
@@ -3706,7 +3741,7 @@ export default function PdbTracker() {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      onClick={() => { setMode('evaluation'); setSearchQuery(''); }}
+                      onClick={() => { setMode('evaluation'); setSearchQuery(''); setSearchDropdownOpen(false); }}
                       className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150 ${
                         mode === 'evaluation'
                           ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
@@ -4883,7 +4918,7 @@ export default function PdbTracker() {
                                   setSelectedEntry(entry);
                                   setDetailPanelOpen(true);
                                   setPreviewOpen(true);
-                                  setPreviewTab('details');
+                                  setPreviewTab('summary');
                                   if (isMobile) setBottomSheetSnap(0.5);
                                   setFocusedRowIndex(idx);
                                   // Trigger pulse animation
@@ -4987,7 +5022,7 @@ export default function PdbTracker() {
                             <td className="px-3 py-2 font-mono">
                               {entry.resolution != null ? (
                                 <span className={`font-medium ${getResolutionColor(entry.resolution)}`}>
-                                  {entry.resolution.toFixed(2)}Å
+                                  {safeNum(entry.resolution, 2)}Å
                                 </span>
                               ) : (
                                 <span className="text-claude-text-muted">—</span>
@@ -4998,7 +5033,7 @@ export default function PdbTracker() {
                             <td className="px-3 py-2">
                               {entry.journalIf != null ? (
                                 <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ifStyle.bg} ${ifStyle.text}`}>
-                                  {entry.journalIf.toFixed(1)}
+                                  {safeNum(entry.journalIf, 1)}
                                 </span>
                               ) : (
                                 <span className="text-claude-text-muted">—</span>
@@ -5076,10 +5111,10 @@ export default function PdbTracker() {
                             <ContextMenuContent className="w-52 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
                               <ContextMenuItem
                                 className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('details'); }}
+                                onClick={() => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }}
                               >
                                 <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                                View Details
+                                View Summary
                               </ContextMenuItem>
                               <ContextMenuItem
                                 className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
@@ -5149,7 +5184,7 @@ export default function PdbTracker() {
                               </span>
                               {entry.resolution != null && (
                                 <span className={`text-[10px] font-mono ${getResolutionColor(entry.resolution)}`}>
-                                  {entry.resolution.toFixed(2)}Å
+                                  {safeNum(entry.resolution, 2)}Å
                                 </span>
                               )}
                               <span className="text-[10px] text-claude-text-secondary line-clamp-1 flex-1 min-w-0">
@@ -5306,7 +5341,7 @@ export default function PdbTracker() {
                             <td className="px-3 py-2 font-mono">
                               {row.resolution != null ? (
                                 <span className={`font-medium ${getResolutionColor(row.resolution)}`}>
-                                  {row.resolution.toFixed(2)}Å
+                                  {safeNum(row.resolution, 2)}Å
                                 </span>
                               ) : <span className="text-claude-text-muted">—</span>}
                             </td>
@@ -5315,7 +5350,7 @@ export default function PdbTracker() {
                             <td className="px-3 py-2">
                               {'journalIf' in row && row.journalIf != null ? (
                                 <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ifStyle.bg} ${ifStyle.text}`}>
-                                  {row.journalIf.toFixed(1)}
+                                  {safeNum(row.journalIf, 1)}
                                 </span>
                               ) : <span className="text-claude-text-muted">—</span>}
                             </td>
@@ -5465,7 +5500,7 @@ export default function PdbTracker() {
                   className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl border-l border-claude-border dark:border-[#3d3832] flex flex-col lg:hidden no-print glassmorphism-panel preview-inner-glow"
                 >
                   <div className="flex items-center justify-between p-3 border-b border-claude-border dark:border-[#3d3832]">
-                    <span className="text-xs font-semibold text-claude-text">Details</span>
+                    <span className="text-xs font-semibold text-claude-text">Preview</span>
                     <Button variant="ghost" size="sm" onClick={() => setMobilePreviewOpen(false)} className="h-7 w-7 p-0">
                       <X className="h-4 w-4" />
                     </Button>
@@ -5815,7 +5850,7 @@ export default function PdbTracker() {
                   <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
                   <div className="flex items-center gap-3">
                     <span className={`text-2xl font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
-                      {selectedEntry.resolution.toFixed(2)}Å
+                      {safeNum(selectedEntry.resolution, 2)}Å
                     </span>
                     <div className="flex-1 h-2.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                       <div
@@ -5841,7 +5876,7 @@ export default function PdbTracker() {
                     <span className="text-sm text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
                     {selectedEntry.journalIf != null && (
                       <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
-                        IF {selectedEntry.journalIf.toFixed(1)}
+                        IF {safeNum(selectedEntry.journalIf, 1)}
                       </span>
                     )}
                   </div>
@@ -6380,7 +6415,7 @@ export default function PdbTracker() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
               <button
-                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setMobileSidebarOpen(false); }}
+                onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setSearchDropdownOpen(false); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                   mode === 'weekly'
                     ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
@@ -6391,7 +6426,7 @@ export default function PdbTracker() {
                 Weekly
               </button>
               <button
-                onClick={() => { setMode('evaluation'); setSearchQuery(''); setMobileSidebarOpen(false); }}
+                onClick={() => { setMode('evaluation'); setSearchQuery(''); setSearchDropdownOpen(false); setMobileSidebarOpen(false); }}
                 className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md text-xs font-medium transition-all duration-150 ${
                   mode === 'evaluation'
                     ? 'bg-white dark:bg-[#3d3832] text-claude-text dark:text-[#e8e4dd] shadow-sm'
@@ -6507,7 +6542,7 @@ export default function PdbTracker() {
                     <HoverCard key={snap.weekId} openDelay={500} closeDelay={100}>
                       <HoverCardTrigger asChild>
                         <button
-                          onClick={() => { setSelectedWeekId(snap.weekId); setMobileSidebarOpen(false); }}
+                          onClick={() => { setSelectedWeekId(snap.weekId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                           className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                             isSelected
                               ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe breathe-glow-active week-card-active-border'
@@ -6615,14 +6650,6 @@ export default function PdbTracker() {
                           </div>
                         )}
 
-                        {/* Reports count */}
-                        {selectedWeekId === snap.weekId && weeklyReports.length > 0 && (
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-claude-text-muted">Reports</span>
-                            <span className="text-claude-text-secondary">{weeklyReports.length} available</span>
-                          </div>
-                        )}
-
                         {/* Click to view hint */}
                         <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
                           Click to view
@@ -6631,29 +6658,6 @@ export default function PdbTracker() {
                     </HoverCard>
                   );
                 })
-              )}
-
-              {/* Weekly Reports Section */}
-              {selectedWeekId && weeklyReports.length > 0 && (
-                <>
-                  <Separator className="my-3" />
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-2 px-1">
-                    Reports
-                  </div>
-                  {weeklyReports.map(report => (
-                    <button
-                      key={report.id}
-                      onClick={() => openReport(report.id, report.title || 'Weekly Report')}
-                      className="w-full text-left p-2.5 rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover flex items-start gap-2"
-                    >
-                      <FileText className="h-3.5 w-3.5 text-claude-accent mt-0.5 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <div className="text-xs font-medium text-claude-text truncate">{report.title || `Report ${report.reportType}`}</div>
-                        <div className="text-[10px] text-claude-text-muted">{report.reportType}</div>
-                      </div>
-                    </button>
-                  ))}
-                </>
               )}
             </div>
           ) : (
@@ -6890,7 +6894,7 @@ export default function PdbTracker() {
                   return (
                     <button
                       key={ev.uniprotId}
-                      onClick={() => { setSelectedEvalId(ev.uniprotId); setMobileSidebarOpen(false); }}
+                      onClick={() => { setSelectedEvalId(ev.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                         selectedEvalId === ev.uniprotId
                           ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
@@ -6950,7 +6954,6 @@ export default function PdbTracker() {
   function renderPreviewPanel() {
     const previewTabs = [
       { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
-      { value: 'details', icon: <Eye className="h-3 w-3 mr-1" />, label: 'Details' },
       { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
       { value: 'heatmap', icon: <Grid3x3 className="h-3 w-3 mr-1" />, label: 'Heatmap' },
       { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Report' },
@@ -7013,204 +7016,13 @@ export default function PdbTracker() {
                 <p className="text-xs">Select an item to view summary</p>
               </div>
             )
-          ) : previewTab === 'details' ? (
-            /* Details Tab - show selected entry info */
-            selectedEntry ? (
-              <div className="p-4 space-y-4">
-                {/* Header */}
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
-                    {getMethodLabel(selectedEntry.method)}
-                  </span>
-                </div>
-                {/* Tags */}
-                {(() => {
-                  const tags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
-                  return tags.length > 0 ? (
-                    <div className="flex flex-wrap gap-1">
-                      {tags.map((tag, i) => <TagPill key={`pv-tag-${i}-${tag.label}`} tag={tag} size="xs" />)}
-                    </div>
-                  ) : null;
-                })()}
-                {/* 3D Viewer */}
-                <MoleculeViewer pdbId={selectedEntry.pdbId} />
-                {/* Title */}
-                <div>
-                  <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h4>
-                  <p className="text-xs text-claude-text leading-relaxed">{selectedEntry.title}</p>
-                </div>
-                {/* Quality Score */}
-                {(() => {
-                  const qs = computeQualityScore(selectedEntry);
-                  return (
-                    <div>
-                      <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Quality Score</h4>
-                      <div className="flex items-center gap-3 p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
-                        <div className="relative flex-shrink-0">
-                          <svg width="64" height="64" viewBox="0 0 64 64">
-                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
-                            <circle cx="32" cy="32" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={2 * Math.PI * 28} strokeDashoffset={2 * Math.PI * 28 - (qs.total / 100) * 2 * Math.PI * 28} transform="rotate(-90 32 32)" className="transition-all duration-700" />
-                          </svg>
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <span className="text-sm font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="text-xs font-semibold" style={{ color: qs.color }}>{qs.label}</div>
-                          <div className="text-[9px] text-claude-text-muted">
-                            Res: {qs.resolutionScore}/35 · Method: {qs.methodScore}/25 · IF: {qs.ifScore}/30
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })()}
-                {/* Resolution */}
-                {selectedEntry.resolution != null && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Resolution</h4>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-lg font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
-                        {selectedEntry.resolution.toFixed(2)}Å
-                      </span>
-                      <div className="flex-1 h-2 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full transition-all duration-500"
-                          style={{
-                            width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
-                            backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
-                          }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {/* Journal */}
-                {selectedEntry.journal && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Journal</h4>
-                    <div className="flex items-start gap-2">
-                      <span className="text-xs text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
-                      {selectedEntry.journalIf != null && (
-                        <span className={`flex-shrink-0 text-[9px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
-                          IF {selectedEntry.journalIf.toFixed(1)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {/* Date */}
-                <div>
-                  <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Release Date</h4>
-                  <span className="text-xs text-claude-text-secondary">{formatDate(selectedEntry.releaseDate)}</span>
-                </div>
-                {/* Organisms */}
-                {selectedEntry.organisms && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Organisms</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
-                        <span key={`pv-org-${i}`} className="inline-flex px-1.5 py-0.5 rounded-md text-[10px] bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary italic">
-                          {org.trim()}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Ligands */}
-                {parseLigands(selectedEntry.ligands).length > 0 && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Ligands</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {parseLigands(selectedEntry.ligands).map((lig, i) => (
-                        <HoverCard key={`pv-lig-${i}-${lig}`} openDelay={200} closeDelay={100}>
-                          <HoverCardTrigger asChild>
-                            <span className="ligand-chip cursor-pointer" onMouseEnter={() => fetchLigandInfo(lig)}>
-                              {lig}
-                            </span>
-                          </HoverCardTrigger>
-                          <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
-                            {ligandCache[lig] ? (
-                              <LigandTooltipContent ligand={ligandCache[lig]} />
-                            ) : (
-                              <div className="p-3 flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
-                                <span className="text-xs text-claude-text-muted">Loading...</span>
-                              </div>
-                            )}
-                          </HoverCardContent>
-                        </HoverCard>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Authors */}
-                {selectedEntry.authors && (
-                  <div>
-                    <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Authors</h4>
-                    <p className="text-[11px] text-claude-text-secondary leading-relaxed">{selectedEntry.authors.replace(/\|/g, ', ')}</p>
-                  </div>
-                )}
-                {/* Links */}
-                <div>
-                  <h4 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Links</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <a
-                      href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all duration-150 external-link-hover"
-                    >
-                      <ExternalLink className="h-3 w-3 ext-arrow" />
-                      RCSB PDB
-                    </a>
-                    {selectedEntry.doi && (
-                      <a
-                        href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 transition-all duration-150 external-link-hover"
-                      >
-                        <ExternalLink className="h-3 w-3 ext-arrow" />
-                        DOI
-                      </a>
-                    )}
-                    {selectedEntry.pubmedId && (
-                      <a
-                        href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all duration-150 external-link-hover"
-                      >
-                        <ExternalLink className="h-3 w-3 ext-arrow" />
-                        PubMed
-                      </a>
-                    )}
-                  </div>
-                </div>
-                {/* Open Full Detail Button */}
-                <button
-                  onClick={() => setDetailPanelOpen(true)}
-                  className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#2b2926] hover:bg-claude-border-light dark:hover:bg-[#3d3832] text-xs text-claude-text-secondary hover:text-claude-text transition-all duration-150"
-                >
-                  <PanelRightOpen className="h-3.5 w-3.5" />
-                  Open Full Detail View
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
-                <Eye className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-xs">Click a row to view entry details</p>
-              </div>
-            )
           ) : previewTab === 'timeline' ? (
             /* Timeline Tab */
             mode === 'weekly' && selectedSnapshot && entries.length > 0 ? (
               <WeeklyTimeline
                 entries={entries}
                 snapshot={selectedSnapshot}
-                onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('details'); }}
+                onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }}
                 onHighlightEntry={setHighlightedEntry}
                 highlightedEntry={highlightedEntry}
               />
@@ -7252,12 +7064,35 @@ export default function PdbTracker() {
                   </button>
                 ))}
               </div>
-            ) : mode === 'evaluation' && selectedEval?.report ? (
-              <div className="p-4">
-                <div className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>{selectedEval.report}</ReactMarkdown>
-                </div>
-              </div>
+            ) : mode === 'evaluation' && selectedEvalId ? (
+              (() => {
+                const filteredReports = evalReports.filter(r => r.uniprotId === selectedEvalId);
+                if (filteredReports.length === 0) {
+                  return (
+                    <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+                      <FileText className="h-8 w-8 mb-2 opacity-30" />
+                      <p className="text-xs">No evaluation reports for this entry</p>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="p-4 space-y-2">
+                    {filteredReports.map(report => (
+                      <button
+                        key={report.id}
+                        onClick={() => openReport(report.id, report.title || 'Evaluation Report')}
+                        className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <FileText className="h-3.5 w-3.5 text-claude-accent" />
+                          <span className="text-xs font-medium text-claude-text">{report.title || 'Evaluation Report'}</span>
+                        </div>
+                        <div className="text-[10px] text-claude-text-muted">{formatDate(report.createdAt)}</div>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
                 <FileText className="h-8 w-8 mb-2 opacity-30" />
@@ -7394,13 +7229,13 @@ function ClaudeScatterTooltip({ active, payload, isDark }: {
         {d.resolution != null && (
           <div>
             <span className="text-claude-text-muted">Resolution:</span>{' '}
-            <span className={`font-mono font-medium ${getResolutionColor(d.resolution)}`}>{d.resolution.toFixed(2)}Å</span>
+            <span className={`font-mono font-medium ${getResolutionColor(d.resolution)}`}>{safeNum(d.resolution, 2)}Å</span>
           </div>
         )}
         {d.journalIf != null && (
           <div>
             <span className="text-claude-text-muted">IF:</span>{' '}
-            <span className={`font-mono font-medium text-claude-text`}>{d.journalIf.toFixed(1)}</span>
+            <span className={`font-mono font-medium text-claude-text`}>{safeNum(d.journalIf, 1)}</span>
           </div>
         )}
       </div>
@@ -8057,13 +7892,13 @@ function WeeklyTimeline({
     return { maxCount, peakDay, avgPerDay, emCount, xrCount, nmrCount, otherCount };
   }, [entriesByDay, dayLabels, entries, totalDays]);
 
-  // SVG dimensions
+  // SVG dimensions - axis at bottom of chart area
   const svgHeight = 280;
   const marginLeft = 8;
   const marginRight = 8;
   const marginTop = 24;
-  const timelineY = 60;
-  const axisY = timelineY + 30;
+  const timelineY = 40;
+  const axisY = svgHeight - 50; // Axis near bottom of SVG
   const dayLabelY = axisY + 14;
   const dateLabelY = dayLabelY + 12;
   const usableWidth = containerWidth - marginLeft - marginRight;
@@ -8084,22 +7919,35 @@ function WeeklyTimeline({
     return Math.min(16, Math.max(6, (if_ / 50) * 10 + 6));
   };
 
-  // Calculate dot positions
+  // Calculate dot positions - wrap horizontally to prevent overflow
   const dotPositions = useMemo(() => {
     const positions: { entry: PdbEntry; cx: number; cy: number; size: number; color: string; dayIndex: number }[] = [];
     const dayKeys = Object.keys(entriesByDay).sort();
+    const maxDotsPerStack = 8; // Max dots before wrapping to next column
+    const dotSpacing = 10; // Horizontal spacing between stacked dots
 
     dayKeys.forEach((dayKey, dayIdx) => {
       const dayEntries = entriesByDay[dayKey];
       const cx = marginLeft + dayIdx * dayWidth + dayWidth / 2;
 
-      dayEntries.forEach((entry, stackIdx) => {
+      // Sort by IF descending so larger dots are at the bottom
+      const sortedEntries = [...dayEntries].sort((a, b) => (b.journalIf ?? 0) - (a.journalIf ?? 0));
+
+      sortedEntries.forEach((entry, stackIdx) => {
         const size = getDotSize(entry);
-        const offset = stackIdx * (size + 2);
-        const cy = timelineY - 10 - offset;
+        // Wrap horizontally when exceeding max stack
+        const stackGroup = Math.floor(stackIdx / maxDotsPerStack);
+        const stackPos = stackIdx % maxDotsPerStack;
+        // Alternate direction for adjacent groups to form a triangle pattern
+        const actualStackPos = stackGroup % 2 === 0 ? stackPos : maxDotsPerStack - 1 - stackPos;
+        // Dots grow UPWARD from axis line (toward smaller y, negative direction)
+        const rawCY = axisY - 5 - actualStackPos * (size + 2);
+        const cy = Math.max(rawCY, marginTop + 10);
+        // Offset cx for groups after the first
+        const groupOffset = stackGroup * dotSpacing;
         positions.push({
           entry,
-          cx,
+          cx: cx + groupOffset,
           cy,
           size,
           color: getDotColor(entry),
@@ -8109,7 +7957,7 @@ function WeeklyTimeline({
     });
 
     return positions;
-  }, [entriesByDay, dayWidth, marginLeft, timelineY]);
+  }, [entriesByDay, dayWidth, marginLeft, axisY]);
 
   // Method distribution bar segments
   const methodBarSegments = [
@@ -8352,7 +8200,7 @@ function WeeklyTimeline({
                   )}
                   {tooltipData.entry.journalIf != null && (
                     <span className="text-claude-text-muted">
-                      IF: {tooltipData.entry.journalIf.toFixed(1)}
+                      IF: {safeNum(tooltipData.entry.journalIf, 1)}
                     </span>
                   )}
                 </div>
@@ -9042,7 +8890,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
   }, [evalData.scores]);
 
   const overallScore = useMemo(() => {
-    const vals = Object.values(scores) as number[];
+    const vals = Object.values(scores).map(v => typeof v === 'number' ? v : (v as any)?.score ?? 0) as number[];
     if (!vals.length) return null;
     return vals.reduce((a, b) => a + b, 0) / vals.length;
   }, [scores]);
@@ -9206,7 +9054,9 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
           </div>
           <div className="space-y-2">
             {Object.entries(scores).map(([key, value]) => {
-              const score = value as number;
+              // Handle both number scores and {score: number} object format
+              const scoreNum = typeof value === 'number' ? value as number : (value as any)?.score ?? 0;
+              const score = scoreNum;
               const pct = Math.min((score / 10) * 100, 100);
               const color = score >= 8 ? '#2d8f8f' : score >= 5 ? '#c9872e' : '#dc2626';
               const textColor = score >= 8 ? 'text-claude-cryoem' : score >= 5 ? 'text-claude-nmr' : 'text-claude-top';
@@ -9253,11 +9103,15 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
             <div className="pt-2 mt-2 border-t border-claude-border/50">
               <h5 className="text-[11px] font-semibold text-claude-text mb-2">Score Radar</h5>
               <ResponsiveContainer width="100%" height={180}>
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={Object.entries(scores).map(([key, value]) => ({
-                  metric: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
-                  score: value as number,
-                  fullMark: 10,
-                }))}>
+                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={Object.entries(scores).map(([key, value]) => {
+                  // Handle both number scores and {score: number} object format
+                  const scoreNum = typeof value === 'number' ? value : (value as any)?.score ?? 0;
+                  return {
+                    metric: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+                    score: scoreNum,
+                    fullMark: 10,
+                  };
+                })}>
                   <PolarGrid stroke={isDark ? '#3d3832' : '#e8e4dd'} />
                   <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9, fill: isDark ? '#9b9590' : '#6b6560' }} />
                   <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fontSize: 8, fill: isDark ? '#6b6560' : '#9b9590' }} axisLine={false} />

@@ -16,6 +16,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(reports);
   } catch (error) {
     console.error('Error fetching evaluation reports:', error);
-    return NextResponse.json({ error: 'Failed to fetch evaluation reports' }, { status: 500 });
+    return NextResponse.json([], { status: 500 });
   }
 }

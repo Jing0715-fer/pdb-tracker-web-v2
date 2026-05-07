@@ -17,8 +17,6 @@ export async function GET(request: NextRequest) {
       select: {
         id: true,
         weekId: true,
-        weekStart: true,
-        weekEnd: true,
         reportType: true,
         title: true,
         filename: true,
@@ -29,6 +27,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(reports);
   } catch (error) {
     console.error('Error fetching reports:', error);
-    return NextResponse.json({ error: 'Failed to fetch reports' }, { status: 500 });
+    return NextResponse.json([], { status: 500 });
   }
 }

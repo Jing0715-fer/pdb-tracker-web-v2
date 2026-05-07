@@ -9,6 +9,6 @@ export async function GET() {
     return NextResponse.json(snapshots);
   } catch (error) {
     console.error('Error fetching snapshots:', error);
-    return NextResponse.json({ error: 'Failed to fetch snapshots' }, { status: 500 });
+    return NextResponse.json([], { status: 500 });
   }
 }

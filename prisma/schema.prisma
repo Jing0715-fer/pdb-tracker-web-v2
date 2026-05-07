@@ -8,25 +8,26 @@ datasource db {
 }
 
 model PdbStructure {
-  pdbId          String   @id
-  method         String
-  releaseDate    String
-  resolution     Float?
-  resolutionHigh Float?
-  title          String
-  doi            String?
-  journal        String?
-  journalIf      Float?
-  authors        String?
-  organisms      String?
-  ligands        String?
-  pubmedId       String?
-  fetchDate      String
-  weekId         String
-  isCryoem       Int      @default(0)
-  isXray         Int      @default(0)
-  ifTier         String   @default("unknown")
+  pdbId          String   @map("pdb_id") @id
+  method         String   @map("method")
+  releaseDate    String   @map("release_date")
+  resolution     Float?   @map("resolution")
+  resolutionHigh Float?   @map("resolution_high")
+  title          String   @map("title")
+  doi            String?  @map("doi")
+  journal        String?  @map("journal")
+  journalIf      Float?   @map("journal_if")
+  authors        String?  @map("authors")
+  organisms      String?  @map("organisms")
+  ligands        String?  @map("ligands")
+  pubmedId       String?  @map("pubmed_id")
+  fetchDate      String   @map("fetch_date")
+  weekId         String   @map("week_id")
+  isCryoem       Int      @default(0) @map("is_cryoem")
+  isXray         Int      @default(0) @map("is_xray")
+  ifTier         String   @default("unknown") @map("if_tier")
 
+  @@map("pdb_structures")
   @@index([releaseDate])
   @@index([method])
   @@index([weekId])
@@ -34,134 +35,142 @@ model PdbStructure {
 }
 
 model PdbChain {
-  id                Int    @id @default(autoincrement())
-  pdbId             String
-  asymId            String
-  entityId          Int
-  uniprotAccession  String?
-  uniprotId         String?
-  geneName          String?
-  organismTaxId     Int?
-  organismName      String?
-  sequence          String?
-  startResidue      Int?
-  endResidue        Int?
+  id                Int     @id @default(autoincrement())
+  pdbId             String  @map("pdb_id")
+  asymId            String  @map("asym_id")
+  entityId          Int     @map("entity_id")
+  uniprotAccession  String? @map("uniprot_accession")
+  uniprotId         String? @map("uniprot_id")
+  geneName          String? @map("gene_name")
+  organismTaxId     Int?    @map("organism_tax_id")
+  organismName      String? @map("organism_name")
+  sequence          String? @map("sequence")
+  startResidue      Int?    @map("start_residue")
+  endResidue        Int?    @map("end_residue")
 
   @@unique([pdbId, asymId])
+  @@map("pdb_chains")
   @@index([uniprotAccession])
   @@index([pdbId])
 }
 
 model WeeklySnapshot {
-  weekId           String @id
-  weekStart        String
-  weekEnd          String
-  totalStructures  Int    @default(0)
-  cryoemCount      Int    @default(0)
-  xrayCount        Int    @default(0)
-  nmrCount         Int    @default(0)
-  otherCount       Int    @default(0)
-  cryoemResDist    String?
-  xrayResDist      String?
-  cryoemAvgRes     Float?
-  xrayAvgRes       Float?
-  topJournals      String?
-  ifDist           String?
-  createdAt        String @default("2025-01-01")
+  weekId           String  @map("week_id") @id
+  weekStart        String  @map("week_start")
+  weekEnd          String  @map("week_end")
+  totalStructures  Int?    @map("total_structures")
+  cryoemCount      Int?    @map("cryoem_count")
+  xrayCount        Int?    @map("xray_count")
+  nmrCount         Int?    @map("nmr_count")
+  otherCount       Int?    @map("other_count")
+  cryoemResDist    String? @map("cryoem_res_dist")
+  xrayResDist      String? @map("xray_res_dist")
+  cryoemAvgRes     Float?  @map("cryoem_avg_res")
+  xrayAvgRes       Float?  @map("xray_avg_res")
+  topJournals      String? @map("top_journals")
+  ifDist           String? @map("if_dist")
+  createdAt        String  @default("2025-01-01") @map("created_at")
+
+  @@map("weekly_snapshots")
 }
 
 model Evaluation {
-  uniprotId       String @id
-  entryName       String?
-  proteinName     String?
-  geneNames       String?
-  organism        String?
-  sequenceLength  Int?
-  coverage        Float?
-  scores          String?
-  report          String?
-  createdAt       String @default("2025-01-01")
-  updatedAt       String @default("2025-01-01")
+  uniprotId       String  @id @map("uniprot_id")
+  entryName       String? @map("entry_name")
+  proteinName     String? @map("protein_name")
+  geneNames       String? @map("gene_names")
+  organism        String? @map("organism")
+  sequenceLength  Int?    @map("sequence_length")
+  coverage        Float?  @map("coverage")
+  scores          String? @map("scores")
+  report          String? @map("report")
+  createdAt       String  @default("2025-01-01") @map("created_at")
+  updatedAt       String  @default("2025-01-01") @map("updated_at")
 
   pdbStructures   EvaluationPdbStructure[]
   blastResults    EvaluationBlastResult[]
+
+  @@map("evaluations")
 }
 
 model EvaluationPdbStructure {
-  id              Int    @id @default(autoincrement())
-  uniprotId       String
-  pdbId           String
-  method          String?
-  resolution      Float?
-  title           String?
-  depositionDate  String?
-  releaseDate     String?
-  ligand          String?
-  ligandNames     String?
-  journal         String?
-  journalIf       Float?
-  doi             String?
-  pubmedId        String?
-  organism        String?
-  authors         String?
-  isCryoem        Int    @default(0)
-  isXray          Int    @default(0)
-  isNmr           Int    @default(0)
-  ifTier          String @default("unknown")
-  updatedAt       String @default("2025-01-01")
+  id              Int     @id @default(autoincrement())
+  uniprotId       String  @map("uniprot_id")
+  pdbId           String  @map("pdb_id")
+  method          String? @map("method")
+  resolution      Float?  @map("resolution")
+  title           String? @map("title")
+  depositionDate  String? @map("deposition_date")
+  releaseDate     String? @map("release_date")
+  ligand          String? @map("ligand")
+  ligandNames     String? @map("ligand_names")
+  journal         String? @map("journal")
+  journalIf       Float?  @map("journal_if")
+  doi             String? @map("doi")
+  pubmedId        String? @map("pubmed_id")
+  organism        String? @map("organism")
+  authors         String? @map("authors")
+  isCryoem        Int     @default(0) @map("is_cryoem")
+  isXray          Int     @default(0) @map("is_xray")
+  isNmr           Int     @default(0) @map("is_nmr")
+  ifTier          String  @default("unknown") @map("if_tier")
+  updatedAt       String  @default("2025-01-01") @map("updated_at")
 
   evaluation      Evaluation @relation(fields: [uniprotId], references: [uniprotId])
 
   @@unique([uniprotId, pdbId])
+  @@map("evaluation_pdb_structures")
   @@index([uniprotId])
 }
 
 model EvaluationBlastResult {
-  id             Int    @id @default(autoincrement())
-  uniprotId      String
-  pdbId          String?
-  uniprotRef     String?
-  description    String?
-  identity       Int?
-  evalue         Float?
-  queryCoverage  Int?
-  targetCoverage Int?
-  method         String?
-  resolution     Float?
-  releaseDate    String?
-  source         String?
-  taxonomyId     Int?
-  journal        String?
-  journalIf      Float?
-  ifTier         String @default("unknown")
-  ligand         String?
-  title          String?
-  updatedAt      String @default("2025-01-01")
+  id             Int     @id @default(autoincrement())
+  uniprotId      String  @map("uniprot_id")
+  pdbId          String? @map("pdb_id")
+  uniprotRef     String? @map("uniprot_ref")
+  description    String? @map("description")
+  identity       Int?    @map("identity")
+  evalue         Float?  @map("evalue")
+  queryCoverage  Int?    @map("query_coverage")
+  targetCoverage Int?    @map("target_coverage")
+  method         String? @map("method")
+  resolution     Float?  @map("resolution")
+  releaseDate    String? @map("release_date")
+  source         String? @map("source")
+  taxonomyId     Int?    @map("taxonomy_id")
+  journal        String? @map("journal")
+  journalIf      Float?  @map("journal_if")
+  ifTier         String  @default("unknown") @map("if_tier")
+  ligand         String? @map("ligand")
+  title          String? @map("title")
+  updatedAt      String  @default("2025-01-01") @map("updated_at")
 
   evaluation     Evaluation @relation(fields: [uniprotId], references: [uniprotId])
 
+  @@map("evaluation_blast_results")
   @@index([uniprotId])
 }
 
 model WeeklyReport {
-  id          Int    @id @default(autoincrement())
-  weekId      String
-  weekStart   String?
-  weekEnd     String?
-  reportType  String @default("all")
-  title       String?
-  filename    String?
-  content     String?
-  createdAt   String @default("2025-01-01")
+  id          Int     @id @default(autoincrement())
+  weekId      String  @map("week_id")
+  reportType  String  @default("all") @map("report_type")
+  title       String? @map("title")
+  filename    String? @map("filename")
+  content     String? @map("content")
+  createdAt   String?  @default("2025-01-01") @map("created_at")
 
   @@unique([weekId, reportType])
+  @@map("weekly_reports")
 }
 
 model EvaluationReport {
-  id          Int    @id @default(autoincrement())
-  uniprotId   String @unique
-  title       String?
-  filename    String?
-  content     String?
-  createdAt   String @default("2025-01-01")
+  id          Int     @id @default(autoincrement())
+  uniprotId   String  @map("uniprot_id") @unique
+  title       String? @map("title")
+  filename    String? @map("filename")
+  content     String? @map("content")
+  createdAt   String  @default("2025-01-01") @map("created_at")
+
+  @@map("evaluation_reports")
 }
