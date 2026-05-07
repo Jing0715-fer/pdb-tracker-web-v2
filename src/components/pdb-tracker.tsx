@@ -665,8 +665,9 @@ function formatDate(dateStr: string | null): string {
 
 function parseLigands(ligands: string | null): string[] {
   if (!ligands) return [];
-  // 只返回冒号前的缩写
-  return ligands.split('|').map(l => {
+  // Handle both pipe-separated (weekly format: "CODE:Name|Other:Name2") and semicolon-separated (eval format: "NAG; FOR; NAD")
+  const separators = ligands.includes('|') ? '|' : /[;]+/;
+  return ligands.split(separators).map(l => {
     const parts = l.split(':');
     return parts[0].trim();
   }).filter(Boolean);
