@@ -1879,6 +1879,10 @@ export default function PdbTracker() {
   const [heatmapEntries, setHeatmapEntries] = useState<PdbEntry[]>([]);
   const [heatmapLoading, setHeatmapLoading] = useState(false);
 
+  // ── Context Menu (Right-Click) ──
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; weekId: string } | null>(null);
+  const [evalContextMenu, setEvalContextMenu] = useState<{ x: number; y: number; uniprotId: string } | null>(null);
+
   // ── Evaluation Mode Data ──
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
@@ -3217,7 +3221,7 @@ export default function PdbTracker() {
     if (!scores) return 0;
     try {
       const s = JSON.parse(scores);
-      const vals = Object.values(s).filter(v => typeof v === 'number') as number[];
+      const vals = Object.values(s).map(v => typeof v === 'number' ? v : (v as any)?.score ?? 0) as number[];
       return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
     } catch { return 0; }
   }
@@ -3761,7 +3765,7 @@ export default function PdbTracker() {
 
           {/* Desktop sidebar collapsed strip - when sidebarOpen is false on xl+ */}
           {!sidebarOpen && (
-            <div className="hidden lg:flex w-12 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-2 no-print sidebar-gradient overflow-hidden relative">
+            <div className="hidden lg:flex w-14 flex-shrink-0 border-r border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-col items-center pt-3 gap-1 no-print sidebar-gradient overflow-hidden relative">
               <div className="sidebar-mesh-overlay" />
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3774,7 +3778,7 @@ export default function PdbTracker() {
                 </TooltipTrigger>
                 <TooltipContent side="right" className="text-xs">Expand sidebar</TooltipContent>
               </Tooltip>
-              {/* Compact mode icons */}
+              {/* Mode toggle buttons */}
               <div className="flex flex-col items-center gap-1 mt-1">
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -3806,6 +3810,140 @@ export default function PdbTracker() {
                   </TooltipTrigger>
                   <TooltipContent side="right" className="text-xs">Evaluation Mode</TooltipContent>
                 </Tooltip>
+              </div>
+              {/* Mini week/eval cards - scrollable */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar sidebar-scroll mt-1 w-full flex flex-col items-center gap-1 px-1">
+                {mode === 'weekly' && snapshots.slice(0, 20).map(snap => (
+                  <HoverCard key={snap.weekId} openDelay={300} closeDelay={100}>
+                    <HoverCardTrigger asChild>
+                      <button
+                        onClick={() => { setSelectedWeekId(snap.weekId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, weekId: snap.weekId }); }}
+                        className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold transition-all duration-150 ${
+                          selectedWeekId === snap.weekId
+                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                            : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                        }`}
+                      >
+                        {snap.weekId.replace('W', '')}
+                      </button>
+                    </HoverCardTrigger>
+                    <HoverCardContent
+                      side="right"
+                      align="center"
+                      className="w-56 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl"
+                    >
+                      <div className="text-xs font-semibold text-claude-text">{snap.weekId}</div>
+                      <div className="text-[10px] text-claude-text-muted">
+                        {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
+                      </div>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {snap.cryoemCount > 0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-cryoem-bg text-claude-cryoem">
+                            EM {snap.cryoemCount}
+                          </span>
+                        )}
+                        {snap.xrayCount > 0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-xray-bg text-claude-xray">
+                            XR {snap.xrayCount}
+                          </span>
+                        )}
+                        {snap.nmrCount > 0 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-nmr-bg text-claude-nmr">
+                            NMR {snap.nmrCount}
+                          </span>
+                        )}
+                      </div>
+                      {/* Method ratio progress bar */}
+                      <div className="flex h-1.5 rounded-full overflow-hidden bg-claude-border-light dark:bg-[#3d3832]">
+                        {snap.cryoemCount > 0 && (
+                          <div className="h-full bg-claude-cryoem" style={{ width: `${(snap.cryoemCount / snap.totalStructures) * 100}%` }} />
+                        )}
+                        {snap.xrayCount > 0 && (
+                          <div className="h-full bg-claude-xray" style={{ width: `${(snap.xrayCount / snap.totalStructures) * 100}%` }} />
+                        )}
+                        {snap.nmrCount > 0 && (
+                          <div className="h-full bg-claude-nmr" style={{ width: `${(snap.nmrCount / snap.totalStructures) * 100}%` }} />
+                        )}
+                        {snap.otherCount > 0 && (
+                          <div className="h-full bg-claude-other" style={{ width: `${(snap.otherCount / snap.totalStructures) * 100}%` }} />
+                        )}
+                      </div>
+                      <div className="flex justify-between text-[10px]">
+                        <span className="text-claude-text-muted">Total</span>
+                        <span className="font-mono text-claude-text-secondary">{snap.totalStructures}</span>
+                      </div>
+                      <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
+                        Click to view
+                      </div>
+                    </HoverCardContent>
+                  </HoverCard>
+                ))}
+                {mode === 'evaluation' && evaluations.slice(0, 20).map(ev => {
+                  const evCryoem = ev.pdbStructures.filter(s => s.method === 'Cryo-EM').length;
+                  const evXray = ev.pdbStructures.filter(s => s.method === 'X-ray').length;
+                  const resStructures = ev.pdbStructures.filter(s => s.resolution != null);
+                  const evAvgRes = resStructures.length > 0
+                    ? resStructures.reduce((sum, s) => sum + s.resolution!, 0) / resStructures.length
+                    : null;
+                  const evBlast = ev.blastResults.length;
+                  const evTotal = ev.pdbStructures.length + evBlast;
+                  return (
+                    <HoverCard key={ev.uniprotId} openDelay={300} closeDelay={100}>
+                      <HoverCardTrigger asChild>
+                        <button
+                          onClick={() => { setSelectedEvalId(ev.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setEvalContextMenu({ x: e.clientX, y: e.clientY, uniprotId: ev.uniprotId }); }}
+                          className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
+                            selectedEvalId === ev.uniprotId
+                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                              : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                          }`}
+                        >
+                          {ev.uniprotId.replace('U', '')}
+                        </button>
+                      </HoverCardTrigger>
+                      <HoverCardContent
+                        side="right"
+                        align="center"
+                        className="w-56 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl"
+                      >
+                        <div className="text-xs font-semibold text-claude-text truncate">{ev.proteinName || ev.uniprotId}</div>
+                        {ev.geneNames && <div className="text-[10px] text-claude-text-muted">Gene: {ev.geneNames}</div>}
+                        <div className="flex gap-1.5 flex-wrap">
+                          {evCryoem > 0 && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-cryoem-bg text-claude-cryoem">
+                              EM {evCryoem}
+                            </span>
+                          )}
+                          {evXray > 0 && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-xray-bg text-claude-xray">
+                              XR {evXray}
+                            </span>
+                          )}
+                          {evBlast > 0 && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent">
+                              BLAST {evBlast}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex justify-between text-[10px]">
+                          <span className="text-claude-text-muted">Total structures</span>
+                          <span className="font-mono text-claude-text-secondary">{evTotal}</span>
+                        </div>
+                        {evAvgRes != null && (
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-claude-text-muted">Avg Resolution</span>
+                            <span className="font-mono text-claude-text-secondary">{evAvgRes.toFixed(2)}Å</span>
+                          </div>
+                        )}
+                        <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
+                          Click to view
+                        </div>
+                      </HoverCardContent>
+                    </HoverCard>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -6773,6 +6911,76 @@ export default function PdbTracker() {
           { title: TOUR_STEPS[5].title, description: TOUR_STEPS[5].description, targetRef: tourShortcutsRef as React.RefObject<HTMLElement | null> },
         ]}
       />}
+
+      {/* Right-Click Context Menu */}
+      {contextMenu && (
+        <div
+          className="fixed z-50 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1 min-w-[160px]"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-claude-text-secondary hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:text-claude-accent rounded-md flex items-center gap-2 transition-colors duration-100"
+            onClick={() => { setSelectedWeekId(contextMenu.weekId); setPreviewOpen(true); setMobileSidebarOpen(false); setContextMenu(null); }}
+          >
+            <Eye className="h-3.5 w-3.5 text-claude-text-muted" />
+            View Week
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-claude-text-secondary hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:text-claude-accent rounded-md flex items-center gap-2 transition-colors duration-100"
+            onClick={() => { navigator.clipboard.writeText(contextMenu.weekId).catch(() => {}); setContextMenu(null); }}
+          >
+            <Copy className="h-3.5 w-3.5 text-claude-text-muted" />
+            Copy Week ID
+          </button>
+          <div className="h-px bg-claude-border-light my-1" />
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-claude-text-secondary hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:text-claude-accent rounded-md flex items-center gap-2 transition-colors duration-100"
+            onClick={() => { window.open(`/api/reports?weekId=${contextMenu.weekId}`, '_blank'); setContextMenu(null); }}
+          >
+            <FileText className="h-3.5 w-3.5 text-claude-text-muted" />
+            View Reports
+          </button>
+        </div>
+      )}
+      {contextMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setContextMenu(null)}
+          onContextMenu={(e) => { e.preventDefault(); setContextMenu(null); }}
+        />
+      )}
+
+      {/* Eval Right-Click Context Menu */}
+      {evalContextMenu && (
+        <div
+          className="fixed z-50 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1 min-w-[160px]"
+          style={{ left: evalContextMenu.x, top: evalContextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-claude-text-secondary hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:text-claude-accent rounded-md flex items-center gap-2 transition-colors duration-100"
+            onClick={() => { setSelectedEvalId(evalContextMenu.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); setEvalContextMenu(null); }}
+          >
+            <Eye className="h-3.5 w-3.5 text-claude-text-muted" />
+            View Evaluation
+          </button>
+          <button
+            className="w-full text-left px-3 py-2 text-xs text-claude-text-secondary hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:text-claude-accent rounded-md flex items-center gap-2 transition-colors duration-100"
+            onClick={() => { navigator.clipboard.writeText(evalContextMenu.uniprotId).catch(() => {}); setEvalContextMenu(null); }}
+          >
+            <Copy className="h-3.5 w-3.5 text-claude-text-muted" />
+            Copy UniProt ID
+          </button>
+        </div>
+      )}
+      {evalContextMenu && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={() => setEvalContextMenu(null)}
+          onContextMenu={(e) => { e.preventDefault(); setEvalContextMenu(null); }}
+        />
+      )}
     </TooltipProvider>
   );
 
@@ -6909,12 +7117,11 @@ export default function PdbTracker() {
                   const topJournals = snap.topJournals ? snap.topJournals.split('|').filter(Boolean).slice(0, 2) : [];
 
                   return (
-                    <ContextMenu>
-                      <ContextMenuTrigger asChild>
                     <HoverCard key={snap.weekId} openDelay={500} closeDelay={100}>
                       <HoverCardTrigger asChild>
                         <button
                           onClick={() => { setSelectedWeekId(snap.weekId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setContextMenu({ x: e.clientX, y: e.clientY, weekId: snap.weekId }); }}
                           className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                             isSelected
                               ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm sidebar-active-card animate-border-breathe breathe-glow-active week-card-active-border'
@@ -6967,93 +7174,69 @@ export default function PdbTracker() {
                           </div>
                         </button>
                       </HoverCardTrigger>
-                      <HoverCardContent
-                        side="right"
-                        align="start"
-                        className="w-64 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl"
-                      >
-                        {/* Header - Week date range */}
-                        <div className="text-xs font-semibold text-claude-text">
-                          {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
-                        </div>
-
-                        {/* Mini method distribution bars */}
-                        <div>
-                          <div className="text-[10px] text-claude-text-muted mb-1">Method Distribution</div>
-                          <div className="flex items-center gap-1">
-                            {snap.cryoemCount > 0 && (
-                              <div className="h-1.5 rounded-full bg-claude-cryoem" style={{ width: `${Math.max(8, cryoemPct)}%` }} title={`Cryo-EM: ${snap.cryoemCount}`} />
-                            )}
-                            {snap.xrayCount > 0 && (
-                              <div className="h-1.5 rounded-full bg-claude-xray" style={{ width: `${Math.max(8, xrayPct)}%` }} title={`X-ray: ${snap.xrayCount}`} />
-                            )}
-                            {snap.nmrCount > 0 && (
-                              <div className="h-1.5 rounded-full bg-claude-nmr" style={{ width: `${Math.max(8, nmrPct)}%` }} title={`NMR: ${snap.nmrCount}`} />
-                            )}
-                            {snap.otherCount > 0 && (
-                              <div className="h-1.5 rounded-full bg-claude-other" style={{ width: `${Math.max(8, (snap.otherCount / total) * 100)}%` }} title={`Other: ${snap.otherCount}`} />
-                            )}
+                      {!sidebarOpen && (
+                        <HoverCardContent
+                          side="right"
+                          align="start"
+                          className="w-64 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl"
+                        >
+                          {/* Header - Week date range */}
+                          <div className="text-xs font-semibold text-claude-text">
+                            {formatDate(snap.weekStart)} — {formatDate(snap.weekEnd)}
                           </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-[9px] text-claude-text-muted">
-                            {snap.cryoemCount > 0 && <span className="text-claude-cryoem">EM {snap.cryoemCount}</span>}
-                            {snap.xrayCount > 0 && <span className="text-claude-xray">XR {snap.xrayCount}</span>}
-                            {snap.nmrCount > 0 && <span className="text-claude-nmr">NMR {snap.nmrCount}</span>}
-                          </div>
-                        </div>
 
-                        {/* Average resolution with quality indicator */}
-                        {avgRes != null && (
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-claude-text-muted">Avg Resolution</span>
-                            <span className="font-mono font-medium">
-                              <span style={{ color: resQualityColor || undefined }}>{avgRes.toFixed(2)}Å</span>
-                              {resQualityLabel && (
-                                <span className="ml-1 text-[9px]" style={{ color: resQualityColor || undefined }}>{resQualityLabel}</span>
+                          {/* Mini method distribution bars */}
+                          <div>
+                            <div className="text-[10px] text-claude-text-muted mb-1">Method Distribution</div>
+                            <div className="flex items-center gap-1">
+                              {snap.cryoemCount > 0 && (
+                                <div className="h-1.5 rounded-full bg-claude-cryoem" style={{ width: `${Math.max(8, cryoemPct)}%` }} title={`Cryo-EM: ${snap.cryoemCount}`} />
                               )}
-                            </span>
+                              {snap.xrayCount > 0 && (
+                                <div className="h-1.5 rounded-full bg-claude-xray" style={{ width: `${Math.max(8, xrayPct)}%` }} title={`X-ray: ${snap.xrayCount}`} />
+                              )}
+                              {snap.nmrCount > 0 && (
+                                <div className="h-1.5 rounded-full bg-claude-nmr" style={{ width: `${Math.max(8, nmrPct)}%` }} title={`NMR: ${snap.nmrCount}`} />
+                              )}
+                              {snap.otherCount > 0 && (
+                                <div className="h-1.5 rounded-full bg-claude-other" style={{ width: `${Math.max(8, (snap.otherCount / total) * 100)}%` }} title={`Other: ${snap.otherCount}`} />
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-[9px] text-claude-text-muted">
+                              {snap.cryoemCount > 0 && <span className="text-claude-cryoem">EM {snap.cryoemCount}</span>}
+                              {snap.xrayCount > 0 && <span className="text-claude-xray">XR {snap.xrayCount}</span>}
+                              {snap.nmrCount > 0 && <span className="text-claude-nmr">NMR {snap.nmrCount}</span>}
+                            </div>
                           </div>
-                        )}
 
-                        {/* Highest IF journal */}
-                        {topJournals.length > 0 && (
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-claude-text-muted">Top Journal</span>
-                            <span className="text-claude-text-secondary truncate ml-2 max-w-[140px]">{topJournals[0]}</span>
+                          {/* Average resolution with quality indicator */}
+                          {avgRes != null && (
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-claude-text-muted">Avg Resolution</span>
+                              <span className="font-mono font-medium">
+                                <span style={{ color: resQualityColor || undefined }}>{avgRes.toFixed(2)}Å</span>
+                                {resQualityLabel && (
+                                  <span className="ml-1 text-[9px]" style={{ color: resQualityColor || undefined }}>{resQualityLabel}</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* Highest IF journal */}
+                          {topJournals.length > 0 && (
+                            <div className="flex justify-between text-[10px]">
+                              <span className="text-claude-text-muted">Top Journal</span>
+                              <span className="text-claude-text-secondary truncate ml-2 max-w-[140px]">{topJournals[0]}</span>
+                            </div>
+                          )}
+
+                          {/* Click to view hint */}
+                          <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
+                            Click to view
                           </div>
-                        )}
-
-                        {/* Click to view hint */}
-                        <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
-                          Click to view
-                        </div>
-                      </HoverCardContent>
+                        </HoverCardContent>
+                      )}
                     </HoverCard>
-                      </ContextMenuTrigger>
-                      <ContextMenuContent className="w-48 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
-                        <ContextMenuItem
-                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                          onClick={() => { setSelectedWeekId(snap.weekId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                        >
-                          <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                          View Week
-                        </ContextMenuItem>
-                        <ContextMenuItem
-                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                          onClick={() => { navigator.clipboard.writeText(snap.weekId).catch(() => {}); }}
-                        >
-                          <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                          Copy Week ID
-                        </ContextMenuItem>
-                        <ContextMenuSeparator className="bg-claude-border-light my-1" />
-                        <ContextMenuItem
-                          className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                          onClick={() => { window.open(`/api/reports?weekId=${snap.weekId}`, '_blank'); }}
-                        >
-                          <FileText className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                          View Reports
-                        </ContextMenuItem>
-                      </ContextMenuContent>
-                    </ContextMenu>
                   );
                 })
               )}
@@ -7289,6 +7472,12 @@ export default function PdbTracker() {
                 filteredEvals.map(ev => {
                   const avgScore = getAvgScore(ev.scores);
                   const scoreColor = getScoreColor(avgScore);
+                  // Compute coverage: use evalData.coverage if > 0, else compute from blast queryCoverage
+                  const blastCoverages = (ev.blastResults || []).map(b => b.queryCoverage).filter((c): c is number => c != null);
+                  const computedCoverage = blastCoverages.length > 0
+                    ? blastCoverages.reduce((a, b) => a + b, 0) / blastCoverages.length
+                    : null;
+                  const displayCoverage = (ev.coverage != null && ev.coverage > 0) ? ev.coverage : computedCoverage;
                   return (
                     <ContextMenu key={ev.uniprotId}>
                       <ContextMenuTrigger asChild>
@@ -7318,7 +7507,7 @@ export default function PdbTracker() {
                         {ev.proteinName || ev.entryName}
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
-                        {ev.coverage != null && <span>{ev.coverage.toFixed(1)}% coverage</span>}
+                        {displayCoverage != null && <span>{displayCoverage.toFixed(1)}% coverage</span>}
                         {ev._count && (
                           <>
                             <span>·</span>

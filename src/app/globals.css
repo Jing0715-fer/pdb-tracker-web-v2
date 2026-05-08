@@ -1086,6 +1086,22 @@
   padding: 1px 4px;
 }
 
+/* ─── Compact Week Card in Sidebar ───────────────────────────────────────── */
+
+.compact-week-card {
+  padding: 6px 8px !important;
+}
+
+.compact-week-card .mb-1\.5,
+.compact-week-card .mb-2,
+.compact-week-card .flex-wrap {
+  display: none;
+}
+
+.compact-week-card .flex.items-center.justify-between {
+  margin-bottom: 0;
+}
+
 /* ─── Print Styles ──────────────────────────────────────────────────────── */
 
 @media print {
