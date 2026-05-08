@@ -2231,9 +2231,9 @@ export default function PdbTracker() {
   const [previewWidth, setPreviewWidth] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('pdb-preview-width');
-      if (saved) return Math.min(600, Math.max(280, Number(saved)));
+      if (saved) return Math.min(480, Math.max(260, Number(saved)));
     } catch { /* ignore */ }
-    return 380;
+    return 320;
   });
   const [resizingSidebar, setResizingSidebar] = useState(false);
   const [resizingPreview, setResizingPreview] = useState(false);
@@ -5736,14 +5736,6 @@ export default function PdbTracker() {
                 transition={{ duration: 0.2, delay: hasLoaded ? 0 : 0.3 }}
                 className={`hidden lg:flex flex-col flex-shrink-0 bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl overflow-hidden no-print glassmorphism-panel preview-gradient-border preview-inner-glow relative ${hasLoaded ? 'animate-load-preview' : ''}`}
               >
-                {/* Close button */}
-                <button
-                  onClick={() => setPreviewOpen(false)}
-                  className="absolute top-2 right-2 z-20 h-6 w-6 flex items-center justify-center rounded-md bg-claude-surface/80 dark:bg-[#2b2926]/80 hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150 shadow-sm"
-                  aria-label="Close preview panel"
-                >
-                  <X className="h-3.5 w-3.5 text-claude-text-muted" />
-                </button>
                 {/* Preview panel resize handle */}
                 <div
                   onMouseDown={handlePreviewMouseDown}
@@ -7574,8 +7566,8 @@ export default function PdbTracker() {
 
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col min-h-0">
-        <div className="px-3 border-b border-claude-border dark:border-[#3d3832] h-12 flex items-center">
-          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative rounded-md pr-10">
+        <div className="relative px-3 border-b border-claude-border dark:border-[#3d3832] h-12 flex items-center">
+          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative rounded-md">
             {previewTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
@@ -7597,6 +7589,13 @@ export default function PdbTracker() {
               </TabsTrigger>
             ))}
           </TabsList>
+          <button
+            onClick={() => setPreviewOpen(false)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 z-20 h-7 w-7 flex items-center justify-center rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
+            aria-label="Close preview panel"
+          >
+            <X className="h-4 w-4 text-claude-text-muted" />
+          </button>
         </div>
 
         <ScrollArea className="flex-1 preview-scroll min-h-0">
