@@ -5292,7 +5292,7 @@ export default function PdbTracker() {
                         return (
                           <ContextMenu key={`${row._type}-${row.pdbId || 'noid'}-${idx}`}><ContextMenuTrigger asChild>
                               <tr
-                                className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}
+                                className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''} cursor-pointer`}
                                 onClick={() => {
                                   if (structResult) {
                                     setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
