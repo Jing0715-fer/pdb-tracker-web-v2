@@ -472,16 +472,14 @@
 
 /* Keyboard-focused row */
 .keyboard-focused-row {
-  outline: none;
-  border-top: 2px solid #c96442 !important;
-  border-bottom: 2px solid #c96442 !important;
+  outline: none !important;
+  border-left: 2px solid #c96442 !important;
   background-color: rgba(201, 100, 66, 0.06) !important;
   transition: border-color 150ms ease, background-color 150ms ease;
 }
 
 .dark .keyboard-focused-row {
-  border-top-color: #d4784f !important;
-  border-bottom-color: #d4784f !important;
+  border-left-color: #d4784f !important;
   background-color: rgba(212, 120, 79, 0.08) !important;
 }
 
@@ -1532,6 +1530,13 @@
 .dark .row-selected {
   border-left-color: #d4784f !important;
   background-color: rgba(61, 42, 34, 0.4);
+}
+
+/* ContextMenuTrigger table row - remove harsh focus outline, use soft left border instead */
+[data-radix-context-menu-trigger] tr,
+.context-menu-trigger-row:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* ─── Sidebar Gradient Mesh Overlay ───────────────────────────────────────── */
