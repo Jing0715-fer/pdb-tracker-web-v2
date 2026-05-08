@@ -5869,7 +5869,7 @@ export default function PdbTracker() {
 
           // ── Shared detail content renderer ──
           const detailContent = (
-            <div className={isMobile ? 'p-5 space-y-5' : 'p-6 space-y-5 max-w-4xl mx-auto'}>
+            <div className={isMobile ? 'p-4 space-y-4' : 'p-5 space-y-4 max-w-4xl mx-auto'}>
               {/* Swipe Navigation Hint (mobile only) */}
               {isMobile && (
                 <div className="flex items-center justify-center gap-2 text-[10px] text-claude-text-muted/60 select-none pb-1">
@@ -5878,8 +5878,42 @@ export default function PdbTracker() {
                   <span>{currentEntryIndex < paginatedEntries.length - 1 ? 'Swipe for next →' : ''}</span>
                 </div>
               )}
+
+              {/* Header: PDB ID + Method Badge + Title */}
+              <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
+                      {getMethodLabel(selectedEntry.method)}
+                    </span>
+                    {selectedEntry.resolution != null && (
+                      <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2">{selectedEntry.title}</p>
+                </div>
+                {/* Quality Score (mini radial) */}
+                {(() => {
+                  const qs = computeQualityScore(selectedEntry);
+                  const circumference = 2 * Math.PI * 28;
+                  const offset = circumference - (qs.total / 100) * circumference;
+                  return (
+                    <div className="relative flex-shrink-0">
+                      <svg width="60" height="60" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
+                        <circle cx="30" cy="30" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} transform="rotate(-90 30 30)" className="transition-all duration-700" />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-sm font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* 3D Structure Viewer */}
-              <div>
+              <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
                 <MoleculeViewer
                   pdbId={selectedEntry.pdbId}
                   highlightEntity={hoveredEntityInPanel}
@@ -5889,272 +5923,184 @@ export default function PdbTracker() {
                 />
               </div>
 
-              {/* Title */}
-              <div>
-                <h3 className={`font-semibold text-claude-text-muted uppercase tracking-wider mb-1 ${isMobile ? 'text-xs' : 'text-xs'}`}>Title</h3>
-                <p className={`text-claude-text leading-relaxed ${isMobile ? 'text-sm' : 'text-sm'}`}>{selectedEntry.title}</p>
-              </div>
-
-              {/* Quality Score Card */}
-              {(() => {
-                const qs = computeQualityScore(selectedEntry);
-                const circumference = 2 * Math.PI * 40;
-                const offset = circumference - (qs.total / 100) * circumference;
-                return (
-                  <div>
-                    <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Quality Score</h3>
-                    <div className="flex items-center gap-4 p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/60">
-                      <div className="relative flex-shrink-0">
-                        <svg width="88" height="88" viewBox="0 0 88 88">
-                          <circle cx="44" cy="44" r="40" fill="none" stroke="currentColor" strokeWidth="6" className="text-claude-border-light dark:text-claude-border" />
-                          <circle cx="44" cy="44" r="40" fill="none" stroke={qs.color} strokeWidth="6" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} transform="rotate(-90 44 44)" className="transition-all duration-700" />
-                        </svg>
-                        <div className="absolute inset-0 flex flex-col items-center justify-center">
-                          <span className="text-xl font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
-                        </div>
+              {/* Info Grid - 2 column compact layout */}
+              <div className="grid grid-cols-2 gap-2">
+                {/* Left column */}
+                <div className="space-y-2">
+                  {/* Assembly + Polymers + Ligands + Organism */}
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-1.5">
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Assembly</div>
+                        <div className="text-[11px] font-medium font-mono text-claude-text truncate">{selectedEntry.assembly || '—'}</div>
                       </div>
-                      <div className="flex-1 min-w-0 space-y-1.5">
-                        <div className="text-sm font-semibold" style={{ color: qs.color }}>{qs.label}</div>
-                        <div className="text-[10px] text-claude-text-muted leading-relaxed">
-                          Resolution: {qs.resolutionScore}/35 · Method: {qs.methodScore}/25 · IF: {qs.ifScore}/30
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Polymers</div>
+                        <div className="text-[11px] font-medium text-claude-text">{selectedEntry.polymerEntities || selectedEntry.chainCount || '—'}</div>
+                      </div>
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Ligands</div>
+                        <div className="text-[11px] font-medium text-claude-text">{selectedEntry.ligandCount || parseLigands(selectedEntry.ligands).length || '—'}</div>
+                      </div>
+                    </div>
+                    {selectedEntry.organisms && (
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Organism</div>
+                        <div className="text-[10px] text-claude-text italic truncate">{selectedEntry.organisms.split('|')[0]?.trim() || '—'}</div>
+                      </div>
+                    )}
+                    {selectedEntry.geneName && (
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Gene</div>
+                        <div className="text-[10px] text-claude-text font-medium">{selectedEntry.geneName}</div>
+                      </div>
+                    )}
+                    <div>
+                      <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Resolution</div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
+                          <div className="h-full rounded-full transition-all duration-500"
+                            style={{
+                              width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
+                              backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
+                            }}
+                          />
                         </div>
+                        <span className="text-[9px] text-claude-text-muted">{selectedEntry.resolution <= 1.5 ? 'Excellent' : selectedEntry.resolution <= 2.0 ? 'High' : selectedEntry.resolution <= 3.0 ? 'Med' : selectedEntry.resolution <= 3.5 ? 'Low' : 'VLow'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Journal + IF */}
+                  {selectedEntry.journal && (
+                    <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-0.5">Journal</div>
+                          <div className="text-[10px] text-claude-text-secondary leading-snug truncate">{selectedEntry.journal}</div>
+                        </div>
+                        {selectedEntry.journalIf != null && (
+                          <span className={`flex-shrink-0 text-[9px] px-1 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
+                            IF {safeNum(selectedEntry.journalIf, 1)}
+                          </span>
+                        )}
+                      </div>
+                      {selectedEntry.authors && (
+                        <div className="mt-1 text-[9px] text-claude-text-muted truncate">{selectedEntry.authors.replace(/\|/g, ', ')}</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Dates */}
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Released</div>
+                        <div className="text-[10px] text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Week</div>
+                        <div className="text-[10px] font-mono text-claude-text-secondary">{selectedEntry.weekId}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right column */}
+                <div className="space-y-2">
+                  {/* Ligands Detail */}
+                  {parseLigands(selectedEntry.ligands).length > 0 && (
+                    <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                      <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands ({parseLigands(selectedEntry.ligands).length})</div>
+                      <div className="space-y-1 max-h-36 overflow-y-auto custom-scrollbar">
+                        {parseLigands(selectedEntry.ligands).map((lig, i) => (
+                          <HoverCard key={`detail-lig-${i}-${lig}`} openDelay={200} closeDelay={100}>
+                            <HoverCardTrigger asChild>
+                              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-claude-border-light/50 dark:bg-[#2b2926] hover:bg-claude-accent/10 cursor-pointer transition-colors">
+                                <span className="text-[10px] font-mono font-semibold text-claude-accent">{lig}</span>
+                                {ligandCache[lig] && (
+                                  <span className="text-[8px] text-claude-text-muted truncate flex-1">{ligandCache[lig].name || ''}</span>
+                                )}
+                              </div>
+                            </HoverCardTrigger>
+                            <HoverCardContent side="left" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl z-50">
+                              {ligandCache[lig] ? (
+                                <LigandTooltipContent ligand={ligandCache[lig]} />
+                              ) : (
+                                <div className="p-3 flex items-center gap-2">
+                                  <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
+                                  <span className="text-xs text-claude-text-muted">Loading...</span>
+                                </div>
+                              )}
+                            </HoverCardContent>
+                          </HoverCard>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Quality Score breakdown */}
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                    <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1.5">Score Breakdown</div>
+                    {(() => {
+                      const qs = computeQualityScore(selectedEntry);
+                      return (
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] text-claude-text-muted w-16">Resolution</span>
+                            <span className="text-[8px] text-claude-text-muted w-14">Resolution</span>
                             <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                               <div className="h-full rounded-full bg-claude-accent" style={{ width: `${(qs.resolutionScore / 35) * 100}%` }} />
                             </div>
+                            <span className="text-[9px] font-mono text-claude-text-muted w-6 text-right">{qs.resolutionScore}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] text-claude-text-muted w-16">Method</span>
+                            <span className="text-[8px] text-claude-text-muted w-14">Method</span>
                             <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                               <div className="h-full rounded-full bg-claude-cryoem" style={{ width: `${(qs.methodScore / 25) * 100}%` }} />
                             </div>
+                            <span className="text-[9px] font-mono text-claude-text-muted w-6 text-right">{qs.methodScore}</span>
                           </div>
                           <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] text-claude-text-muted w-16">IF</span>
+                            <span className="text-[8px] text-claude-text-muted w-14">IF</span>
                             <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                               <div className="h-full rounded-full bg-claude-xray" style={{ width: `${(qs.ifScore / 30) * 100}%` }} />
                             </div>
+                            <span className="text-[9px] font-mono text-claude-text-muted w-6 text-right">{qs.ifScore}</span>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })()}
                   </div>
-                );
-              })()}
 
-              {/* Entity Details (chains, polymers, ligands) */}
-              <div>
-                <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Entity Details</h3>
-                <p className="text-[10px] text-claude-text-muted mb-1.5">
-                  Click the palette icon (top-right) in the 3D viewer to show chains. Hover over entities to highlight them.
-                </p>
-                <div className="p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-2">
-                  {/* Method and Assembly Info */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] text-claude-text-muted">Method</span>
-                      <div className="text-[11px] font-medium text-claude-text">{selectedEntry.method || 'N/A'}</div>
-                    </div>
-                    {selectedEntry.assembly && (
-                      <div>
-                        <span className="text-[10px] text-claude-text-muted">Assembly</span>
-                        <div className="text-[11px] font-medium text-claude-text font-mono">{selectedEntry.assembly}</div>
-                      </div>
+                  {/* Links */}
+                  <div className="flex flex-wrap gap-1">
+                    <a href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
+                      <ExternalLink className="h-2.5 w-2.5 ext-arrow" />RCSB
+                    </a>
+                    {selectedEntry.doi && (
+                      <a href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 transition-all external-link-hover">
+                        <ExternalLink className="h-2.5 w-2.5 ext-arrow" />DOI
+                      </a>
                     )}
-                  </div>
-                  {/* Polymers and Ligands info */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <span className="text-[10px] text-claude-text-muted">Polymers</span>
-                      <div className="text-[11px] font-medium text-claude-text">
-                        {selectedEntry.polymerEntities || selectedEntry.chainCount || '—'}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-claude-text-muted">Ligands</span>
-                      <div className="text-[11px] font-medium text-claude-text">
-                        {selectedEntry.ligandCount || parseLigands(selectedEntry.ligands).length || '—'}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Organism info if available */}
-                  {selectedEntry.organisms && (
-                    <div>
-                      <span className="text-[10px] text-claude-text-muted">Source Organism</span>
-                      <div className="text-[11px] font-medium text-claude-text italic truncate">
-                        {selectedEntry.organisms.split('|')[0]?.trim() || '—'}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                <p className="text-[9px] text-claude-text-muted/60 mt-1">
-                  Entity-level highlighting and color customization available in the 3D viewer panel.
-                </p>
-              </div>
-
-              {/* Resolution */}
-              {selectedEntry.resolution != null && (
-                <div>
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
-                  <div className="flex items-center gap-3">
-                    <span className={`text-2xl font-bold font-mono ${getResolutionColor(selectedEntry.resolution)}`}>
-                      {safeNum(selectedEntry.resolution, 2)}Å
-                    </span>
-                    <div className="flex-1 h-2.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
-                      <div
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
-                          backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
-                        }}
-                      />
-                    </div>
-                    <span className="text-[10px] text-claude-text-muted">
-                      {selectedEntry.resolution <= 1.5 ? 'Excellent' : selectedEntry.resolution <= 2.0 ? 'High' : selectedEntry.resolution <= 3.0 ? 'Medium' : selectedEntry.resolution <= 3.5 ? 'Low' : 'Very Low'}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Journal */}
-              {selectedEntry.journal && (
-                <div>
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Journal</h3>
-                  <div className="flex items-start gap-2">
-                    <span className="text-sm text-claude-text-secondary leading-relaxed">{selectedEntry.journal}</span>
-                    {selectedEntry.journalIf != null && (
-                      <span className={`flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
-                        IF {safeNum(selectedEntry.journalIf, 1)}
-                      </span>
+                    {selectedEntry.pubmedId && (
+                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all external-link-hover">
+                        <ExternalLink className="h-2.5 w-2.5 ext-arrow" />PubMed
+                      </a>
                     )}
                   </div>
                 </div>
-              )}
-
-              {/* Authors */}
-              {selectedEntry.authors && (
-                <div>
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Authors</h3>
-                  <p className="text-xs text-claude-text-secondary leading-relaxed">{selectedEntry.authors.replace(/\|/g, ', ')}</p>
-                </div>
-              )}
-
-              {/* Organisms */}
-              {selectedEntry.organisms && (
-                <div>
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Organisms</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {selectedEntry.organisms.split('|').filter(Boolean).map((org, i) => (
-                      <span key={`org-${i}`} className="inline-flex px-2 py-0.5 rounded-md text-[11px] bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary italic">
-                        {org.trim()}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Ligands */}
-              {parseLigands(selectedEntry.ligands).length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
-                  <div className="flex flex-wrap gap-1">
-                    {parseLigands(selectedEntry.ligands).map((lig, i) => (
-                      <HoverCard key={`detail-lig-${i}-${lig}`} openDelay={200} closeDelay={100}>
-                        <HoverCardTrigger asChild>
-                          <span
-                            className="ligand-chip cursor-pointer"
-                            onMouseEnter={() => fetchLigandInfo(lig)}
-                          >
-                            {lig}
-                          </span>
-                        </HoverCardTrigger>
-                        <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
-                          {ligandCache[lig] ? (
-                            <LigandTooltipContent ligand={ligandCache[lig]} />
-                          ) : (
-                            <div className="p-3 flex items-center gap-2">
-                              <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
-                              <span className="text-xs text-claude-text-muted">Loading...</span>
-                            </div>
-                          )}
-                        </HoverCardContent>
-                      </HoverCard>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Links */}
-              <div>
-                <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Links</h3>
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150 external-link-hover"
-                  >
-                    <ExternalLink className="h-3 w-3 ext-arrow" />
-                    RCSB PDB
-                  </a>
-                  {selectedEntry.doi && (
-                    <a
-                      href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 hover:shadow-sm transition-all duration-150 external-link-hover"
-                    >
-                      <ExternalLink className="h-3 w-3 ext-arrow" />
-                      DOI
-                    </a>
-                  )}
-                  {selectedEntry.pubmedId && (
-                    <a
-                      href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 hover:shadow-sm transition-all duration-150 external-link-hover"
-                    >
-                      <ExternalLink className="h-3 w-3 ext-arrow" />
-                      PubMed
-                    </a>
-                  )}
-                </div>
-              </div>
-
-              {/* Dates */}
-              <div>
-                <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Dates</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-2.5 rounded-lg bg-claude-border-light/50 dark:bg-[#2b2926]">
-                    <div className="text-[10px] text-claude-text-muted">Release Date</div>
-                    <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
-                  </div>
-                  <div className="p-2.5 rounded-lg bg-claude-border-light/50 dark:bg-[#2b2926]">
-                    <div className="text-[10px] text-claude-text-muted">Fetch Date</div>
-                    <div className="text-sm font-medium text-claude-text">{formatDate(selectedEntry.fetchDate)}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Week Info */}
-              <div className="p-3 rounded-lg bg-claude-border-light/30 dark:bg-[#2b2926]">
-                <div className="text-[10px] text-claude-text-muted mb-0.5">Week</div>
-                <div className="text-sm font-mono font-medium text-claude-text-secondary">{selectedEntry.weekId}</div>
               </div>
 
               {/* Notes Section */}
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider">Notes</h3>
+                  <h3 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider">Notes</h3>
                   <StickyNote className="h-3 w-3 text-amber-500 dark:text-amber-400" />
                 </div>
                 <div className="relative">
                   <textarea
-                    rows={3}
-                    placeholder="Add your notes about this structure..."
+                    rows={2}
+                    placeholder="Add your notes..."
                     defaultValue={entryNotes[selectedEntry.pdbId] || ''}
                     onBlur={(e) => {
                       const note = e.target.value;
@@ -6162,82 +6108,54 @@ export default function PdbTracker() {
                         updateNote(selectedEntry.pdbId, note);
                       }
                     }}
-                    className="w-full px-3 py-2 text-xs rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
+                    className="w-full px-3 py-1.5 text-[11px] rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
                   />
                   {noteSavedIndicator === selectedEntry.pdbId && (
-                    <motion.span
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="absolute bottom-2 right-2 text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded"
-                    >
+                    <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute bottom-1.5 right-2 text-[9px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded">
                       ✓ Saved
                     </motion.span>
                   )}
                 </div>
               </div>
 
-              {/* AI Summary Section */}
+              {/* AI Summary */}
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider">AI Summary</h3>
+                  <h3 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider">AI Summary</h3>
                   <Sparkles className="h-3 w-3 text-claude-accent" />
-                  <span className="inline-flex items-center px-1 py-0 rounded text-[8px] font-bold bg-claude-accent/10 text-claude-accent border border-claude-accent/20 dark:bg-claude-accent/15 dark:border-claude-accent/20">AI</span>
                 </div>
                 {aiSummaries[selectedEntry.pdbId] ? (
-                  <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-3">
-                    <div className="border-l-2 border-claude-accent pl-3">
-                      <p className="text-xs text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">{aiSummaries[selectedEntry.pdbId]}</p>
-                    </div>
-                    <div className="flex items-center justify-between mt-2.5">
-                      <span className="text-[9px] text-claude-text-muted/60 italic">AI-generated summary for reference only</span>
-                      <button
-                        onClick={() => {
-                          setAiSummaries(prev => {
-                            const next = { ...prev };
-                            delete next[selectedEntry.pdbId];
-                            return next;
-                          });
-                          generateAiSummary(selectedEntry);
-                        }}
-                        className="inline-flex items-center gap-1 text-[10px] text-claude-text-muted hover:text-claude-accent transition-colors"
-                        title="Regenerate summary"
-                      >
-                        <RefreshCw className="h-3 w-3" />
-                        Regenerate
+                  <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-2.5">
+                    <p className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">{aiSummaries[selectedEntry.pdbId]}</p>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-[9px] text-claude-text-muted/60 italic">AI-generated</span>
+                      <button onClick={() => generateAiSummary(selectedEntry)} className="inline-flex items-center gap-1 text-[9px] text-claude-text-muted hover:text-claude-accent transition-colors">
+                        <RefreshCw className="h-3 w-3" />Regenerate
                       </button>
                     </div>
                   </div>
                 ) : aiSummaryLoading === selectedEntry.pdbId ? (
-                  <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-3">
+                  <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-2.5">
                     <div className="space-y-2">
-                      <div className="shimmer-skeleton h-3 w-full rounded" />
-                      <div className="shimmer-skeleton h-3 w-[85%] rounded" />
-                      <div className="shimmer-skeleton h-3 w-[60%] rounded" />
+                      <div className="shimmer-skeleton h-2.5 w-full rounded" />
+                      <div className="shimmer-skeleton h-2.5 w-[85%] rounded" />
+                      <div className="shimmer-skeleton h-2.5 w-[60%] rounded" />
                     </div>
                   </div>
                 ) : aiSummaryError && aiSummaryLoading === null ? (
-                  <div className="rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 p-3">
+                  <div className="rounded-lg border border-red-200 dark:border-red-900/30 bg-red-50 dark:bg-red-900/10 p-2.5">
                     <div className="flex items-center gap-1.5 mb-1">
                       <AlertTriangle className="h-3 w-3 text-red-500 dark:text-red-400" />
-                      <span className="text-[10px] font-medium text-red-600 dark:text-red-400">Error generating summary</span>
+                      <span className="text-[9px] font-medium text-red-600 dark:text-red-400">Error</span>
                     </div>
-                    <p className="text-[10px] text-red-500/70 dark:text-red-400/70 mb-2">{aiSummaryError}</p>
-                    <button
-                      onClick={() => generateAiSummary(selectedEntry)}
-                      className="inline-flex items-center gap-1 text-[10px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors"
-                    >
-                      <RefreshCw className="h-3 w-3" />
-                      Try again
+                    <p className="text-[9px] text-red-500/70 dark:text-red-400/70 mb-2">{aiSummaryError}</p>
+                    <button onClick={() => generateAiSummary(selectedEntry)} className="inline-flex items-center gap-1 text-[9px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors">
+                      <RefreshCw className="h-3 w-3" />Try again
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={() => generateAiSummary(selectedEntry)}
-                    className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-claude-accent/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-[#1a1917]/60 dark:hover:bg-claude-accent/5 text-xs text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent transition-all duration-200"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Generate AI Summary
+                  <button onClick={() => generateAiSummary(selectedEntry)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-claude-accent/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-[#1a1917]/60 dark:hover:bg-claude-accent/5 text-[11px] text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent transition-all duration-200">
+                    <Sparkles className="h-3 w-3" />Generate AI Summary
                   </button>
                 )}
               </div>
