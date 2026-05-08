@@ -6433,19 +6433,19 @@ export default function PdbTracker() {
                   </div>
 
                   {/* Detail Header */}
-                  <div className="flex-shrink-0 px-5 pb-3 border-b border-claude-border dark:border-[#3d3832]">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex-shrink-0 px-4 pb-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
                         <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
                           {getMethodLabel(selectedEntry.method)}
                         </span>
                         {entryNotes[selectedEntry.pdbId] && (
-                          <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                          <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                         )}
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-9 w-9 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 touch-manipulation">
-                        <X className="h-5 w-5" />
+                      <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 touch-manipulation rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
+                        <X className="h-4 w-4" />
                       </Button>
                     </div>
                     {(() => {
@@ -6499,18 +6499,18 @@ export default function PdbTracker() {
                 onClick={(e) => e.stopPropagation()}
               >
                 {/* Detail Header */}
-                <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832]">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
+                <div className="flex-shrink-0 p-4 pb-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <span className="font-mono text-lg font-bold text-claude-accent">{selectedEntry.pdbId}</span>
                       <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
                         {getMethodLabel(selectedEntry.method)}
                       </span>
                       {entryNotes[selectedEntry.pdbId] && (
-                        <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
+                        <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                       )}
                     </div>
-                    <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
+                    <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
@@ -6564,26 +6564,22 @@ export default function PdbTracker() {
                 style={{ height: '85vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="flex-shrink-0 flex items-center justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing">
-                  <div className="w-10 h-1 rounded-full bg-claude-border-light dark:bg-[#4a4540]" />
-                </div>
-                <div className="flex-shrink-0 px-5 pb-3 border-b border-claude-border dark:border-[#3d3832]">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="font-mono text-base font-bold text-claude-accent">{evalStruct.pdbId}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>
-                        {getMethodLabel(method)}
+                {/* Detail Header */}
+                <div className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-2 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="font-mono text-base font-bold text-claude-accent">{evalStruct.pdbId}</span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>
+                      {getMethodLabel(method)}
+                    </span>
+                    {isBlast && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
+                        Homolog
                       </span>
-                      {isBlast && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
-                          Homolog
-                        </span>
-                      )}
-                    </div>
-                    <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-9 w-9 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
-                      <X className="h-5 w-5" />
-                    </Button>
+                    )}
                   </div>
+                  <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
                 <ScrollArea className="flex-1 preview-scroll min-h-0">
                   <div className="p-5 space-y-5">
@@ -6682,7 +6678,7 @@ export default function PdbTracker() {
                           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>{getMethodLabel(method)}</span>
                           {isBlast && <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>}
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0">
+                        <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
                           <X className="h-4 w-4" />
                         </Button>
                       </div>
