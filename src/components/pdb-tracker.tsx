@@ -2451,6 +2451,12 @@ export default function PdbTracker() {
     });
   }, [buildShareUrl]);
 
+  // ── Entity Color Handler (for 3D viewer) ──
+  const handleEntityColorChange = useCallback((entityId: string, color: string) => {
+    setEntityColors(prev => ({ ...prev, [entityId]: color }));
+    toast('Color updated', { description: `Entity ${entityId.split('.')[1]} color changed` });
+  }, []);
+
   // ── Share View: Apply URL Params on Mount ──
   useEffect(() => {
     if (urlParamsApplied.current) return;
@@ -2513,6 +2519,10 @@ export default function PdbTracker() {
 
   // ── Ligand Cache ──
   const [ligandCache, setLigandCache] = useState<Record<string, LigandInfo>>({});
+
+  // ── Entity Colors (for 3D viewer) ──
+  const [entityColors, setEntityColors] = useState<Record<string, string>>({});
+  const [hoveredEntityInPanel, setHoveredEntityInPanel] = useState<string | null>(null);
 
   // ── Loading States ──
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
@@ -5870,7 +5880,13 @@ export default function PdbTracker() {
               )}
               {/* 3D Structure Viewer */}
               <div>
-                <MoleculeViewer pdbId={selectedEntry.pdbId} />
+                <MoleculeViewer
+                  pdbId={selectedEntry.pdbId}
+                  highlightEntity={hoveredEntityInPanel}
+                  onEntityClick={(entityId) => setHoveredEntityInPanel(hoveredEntityInPanel === entityId ? null : entityId)}
+                  entityColors={entityColors}
+                  onEntityColorChange={handleEntityColorChange}
+                />
               </div>
 
               {/* Title */}
@@ -5927,6 +5943,56 @@ export default function PdbTracker() {
                   </div>
                 );
               })()}
+
+              {/* Entity Details (chains, polymers, ligands) */}
+              <div>
+                <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Entity Details</h3>
+                <p className="text-[10px] text-claude-text-muted mb-1.5">
+                  Click the palette icon (top-right) in the 3D viewer to show chains. Hover over entities to highlight them.
+                </p>
+                <div className="p-3 rounded-xl bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-2">
+                  {/* Method and Assembly Info */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] text-claude-text-muted">Method</span>
+                      <div className="text-[11px] font-medium text-claude-text">{selectedEntry.method || 'N/A'}</div>
+                    </div>
+                    {selectedEntry.assembly && (
+                      <div>
+                        <span className="text-[10px] text-claude-text-muted">Assembly</span>
+                        <div className="text-[11px] font-medium text-claude-text font-mono">{selectedEntry.assembly}</div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Polymers and Ligands info */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <span className="text-[10px] text-claude-text-muted">Polymers</span>
+                      <div className="text-[11px] font-medium text-claude-text">
+                        {selectedEntry.polymerEntities || selectedEntry.chainCount || '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-claude-text-muted">Ligands</span>
+                      <div className="text-[11px] font-medium text-claude-text">
+                        {selectedEntry.ligandCount || parseLigands(selectedEntry.ligands).length || '—'}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Organism info if available */}
+                  {selectedEntry.organisms && (
+                    <div>
+                      <span className="text-[10px] text-claude-text-muted">Source Organism</span>
+                      <div className="text-[11px] font-medium text-claude-text italic truncate">
+                        {selectedEntry.organisms.split('|')[0]?.trim() || '—'}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <p className="text-[9px] text-claude-text-muted/60 mt-1">
+                  Entity-level highlighting and color customization available in the 3D viewer panel.
+                </p>
+              </div>
 
               {/* Resolution */}
               {selectedEntry.resolution != null && (
