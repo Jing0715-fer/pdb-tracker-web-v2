@@ -3971,7 +3971,7 @@ export default function PdbTracker() {
                 >
                   <div className="sidebar-mesh-overlay" />
                   {/* Close button header */}
-                  <div className="flex items-center justify-between p-3 border-b border-claude-border dark:border-[#3d3832] relative z-[1]">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-claude-border dark:border-[#3d3832] relative z-[1] h-11">
                     <span className="text-xs font-semibold text-claude-text">Navigation</span>
                     <button
                       onClick={() => setMobileSidebarOpen(false)}
@@ -3999,7 +3999,7 @@ export default function PdbTracker() {
             </div>
 
             {/* Toolbar */}
-            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-3 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-sm no-print overflow-x-auto">
+            <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-sm no-print overflow-x-auto h-11">
               {mode === 'weekly' ? (
                 <>
                   {/* Week Select */}
@@ -5775,7 +5775,7 @@ export default function PdbTracker() {
                   transition={{ duration: 0.2 }}
                   className="fixed right-0 top-0 bottom-0 z-50 w-[85vw] max-w-[400px] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-xl border-l border-claude-border dark:border-[#3d3832] flex flex-col lg:hidden no-print glassmorphism-panel preview-inner-glow"
                 >
-                  <div className="flex items-center justify-between p-3 border-b border-claude-border dark:border-[#3d3832]">
+                  <div className="flex items-center justify-between px-3 py-2 border-b border-claude-border dark:border-[#3d3832] h-11">
                     <span className="text-xs font-semibold text-claude-text">Preview</span>
                     <Button variant="ghost" size="sm" onClick={() => setMobilePreviewOpen(false)} className="h-7 w-7 p-0">
                       <X className="h-4 w-4" />
@@ -6985,8 +6985,8 @@ export default function PdbTracker() {
     return (
       <>
         {/* Mode Switcher */}
-        <div ref={tourModeSwitcherRef} className="p-3 border-b border-claude-border dark:border-[#3d3832] flex-shrink-0">
-          <div className="flex items-center justify-between mb-2">
+        <div ref={tourModeSwitcherRef} className="px-3 py-2 border-b border-claude-border dark:border-[#3d3832] flex-shrink-0">
+          <div className="flex items-center">
             <div className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
               <button
                 onClick={() => { setMode('weekly'); setSelectedEvalId(null); setSelectedEval(null); setSearchQuery(''); setSearchDropdownOpen(false); setMobileSidebarOpen(false); }}
@@ -7574,8 +7574,8 @@ export default function PdbTracker() {
 
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col min-h-0">
-        <div className="px-3 pt-2 border-b border-claude-border dark:border-[#3d3832]">
-          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative rounded-md">
+        <div className="px-3 pt-1.5 pb-1.5 border-b border-claude-border dark:border-[#3d3832]">
+          <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative rounded-md pr-10">
             {previewTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
@@ -7590,7 +7590,7 @@ export default function PdbTracker() {
                     transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                   />
                 )}
-                <span className="relative z-[2] flex items-center justify-center">
+                <span className="relative z-[2] flex items-center justify-start">
                   {tab.icon}
                   {tab.label}
                 </span>
