@@ -111,17 +111,23 @@ export default function MoleculeViewer({
     try {
       const { PluginCommands } = await importWithRetry(() => import('molstar/lib/mol-plugin/commands.js'));
       
-      // Extract chain from entityKey like "7SYD.A" -> "A"
-      const chain = entityKey.split('.')[1] || entityKey;
-      
       // Get current structure hierarchy
       const hierarchy = plugin.managers.structure.hierarchy.current;
       if (!hierarchy || hierarchy.length === 0) return;
 
-      // Try to reset camera to focus view
+      // Focus on the structure by resetting camera
       try {
         PluginCommands.Camera.Reset(plugin);
       } catch { /* ignore */ }
+      
+      // Try to use zoom-to-fit on the structure
+      try {
+        const sel = plugin.state.select('');
+        if (sel.length > 0 && sel[0].ref) {
+          PluginCommands.State.SetFocus(plugin, { ref: sel[0].ref });
+        }
+      } catch { /* ignore */ }
+      
     } catch (err) {
       console.warn('[molstar] Highlight failed:', err);
     }
@@ -371,8 +377,15 @@ export default function MoleculeViewer({
                                   ? 'ring-1 ring-claude-accent bg-claude-accent-light/30 dark:bg-[#3d2a22]/20'
                                   : 'hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/20'
                               }`}
-                              onMouseEnter={() => setHoveredEntity(key)}
-                              onMouseLeave={() => setHoveredEntity(null)}
+                              onMouseEnter={() => {
+                                setHoveredEntity(key);
+                                if (pluginRef.current) {
+                                  applyHighlight(pluginRef.current, key);
+                                }
+                              }}
+                              onMouseLeave={() => {
+                                setHoveredEntity(null);
+                              }}
                               onClick={() => onEntityClick?.(key)}
                             >
                               {/* Color dot */}

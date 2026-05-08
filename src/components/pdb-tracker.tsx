@@ -6401,16 +6401,17 @@ export default function PdbTracker() {
                 </div>
 
                 {/* Detail Content */}
-                <ScrollArea className="flex-1 preview-scroll min-h-0">
+                <div className="flex-1 min-h-0 overflow-y-auto preview-scroll custom-scrollbar">
                   <motion.div
                     key={selectedEntry.pdbId}
                     initial={{ x: detailSlideDirection === 'left' ? 30 : detailSlideDirection === 'right' ? -30 : 0, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.15 }}
+                    className="p-0"
                   >
                     {detailContent}
                   </motion.div>
-                </ScrollArea>
+                </div>
               </motion.div>
               </div>
             </>
