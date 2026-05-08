@@ -4002,6 +4002,24 @@ export default function PdbTracker() {
             <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-sm no-print overflow-x-auto h-12">
               {mode === 'weekly' ? (
                 <>
+                  {/* Advanced Filters Button */}
+                  <button
+                    onClick={() => setAdvancedFiltersOpen(!advancedFiltersOpen)}
+                    className={`inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border transition-colors duration-150 relative claude-focus-ring ${
+                      advancedFiltersOpen || activeAdvancedFilterCount > 0
+                        ? 'border-claude-accent bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent'
+                        : 'border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border'
+                    }`}
+                  >
+                    <SlidersHorizontal className="h-3.5 w-3.5" />
+                    <span>Filters</span>
+                    {activeAdvancedFilterCount > 0 && (
+                      <span className="inline-flex items-center justify-center min-w-[14px] h-[14px] px-[3px] rounded-full text-[8px] font-bold bg-claude-accent text-white leading-none ml-1">
+                        {activeAdvancedFilterCount}
+                      </span>
+                    )}
+                  </button>
+
                   {/* Search */}
                   <div ref={tourSearchRef} className="relative flex-1 min-w-[120px] max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
