@@ -1029,13 +1029,13 @@
 }
 
 .external-link-hover .ext-arrow {
-  opacity: 0;
+  opacity: 0.5;
   transform: translateX(-2px);
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
 .external-link-hover:hover .ext-arrow {
-  opacity: 0.6;
+  opacity: 1;
   transform: translateX(0);
 }
 

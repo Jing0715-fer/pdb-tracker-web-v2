@@ -5928,23 +5928,28 @@ export default function PdbTracker() {
                 {/* Left column */}
                 <div className="space-y-2">
                   {/* Assembly + Polymers + Ligands + Organism */}
-                  <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-1.5">
-                    <div className="grid grid-cols-3 gap-2">
-                      <div>
-                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Assembly</div>
-                        <div className="text-[11px] font-medium font-mono text-claude-text truncate">{selectedEntry.assembly || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Polymers</div>
-                        <div className="text-[11px] font-medium text-claude-text">{selectedEntry.polymerEntities || selectedEntry.chainCount || '—'}</div>
-                      </div>
-                      <div>
-                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Ligands</div>
-                        <div className="text-[11px] font-medium text-claude-text">{selectedEntry.ligandCount || parseLigands(selectedEntry.ligands).length || '—'}</div>
-                      </div>
-                    </div>
+                  <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                    {(() => {
+                      const ligands = parseLigands(selectedEntry.ligands);
+                      return (
+                        <div className="grid grid-cols-3 gap-2">
+                          <div>
+                            <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Assembly</div>
+                            <div className="text-[11px] font-medium font-mono text-claude-text truncate">{selectedEntry.assembly || '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Polymers</div>
+                            <div className="text-[11px] font-medium text-claude-text">{selectedEntry.polymerEntities || selectedEntry.chainCount || '—'}</div>
+                          </div>
+                          <div>
+                            <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Ligands</div>
+                            <div className="text-[11px] font-medium text-claude-text">{selectedEntry.ligandCount || ligands.length || '—'}</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     {selectedEntry.organisms && (
-                      <div>
+                      <div className="mt-1.5">
                         <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Organism</div>
                         <div className="text-[10px] text-claude-text italic truncate">{selectedEntry.organisms.split('|')[0]?.trim() || '—'}</div>
                       </div>
