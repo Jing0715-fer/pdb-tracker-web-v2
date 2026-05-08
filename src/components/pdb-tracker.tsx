@@ -4098,22 +4098,6 @@ export default function PdbTracker() {
 
                   {/* Active Filter Chips */}
                   <div className="hidden sm:flex items-center gap-1.5 flex-wrap no-print">
-                    {/* Bookmark Filter Button */}
-                    <button
-                      onClick={() => {
-                        const next = !showBookmarksOnly;
-                        setShowBookmarksOnly(next);
-                        toast(next ? 'Showing bookmarked only' : 'Showing all structures');
-                      }}
-                      className={`inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors duration-200 ${
-                        showBookmarksOnly
-                          ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/30'
-                          : 'text-claude-text-muted/40 hover:text-claude-accent hover:bg-claude-accent-light/50 dark:hover:bg-[#3d2a22] border border-transparent'
-                      }`}
-                      title="Show bookmarked only (⌘B)"
-                    >
-                      <Bookmark className="h-3.5 w-3.5" />
-                    </button>
                     {methodFilter !== 'all' && (
                       <AnimatePresence>
                         <motion.span
@@ -4236,11 +4220,6 @@ export default function PdbTracker() {
                       </span>
                     )}
                   </div>
-
-                  {/* Count & Export */}
-                  <span className="text-[10px] text-claude-text-muted ml-auto whitespace-nowrap">
-                    {entries.length} structures
-                  </span>
 
                   {/* Presets Dropdown */}
                   <DropdownMenu>
