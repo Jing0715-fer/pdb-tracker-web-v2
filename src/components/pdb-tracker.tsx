@@ -2224,9 +2224,9 @@ export default function PdbTracker() {
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('pdb-sidebar-width');
-      if (saved) return Math.min(400, Math.max(200, Number(saved)));
+      if (saved) return Math.min(400, Math.max(190, Number(saved)));
     } catch { /* ignore */ }
-    return 280;
+    return 266;
   });
   const [previewWidth, setPreviewWidth] = useState<number>(() => {
     try {
@@ -4002,107 +4002,6 @@ export default function PdbTracker() {
             <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface/80 dark:bg-[#242220]/90 backdrop-blur-sm no-print overflow-x-auto h-12">
               {mode === 'weekly' ? (
                 <>
-                  {/* Week Select */}
-                  <Select value={selectedWeekId || ''} onValueChange={setSelectedWeekId}>
-                    <SelectTrigger className="w-[120px] sm:w-[150px] h-7 text-[11px]">
-                      <SelectValue placeholder="Select week" />
-                    </SelectTrigger>
-                    <SelectContent className="text-[11px]">
-                      {snapshots.map(s => (
-                        <SelectItem key={s.weekId} value={s.weekId} className="text-[11px] py-1">
-                          <span className="font-mono">{s.weekId}</span>
-                          <span className="text-claude-text-muted ml-2">({s.totalStructures})</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  {/* Method Filter */}
-                  <Select value={methodFilter} onValueChange={setMethodFilter}>
-                    <SelectTrigger className="w-[110px] sm:w-[140px] h-7 text-[11px]">
-                      <SelectValue placeholder="Method" />
-                    </SelectTrigger>
-                    <SelectContent className="text-[11px]">
-                      <SelectItem value="all" className="text-[11px] py-1">All Methods</SelectItem>
-                      <SelectItem value="Cryo-EM" className="text-[11px] py-1">Cryo-EM</SelectItem>
-                      <SelectItem value="X-RAY DIFFRACTION" className="text-[11px] py-1">X-ray</SelectItem>
-                      <SelectItem value="SOLUTION NMR" className="text-[11px] py-1">NMR</SelectItem>
-                      <SelectItem value="ELECTRON CRYSTALLOGRAPHY" className="text-[11px] py-1">Electron Crystallography</SelectItem>
-                    </SelectContent>
-                  </Select>
-
-                  {/* Tags Filter */}
-                  <Popover open={tagFilterDropdownOpen} onOpenChange={setTagFilterDropdownOpen}>
-                    <PopoverTrigger asChild>
-                      <button
-                        className={`hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border transition-colors duration-150 ${
-                          selectedTagFilter
-                            ? 'border-claude-accent/40 bg-claude-accent/5 text-claude-accent dark:bg-claude-accent/10'
-                            : 'border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border'
-                        }`}
-                      >
-                        <Tag className="h-3.5 w-3.5" />
-                        Tags
-                        {selectedTagFilter && <span className="ml-0.5 text-[9px] opacity-70">({selectedTagFilter})</span>}
-                        <ChevronDown className="h-3 w-3 opacity-50" />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent align="start" className="w-64 p-0 bg-white dark:bg-[#2b2926] dark:border-[#4a4540]">
-                      <div className="p-2 border-b border-claude-border dark:border-[#4a4540]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-claude-text">Filter by Tag</span>
-                          {selectedTagFilter && (
-                            <button
-                              onClick={() => { setSelectedTagFilter(null); setTagFilterDropdownOpen(false); }}
-                              className="text-[10px] text-claude-accent hover:underline"
-                            >
-                              Clear
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="max-h-72 overflow-y-auto custom-scrollbar p-1.5">
-                        {(() => {
-                          const tagCounts = new Map<string, { tag: TagInfo; count: number }>();
-                          entries.forEach(entry => {
-                            const entryTags = generateTags(entry, diffMode && diffResult.newIds.has(entry.pdbId));
-                            entryTags.forEach(tag => {
-                              const existing = tagCounts.get(tag.label);
-                              if (existing) {
-                                existing.count++;
-                              } else {
-                                tagCounts.set(tag.label, { tag, count: 1 });
-                              }
-                            });
-                          });
-                          const sortedTags = Array.from(tagCounts.entries()).sort((a, b) => b[1].count - a[1].count);
-                          if (sortedTags.length === 0) {
-                            return <div className="py-3 text-center text-[10px] text-claude-text-muted">No tags available</div>;
-                          }
-                          return sortedTags.map(([label, { tag, count }]) => (
-                            <button
-                              key={label}
-                              onClick={() => {
-                                setSelectedTagFilter(prev => prev === label ? null : label);
-                                setTagFilterDropdownOpen(false);
-                              }}
-                              className={`w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md text-xs transition-colors ${
-                                selectedTagFilter === label
-                                  ? 'bg-claude-accent/10 dark:bg-claude-accent/15'
-                                  : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
-                              }`}
-                            >
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <TagPill tag={tag} size="xs" />
-                              </div>
-                              <span className="text-[9px] text-claude-text-muted tabular-nums flex-shrink-0">{count}</span>
-                            </button>
-                          ));
-                        })()}
-                      </div>
-                    </PopoverContent>
-                  </Popover>
-
                   {/* Search */}
                   <div ref={tourSearchRef} className="relative flex-1 min-w-[120px] max-w-xs">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
@@ -4150,7 +4049,7 @@ export default function PdbTracker() {
                           setSearchHighlightIndex(-1);
                         }
                       }}
-                      className="w-full pl-8 pr-3 min-h-[44px] sm:min-h-0 sm:py-1.5 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 input-focus-glow"
+                      className="w-full pl-8 pr-3 h-8 text-xs rounded-md border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 input-focus-glow"
                     />
                     {searchQuery && (
                       <button onClick={() => setSearchQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 z-10">
