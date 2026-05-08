@@ -5291,9 +5291,9 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <ContextMenu>
+                          <ContextMenu key={`${row._type}-${row.pdbId || idx}`}>
                             <ContextMenuTrigger asChild>
-                              <tr key={`${row._type}-${row.pdbId || idx}`} className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}>
+                              <tr className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}>
                             <td className="px-3 py-2">
                               {row.pdbId ? (
                                 <Tooltip>
