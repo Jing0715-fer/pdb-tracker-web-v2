@@ -5331,16 +5331,9 @@ export default function PdbTracker() {
                             {!hiddenColumns.has('_type') && (
                             <td className="px-3 py-2">
                               {isBlast ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20 cursor-help">
-                                      Homolog
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="p-0 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg">
-                                    {blastResult && <BlastHomologTooltipContent result={blastResult} />}
-                                  </TooltipContent>
-                                </Tooltip>
+                                <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
+                                  Homolog
+                                </span>
                               ) : (
                                 <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg text-claude-mid">
                                   Structure
