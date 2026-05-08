@@ -5291,7 +5291,7 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <ContextMenu key={`${row._type}-${row.pdbId || idx}`}>
+                          <ContextMenu key={`${row._type}-${row.pdbId || 'noid'}-${idx}`}>
                             <ContextMenuTrigger asChild>
                               <tr className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''}`}>
                             <td className="px-3 py-2">
@@ -6352,219 +6352,90 @@ export default function PdbTracker() {
 
           return (
             <>
-              <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-                data-bottom-sheet
-                className="fixed left-0 right-0 bottom-0 z-50 bg-claude-surface dark:bg-[#242220] rounded-t-2xl shadow-2xl no-print flex flex-col"
-                style={{ height: '85vh', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Detail Header */}
-                <div className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-2 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <span className="font-mono text-base font-bold text-claude-accent">{evalStruct.pdbId}</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>
-                      {getMethodLabel(method)}
-                    </span>
-                    {isBlast && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
-                        Homolog
-                      </span>
-                    )}
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <ScrollArea className="flex-1 preview-scroll min-h-0">
-                  <div className="p-5 space-y-5">
-                    <MoleculeViewer pdbId={evalStruct.pdbId} />
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h3>
-                      <p className="text-sm text-claude-text leading-relaxed">{evalStruct.title || 'No title'}</p>
-                    </div>
-                    {method && (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Method</h3>
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${methodColors.bg} ${methodColors.text}`}>
-                          {getMethodLabel(method)}
-                        </span>
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} />
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none">
+                <motion.div key={`ed-${evalStruct.pdbId}`} initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }} className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <span className="font-mono text-base font-bold text-claude-accent">{evalStruct.pdbId}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>{getMethodLabel(method)}</span>
+                        {isBlast && <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>}
                       </div>
-                    )}
-                    {evalStruct.resolution != null && (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
-                        <div className="flex items-center gap-3">
-                          <span className={`text-2xl font-bold font-mono ${getResolutionColor(evalStruct.resolution)}`}>
-                            {safeNum(evalStruct.resolution, 2)}Å
-                          </span>
-                          <div className="flex-1 h-2.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
-                            <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(5, Math.min(100, (1 - (evalStruct.resolution - 0.5) / 4.5) * 100))}%`, backgroundColor: evalStruct.resolution <= 2.0 ? '#16a34a' : evalStruct.resolution <= 3.5 ? '#c9872e' : '#dc2626' }} />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {evalStruct.journal && (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Journal</h3>
-                        <div className="flex items-start gap-2">
-                          <span className="text-sm text-claude-text-secondary leading-relaxed">{evalStruct.journal}</span>
-                          {evalStruct.journalIf != null && <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent">IF {safeNum(evalStruct.journalIf, 1)}</span>}
-                        </div>
-                      </div>
-                    )}
-                    {isBlast && 'identity' in evalStruct && evalStruct.identity != null && (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">BLAST Identity</h3>
-                        <span className={`text-lg font-bold ${getIdentityColor(evalStruct.identity)}`}>{evalStruct.identity}%</span>
-                      </div>
-                    )}
-                    {evalStruct.releaseDate && (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Release Date</h3>
-                        <span className="text-sm text-claude-text">{formatDate(evalStruct.releaseDate)}</span>
-                      </div>
-                    )}
-                    {parseLigands(evalStruct.ligand).length > 0 && (
-                      <div>
-                        <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
-                        <div className="flex flex-wrap gap-1">
-                          {parseLigands(evalStruct.ligand).map((lig, i) => (
-                            <HoverCard key={`el-${i}-${lig}`} openDelay={200} closeDelay={100}>
-                              <HoverCardTrigger asChild>
-                                <span className="ligand-chip cursor-pointer" onMouseEnter={() => fetchLigandInfo(lig)}>{lig}</span>
-                              </HoverCardTrigger>
-                              <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
-                                {ligandCache[lig] ? <LigandTooltipContent ligand={ligandCache[lig]} /> : <div className="p-3 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin text-claude-accent" /><span className="text-xs text-claude-text-muted">Loading...</span></div>}
-                              </HoverCardContent>
-                            </HoverCard>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Links</h3>
-                      <div className="flex flex-wrap gap-2">
-                        <a href={`https://www.rcsb.org/structure/${evalStruct.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150">
-                          <ExternalLink className="h-3 w-3" />RCSB
-                        </a>
-                        {evalStruct.pubmedId ? (
-                          <a href={`https://pubmed.ncbi.nlm.nih.gov/${evalStruct.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary hover:bg-claude-accent/10 hover:text-claude-accent transition-all duration-150">
-                            <ExternalLink className="h-3 w-3" />PubMed
-                          </a>
-                        ) : evalStruct.journal ? (
-                          <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent((evalStruct.title || evalStruct.pdbId) + ' ' + evalStruct.journal)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary hover:bg-claude-accent/10 hover:text-claude-accent transition-all duration-150">
-                            <ExternalLink className="h-3 w-3" />Search PubMed
-                          </a>
-                        ) : null}
-                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                </ScrollArea>
-              </motion.div>
-              <>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} />
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none">
-                  <motion.div key={`ed-${evalStruct.pdbId}`} initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }} className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832]">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className="font-mono text-base font-bold text-claude-accent">{evalStruct.pdbId}</span>
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>{getMethodLabel(method)}</span>
-                          {isBlast && <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>}
-                        </div>
-                        <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <ScrollArea className="flex-1 preview-scroll min-h-0">
-                      <div className="p-6 space-y-5">
+                  <ScrollArea className="flex-1 preview-scroll min-h-0">
+                    <div className="p-5 space-y-4 max-w-4xl mx-auto">
+                      <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
                         <MoleculeViewer pdbId={evalStruct.pdbId} />
-                        <div>
-                          <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1">Title</h3>
-                          <p className="text-sm text-claude-text leading-relaxed">{evalStruct.title || 'No title'}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-1">
+                          <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Title</div>
+                          <div className="text-[11px] text-claude-text leading-snug line-clamp-2">{evalStruct.title || 'No title'}</div>
                         </div>
-                        {method && (
-                          <div>
-                            <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Method</h3>
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium ${methodColors.bg} ${methodColors.text}`}>{getMethodLabel(method)}</span>
-                          </div>
-                        )}
-                        {evalStruct.resolution != null && (
-                          <div>
-                            <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Resolution</h3>
-                            <div className="flex items-center gap-3">
-                              <span className={`text-2xl font-bold font-mono ${getResolutionColor(evalStruct.resolution)}`}>{safeNum(evalStruct.resolution, 2)}Å</span>
-                              <div className="flex-1 h-2.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
-                                <div className="h-full rounded-full transition-all duration-500" style={{ width: `${Math.max(5, Math.min(100, (1 - (evalStruct.resolution - 0.5) / 4.5) * 100))}%`, backgroundColor: evalStruct.resolution <= 2.0 ? '#16a34a' : evalStruct.resolution <= 3.5 ? '#c9872e' : '#dc2626' }} />
+                        <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-1">
+                          <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Method</div>
+                          <div className="text-[11px] text-claude-text font-medium">{getMethodLabel(method)}</div>
+                          {evalStruct.resolution != null && (
+                            <div className="flex items-center gap-1">
+                              <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(evalStruct.resolution)}`}>{safeNum(evalStruct.resolution, 2)}Å</span>
+                              <div className="flex-1 h-1 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${Math.max(5, Math.min(100, (1 - (evalStruct.resolution - 0.5) / 4.5) * 100))}%`, backgroundColor: evalStruct.resolution <= 2.0 ? '#16a34a' : evalStruct.resolution <= 3.5 ? '#c9872e' : '#dc2626' }} />
                               </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                         {evalStruct.journal && (
-                          <div>
-                            <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Journal</h3>
-                            <div className="flex items-start gap-2">
-                              <span className="text-sm text-claude-text-secondary leading-relaxed">{evalStruct.journal}</span>
-                              {evalStruct.journalIf != null && <span className="flex-shrink-0 text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent">IF {safeNum(evalStruct.journalIf, 1)}</span>}
+                          <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-1">
+                            <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Journal</div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="text-[10px] text-claude-text-secondary truncate flex-1">{evalStruct.journal}</div>
+                              {evalStruct.journalIf != null && <span className={`text-[9px] px-1 py-0.5 rounded font-medium ${getIfTierStyle(evalStruct.ifTier).bg} ${getIfTierStyle(evalStruct.ifTier).text}`}>IF {safeNum(evalStruct.journalIf, 1)}</span>}
                             </div>
                           </div>
                         )}
                         {isBlast && 'identity' in evalStruct && evalStruct.identity != null && (
-                          <div>
-                            <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">BLAST Identity</h3>
-                            <span className={`text-lg font-bold ${getIdentityColor(evalStruct.identity)}`}>{evalStruct.identity}%</span>
+                          <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60 space-y-1">
+                            <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">BLAST Identity</div>
+                            <div className="text-[14px] font-bold font-mono" style={{ color: evalStruct.identity >= 90 ? '#16a34a' : evalStruct.identity >= 50 ? '#c9872e' : '#dc2626' }}>{evalStruct.identity}%</div>
                           </div>
                         )}
-                        {evalStruct.releaseDate && (
-                          <div>
-                            <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Release Date</h3>
-                            <span className="text-sm text-claude-text">{formatDate(evalStruct.releaseDate)}</span>
-                          </div>
-                        )}
-                        {parseLigands(evalStruct.ligand).length > 0 && (
-                          <div>
-                            <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands</h3>
-                            <div className="flex flex-wrap gap-1">
-                              {parseLigands(evalStruct.ligand).map((lig, i) => (
-                                <HoverCard key={`eld-${i}-${lig}`} openDelay={200} closeDelay={100}>
-                                  <HoverCardTrigger asChild>
-                                    <span className="ligand-chip cursor-pointer" onMouseEnter={() => fetchLigandInfo(lig)}>{lig}</span>
-                                  </HoverCardTrigger>
-                                  <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
-                                    {ligandCache[lig] ? <LigandTooltipContent ligand={ligandCache[lig]} /> : <div className="p-3 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin text-claude-accent" /><span className="text-xs text-claude-text-muted">Loading...</span></div>}
-                                  </HoverCardContent>
-                                </HoverCard>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        <div>
-                          <h3 className="text-xs font-semibold text-claude-text-muted uppercase tracking-wider mb-1.5">Links</h3>
-                          <div className="flex flex-wrap gap-2">
-                            <a href={`https://www.rcsb.org/structure/${evalStruct.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 hover:shadow-sm transition-all duration-150">
-                              <ExternalLink className="h-3 w-3" />RCSB Structure
-                            </a>
-                            {evalStruct.pubmedId ? (
-                              <a href={`https://pubmed.ncbi.nlm.nih.gov/${evalStruct.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary hover:bg-claude-accent/10 hover:text-claude-accent transition-all duration-150">
-                                <ExternalLink className="h-3 w-3" />PubMed
-                              </a>
-                            ) : evalStruct.journal ? (
-                              <a href={`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent((evalStruct.title || evalStruct.pdbId) + ' ' + evalStruct.journal)}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary hover:bg-claude-accent/10 hover:text-claude-accent transition-all duration-150">
-                                <ExternalLink className="h-3 w-3" />Search PubMed
-                              </a>
-                            ) : null}
+                      </div>
+                      {parseLigands(evalStruct.ligand).length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                          <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands ({parseLigands(evalStruct.ligand).length})</div>
+                          <div className="flex flex-wrap gap-1">
+                            {parseLigands(evalStruct.ligand).map((lig, i) => (
+                              <HoverCard key={`el-${i}-${lig}`} openDelay={200} closeDelay={100}>
+                                <HoverCardTrigger asChild>
+                                  <span className="ligand-chip cursor-pointer" onMouseEnter={() => fetchLigandInfo(lig)}>{lig}</span>
+                                </HoverCardTrigger>
+                                <HoverCardContent side="left" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl z-50">
+                                  {ligandCache[lig] ? <LigandTooltipContent ligand={ligandCache[lig]} /> : <div className="p-3 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin text-claude-accent" /><span className="text-xs text-claude-text-muted">Loading...</span></div>}
+                                </HoverCardContent>
+                              </HoverCard>
+                            ))}
                           </div>
                         </div>
+                      )}
+                      <div className="flex flex-wrap gap-1">
+                        <a href={`https://www.rcsb.org/structure/${evalStruct.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
+                          <ExternalLink className="h-2.5 w-2.5 ext-arrow" />RCSB
+                        </a>
+                        {evalStruct.pubmedId ? (
+                          <a href={`https://pubmed.ncbi.nlm.nih.gov/${evalStruct.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all external-link-hover">
+                            <ExternalLink className="h-2.5 w-2.5 ext-arrow" />PubMed
+                          </a>
+                        ) : null}
                       </div>
-                    </ScrollArea>
-                  </motion.div>
-                </div>
-              </>
+                    </div>
+                  </ScrollArea>
+                </motion.div>
+              </div>
             </>
           );
         })()}
