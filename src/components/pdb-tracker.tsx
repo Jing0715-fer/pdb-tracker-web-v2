@@ -4930,7 +4930,7 @@ export default function PdbTracker() {
                                 ref={focusedRowIndex === idx ? focusedRowRef : undefined}
                                 data-row-idx={idx}
                                 className={`table-row-hover-enhanced ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} border-b border-claude-border-light dark:border-[#3d3832] hover:shadow-md cursor-pointer group ${highlightedEntry === entry.pdbId ? 'ring-1 ring-claude-accent/30 ring-inset shadow-[0_0_8px_rgba(196,100,74,0.15)]' : ''} ${isSelected ? 'bg-claude-accent/5 dark:bg-claude-accent/5' : ''} ${pulsingRowId === entry.pdbId ? 'row-pulse' : ''} ${detailPanelOpen && selectedEntry?.pdbId === entry.pdbId ? 'row-selected' : ''} ${diffMode && diffResult.newIds.has(entry.pdbId) ? 'border-l-[3px] border-l-green-500' : ''} ${focusedRowIndex === idx ? 'keyboard-focused-row' : ''}`}
-                                style={focusedRowIndex === idx ? { outline: 'none', borderTop: '2px solid var(--claude-accent, #c96442)', borderBottom: '2px solid var(--claude-accent, #c96442)', backgroundColor: 'rgba(201, 100, 66, 0.06)', transition: 'border-color 150ms ease, background-color 150ms ease' } as React.CSSProperties : undefined}
+                                style={focusedRowIndex === idx ? { outline: 'none', borderLeft: '2px solid var(--claude-accent, #c96442)', backgroundColor: 'rgba(201, 100, 66, 0.06)', transition: 'border-color 150ms ease, background-color 150ms ease' } as React.CSSProperties : undefined}
                                 onClick={() => {
                                   setSelectedEntry(entry);
                                   setDetailPanelOpen(true);
