@@ -5302,7 +5302,7 @@ export default function PdbTracker() {
                                     setDetailPanelOpen(true);
                                   }
                                 }}
-                              >                            <td className="px-3 py-2">
+                              ><td className="px-3 py-2">
                               {row.pdbId ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
@@ -6360,22 +6360,23 @@ export default function PdbTracker() {
           const qs = computeQualityScore(evalStruct);
           const circumference = 2 * Math.PI * 28;
           const qsOffset = circumference - (qs.total / 100) * circumference;
+          const displayId = evalStruct.pdbId || (('uniprotId' in evalStruct) ? evalStruct.uniprotId : '—');
+          const displayTitle = evalStruct.title || (isBlast && 'description' in evalStruct ? evalStruct.description : null);
 
           return (
             <>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} />
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none">
-                <motion.div key={`ed-${evalStruct.pdbId}`} initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }} className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+                <motion.div key={`ed-${displayId}`} initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }} className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
                   {/* Header */}
                   <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="font-mono text-base font-bold text-claude-accent">{evalStruct.pdbId}</span>
+                        <span className="font-mono text-base font-bold text-claude-accent">{displayId}</span>
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>{getMethodLabel(method)}</span>
                         {evalStruct.resolution != null && <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(evalStruct.resolution)}`}>{safeNum(evalStruct.resolution, 2)}Å</span>}
                         {isBlast && <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>}
                       </div>
-                      {/* Quality Score mini radial */}
                       <div className="relative flex-shrink-0">
                         <svg width="44" height="44" viewBox="0 0 60 60">
                           <circle cx="30" cy="30" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
@@ -6389,13 +6390,26 @@ export default function PdbTracker() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
+                    {displayTitle && (
+                      <p className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2 mt-1">{displayTitle}</p>
+                    )}
                   </div>
                   <ScrollArea className="flex-1 preview-scroll min-h-0">
                     <div className="p-5 space-y-4 max-w-4xl mx-auto">
-                      {/* 3D Viewer */}
-                      <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
-                        <MoleculeViewer pdbId={evalStruct.pdbId} />
-                      </div>
+                      {/* 3D Viewer - only for entries with PDB ID */}
+                      {evalStruct.pdbId ? (
+                        <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
+                          <MoleculeViewer pdbId={evalStruct.pdbId} />
+                        </div>
+                      ) : (
+                        <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832] bg-claude-border-light/30 dark:bg-[#1a1917]/60 flex items-center justify-center" style={{ height: '200px' }}>
+                          <div className="text-center text-claude-text-muted">
+                            <Microscope className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                            <p className="text-xs">No structure mapped</p>
+                            <p className="text-[10px] mt-1">UniProt: {('uniprotId' in evalStruct) ? evalStruct.uniprotId : '—'}</p>
+                          </div>
+                        </div>
+                      )}
                       {/* Info Grid */}
                       <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-2">
@@ -6505,9 +6519,15 @@ export default function PdbTracker() {
                           </div>
                           {/* Links */}
                           <div className="flex flex-wrap gap-1">
-                            <a href={`https://www.rcsb.org/structure/${evalStruct.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
-                              <ExternalLink className="h-2.5 w-2.5 ext-arrow" />RCSB
-                            </a>
+                            {evalStruct.pdbId ? (
+                              <a href={`https://www.rcsb.org/structure/${evalStruct.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
+                                <ExternalLink className="h-2.5 w-2.5 ext-arrow" />RCSB
+                              </a>
+                            ) : isBlast && 'uniprotId' in evalStruct ? (
+                              <a href={`https://www.uniprot.org/uniprotkb/${evalStruct.uniprotId}/entry`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
+                                <ExternalLink className="h-2.5 w-2.5 ext-arrow" />UniProt
+                              </a>
+                            ) : null}
                             {evalStruct.pubmedId ? (
                               <a href={`https://pubmed.ncbi.nlm.nih.gov/${evalStruct.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all external-link-hover">
                                 <ExternalLink className="h-2.5 w-2.5 ext-arrow" />PubMed
