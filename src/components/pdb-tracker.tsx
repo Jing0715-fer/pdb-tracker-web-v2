@@ -4105,7 +4105,7 @@ export default function PdbTracker() {
                         setShowBookmarksOnly(next);
                         toast(next ? 'Showing bookmarked only' : 'Showing all structures');
                       }}
-                      className={`inline-flex items-center justify-center min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 sm:h-6 sm:w-6 rounded-md transition-colors duration-200 ${
+                      className={`inline-flex items-center justify-center h-8 w-8 rounded-md transition-colors duration-200 ${
                         showBookmarksOnly
                           ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/30'
                           : 'text-claude-text-muted/40 hover:text-claude-accent hover:bg-claude-accent-light/50 dark:hover:bg-[#3d2a22] border border-transparent'
@@ -4246,7 +4246,7 @@ export default function PdbTracker() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press"
+                        className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press"
                       >
                         <Sparkles className="h-3 w-3" />
                         Presets
@@ -4357,7 +4357,7 @@ export default function PdbTracker() {
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <button
-                        className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press"
+                        className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press"
                       >
                         <Columns3 className="h-3 w-3" />
                         Columns
@@ -4418,7 +4418,7 @@ export default function PdbTracker() {
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button
-                          className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press"
+                          className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press"
                         >
                           <Download className="h-3 w-3" />
                           Export
@@ -4457,7 +4457,7 @@ export default function PdbTracker() {
                   {sortedEntries.length > 0 && (
                     <button
                       onClick={() => window.print()}
-                      className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press no-print"
+                      className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press no-print"
                     >
                       <Printer className="h-3 w-3" />
                       Print
@@ -4467,7 +4467,7 @@ export default function PdbTracker() {
                   {/* Share View Button */}
                   <button
                     onClick={handleShareView}
-                    className="hidden sm:inline-flex items-center gap-1 h-7 px-2 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press no-print"
+                    className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-md text-[11px] font-medium border border-claude-border bg-claude-surface text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 claude-focus-ring btn-press no-print"
                   >
                     <Share2 className="h-3 w-3" />
                     Share
