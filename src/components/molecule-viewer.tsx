@@ -497,11 +497,7 @@ export default function MoleculeViewer({
 
 async function loadStructure(plugin: any, pdbId: string) {
   try {
-    const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
-    const transforms = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'));
-    const modelTransforms = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/model.js'));
-    
-    // Try RCSB CIF files
+    // Use fetch to download CIF, then load via molstar's data API
     const sources = [
       `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`,
       `https://files.rcsb.org/download/${pdbId.toLowerCase()}.cif`,
@@ -509,22 +505,24 @@ async function loadStructure(plugin: any, pdbId: string) {
     
     for (const url of sources) {
       try {
-        // Download the CIF file
-        const data = await plugin.builders.data.download({
-          url: Asset.Url(url),
-          isBinary: true
+        // Fetch the CIF file
+        const response = await fetch(url);
+        if (!response.ok) continue;
+        
+        const cifText = await response.text();
+        
+        // Create a Blob from the text
+        const blob = new Blob([cifText], { type: 'chemical/x-cif' });
+        const file = new File([blob], pdbId + '.cif');
+        
+        // Use OpenFiles action to load the file
+        const { OpenFiles } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/actions/file.js'));
+        
+        await plugin.state.data.transaction(async () => {
+          await OpenFiles()
+            .withParams({ files: [file], format: 'cif', visuals: true })
+            .runInContext(plugin);
         });
-        
-        // Build the parsing pipeline: Download -> ParseCif -> TrajectoryFromMmCif
-        const state = plugin.state.data;
-        const trajectory = await state.build()
-          .to(data)
-          .apply(transforms.ParseCif, void 0, { state: { isGhost: true } })
-          .apply(modelTransforms.TrajectoryFromMmCif)
-          .commit({ revertOnError: true });
-        
-        // Apply the default structure preset
-        await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
         return;
       } catch (e) {
         console.warn('[molstar] Failed:', url, (e as Error).message || e);
