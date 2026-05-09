@@ -507,23 +507,20 @@ async function loadStructure(plugin: any, pdbId: string) {
     
     for (const url of sources) {
       try {
-        // Download data
+        // Download data as binary
         const data = await plugin.builders.data.download({
           url: Asset.Url(url),
           isBinary: true
         });
         
-        // Get mmcif format
-        const format = plugin.dataFormats.get('mmcif');
-        if (!format) {
-          console.warn('[molstar] No mmcif format provider');
-          continue;
-        }
+        // Use ParseCif transformer
+        const transforms = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'));
+        const parsed = await plugin.state.data.build()
+          .to(data)
+          .apply(transforms.ParseCif)
+          .commit();
         
-        // Parse to trajectory
-        const parsed = await format.parse(plugin, data);
-        
-        // Apply preset
+        // Apply structure preset
         await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
         return;
       } catch (e) {
