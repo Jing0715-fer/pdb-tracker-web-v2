@@ -499,37 +499,32 @@ async function loadStructure(plugin: any, pdbId: string) {
   try {
     const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
     
-    // Helper to try loading from a URL
-    async function tryLoad(url: string, isBinary: boolean): Promise<boolean> {
-      try {
-        const data = await plugin.builders.data.download({ url: Asset.Url(url), isBinary });
-        // data is a StateObjectSelector
-        const provider = plugin.dataFormats.get('mmcif');
-        if (!provider) {
-          console.warn('[molstar] No mmcif provider found');
-          return false;
-        }
-        // The parse function expects (plugin, dataRef)
-        const parsed = await provider.parse(plugin, data);
-        await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
-        return true;
-      } catch (e) {
-        console.warn('[molstar] Failed to load from', url, e);
-        return false;
-      }
-    }
-    
-    // Try multiple sources
+    // Try multiple CIF sources
     const sources = [
       `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`,
       `https://files.rcsb.org/download/${pdbId.toLowerCase()}.cif`,
-      `https://www.ebi.ac.uk/pdbe/static/files/${pdbId.toLowerCase()}.cif`,
-      `https://www.ebi.ac.uk/pdbe/static/files/${pdbId.toLowerCase()}_assembly-1.cif`,
     ];
     
     for (const url of sources) {
-      if (await tryLoad(url, true)) {
+      try {
+        // Download the data
+        const data = await plugin.builders.data.download({ url: Asset.Url(url), isBinary: true });
+        
+        // Get the mmcif provider
+        const provider = plugin.dataFormats.get('mmcif');
+        if (!provider) {
+          console.warn('[molstar] No mmcif provider');
+          continue;
+        }
+        
+        // Parse the data - pass data directly, not plugin
+        const parsed = await provider.parse(data);
+        
+        // Apply the hierarchy preset
+        await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
         return;
+      } catch (e) {
+        console.warn('[molstar] Failed:', url, e.message || e);
       }
     }
     

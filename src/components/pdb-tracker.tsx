@@ -5881,9 +5881,9 @@ export default function PdbTracker() {
                 </div>
               )}
 
-              {/* Header: PDB ID + Method Badge + Title - compact style */}
-              <div className="flex items-start gap-2">
-                <div className="flex-1 min-w-0 flex items-center gap-2">
+              {/* Header - compact single line like eval mode */}
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
                   <span className="font-mono text-sm font-bold text-claude-accent">{selectedEntry.pdbId}</span>
                   <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
                     {getMethodLabel(selectedEntry.method)}
@@ -5891,7 +5891,7 @@ export default function PdbTracker() {
                   {selectedEntry.resolution != null && (
                     <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>
                   )}
-                  <span className="text-[11px] text-claude-text-secondary truncate flex-1">{selectedEntry.title}</span>
+                  {selectedEntry.title && <span className="text-[11px] text-claude-text-muted truncate ml-2 flex-1">{selectedEntry.title}</span>}
                 </div>
                 {/* Quality Score (mini radial) */}
                 {(() => {
@@ -5900,12 +5900,12 @@ export default function PdbTracker() {
                   const offset = circumference - (qs.total / 100) * circumference;
                   return (
                     <div className="relative flex-shrink-0">
-                      <svg width="60" height="60" viewBox="0 0 60 60">
+                      <svg width="44" height="44" viewBox="0 0 60 60">
                         <circle cx="30" cy="30" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
                         <circle cx="30" cy="30" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} transform="rotate(-90 30 30)" className="transition-all duration-700" />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-sm font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
+                        <span className="text-xs font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
                       </div>
                     </div>
                   );
