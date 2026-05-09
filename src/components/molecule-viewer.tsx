@@ -507,25 +507,25 @@ async function loadStructure(plugin: any, pdbId: string) {
     
     for (const url of sources) {
       try {
-        // Use state.build() to create a proper trajectory
-        const build = plugin.state.data.build();
-        const data = await build.toRoot()
-          .apply(
-            (await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'))).Download,
-            { url: Asset.Url(url), isBinary: true }
-          )
-          .apply(
-            (await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'))).ParseBlob,
-            { format: (await importWithRetry(() => import('molstar/lib/mol-plugin-state/formats/trajectory.js'))).MmcifFormat }
-          )
-          .commit();
+        // Download data
+        const data = await plugin.builders.data.download({
+          url: Asset.Url(url),
+          isBinary: true
+        });
         
-        // Now get the trajectory and create structure
-        if (data?.cell?.obj) {
-          const trajectory = data.cell.obj;
-          await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
-          return;
+        // Get mmcif format
+        const format = plugin.dataFormats.get('mmcif');
+        if (!format) {
+          console.warn('[molstar] No mmcif format provider');
+          continue;
         }
+        
+        // Parse to trajectory
+        const parsed = await format.parse(plugin, data);
+        
+        // Apply preset
+        await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
+        return;
       } catch (e) {
         console.warn('[molstar] Failed:', url, (e as Error).message || e);
       }
