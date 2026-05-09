@@ -1136,7 +1136,8 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
   }, [isOpen, onClose]);
 
   // Strip YAML frontmatter (---...---)
-  const strippedContent = content.replace(/^---[\s\S]*?---\s*/m, '');
+  // Strip YAML frontmatter AND first H1 heading (to avoid title duplication with modal header)
+  const strippedContent = content.replace(/^---[\s\S]*?---\s*/m, '').replace(/^#\s+.+\n/, '');
 
   return (
     <AnimatePresence>
@@ -5880,19 +5881,17 @@ export default function PdbTracker() {
                 </div>
               )}
 
-              {/* Header: PDB ID + Method Badge + Title */}
+              {/* Header: PDB ID + Method Badge + Title - compact style */}
               <div className="flex items-start gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
-                      {getMethodLabel(selectedEntry.method)}
-                    </span>
-                    {selectedEntry.resolution != null && (
-                      <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2">{selectedEntry.title}</p>
+                <div className="flex-1 min-w-0 flex items-center gap-2">
+                  <span className="font-mono text-sm font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
+                    {getMethodLabel(selectedEntry.method)}
+                  </span>
+                  {selectedEntry.resolution != null && (
+                    <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>
+                  )}
+                  <span className="text-[11px] text-claude-text-secondary truncate flex-1">{selectedEntry.title}</span>
                 </div>
                 {/* Quality Score (mini radial) */}
                 {(() => {
@@ -6361,14 +6360,15 @@ export default function PdbTracker() {
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} />
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none">
                 <motion.div key={`ed-${displayId}`} initial={{ opacity: 0, scale: 0.97, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97, y: 12 }} transition={{ duration: 0.2, ease: [0.25, 0.46, 0.45, 0.94] }} className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto" onClick={(e) => e.stopPropagation()}>
-                  {/* Header */}
-                  <div className="flex-shrink-0 p-4 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
+                  {/* Header - compact single line */}
+                  <div className="flex-shrink-0 p-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="font-mono text-base font-bold text-claude-accent">{displayId}</span>
+                        <span className="font-mono text-sm font-bold text-claude-accent">{displayId}</span>
                         <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text}`}>{getMethodLabel(method)}</span>
                         {evalStruct.resolution != null && <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(evalStruct.resolution)}`}>{safeNum(evalStruct.resolution, 2)}Å</span>}
                         {isBlast && <span className="text-[10px] px-1.5 py-0.5 rounded font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>}
+                        {displayTitle && <span className="text-[11px] text-claude-text-muted truncate ml-2 flex-1">{displayTitle}</span>}
                       </div>
                       <div className="relative flex-shrink-0">
                         <svg width="44" height="44" viewBox="0 0 60 60">
@@ -6383,9 +6383,6 @@ export default function PdbTracker() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
-                    {displayTitle && (
-                      <p className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2 mt-1">{displayTitle}</p>
-                    )}
                   </div>
                   <ScrollArea className="flex-1 preview-scroll min-h-0">
                     <div className="p-5 space-y-4 max-w-4xl mx-auto">
@@ -7239,7 +7236,18 @@ export default function PdbTracker() {
                   const computedCoverage = blastCoverages.length > 0
                     ? blastCoverages.reduce((a, b) => a + b, 0) / blastCoverages.length
                     : null;
-                  const displayCoverage = (ev.coverage != null && ev.coverage > 0) ? ev.coverage : computedCoverage;
+                  // Cap coverage at 100% to avoid displaying >100%
+                  const displayCoverage = Math.min((ev.coverage != null && ev.coverage > 0) ? ev.coverage : computedCoverage ?? 0, 100);
+                  // When only BLAST results (no PDB structures), show max identity instead of coverage
+                  const pdbCount = ev.pdbStructures?.length || 0;
+                  const blastCount = ev.blastResults?.length || 0;
+                  const maxIdentity = blastCount > 0
+                    ? Math.max(...(ev.blastResults || []).map((b: any) => {
+                        const id = b.identity || 0;
+                        return id > 0 && id <= 100 ? id : 0;
+                      }))
+                    : null;
+                  const showIdentityInstead = pdbCount === 0 && blastCount > 0 && maxIdentity !== null;
                   return (
                     <ContextMenu key={ev.uniprotId}>
                       <ContextMenuTrigger asChild>
@@ -7269,7 +7277,10 @@ export default function PdbTracker() {
                         {ev.proteinName || ev.entryName}
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
-                        {displayCoverage != null && <span>{displayCoverage.toFixed(1)}% coverage</span>}
+                        {showIdentityInstead
+                          ? <span>{maxIdentity}% identity</span>
+                          : displayCoverage != null && <span>{displayCoverage.toFixed(1)}% coverage</span>
+                        }
                         {ev._count && (
                           <>
                             <span>·</span>
@@ -9407,7 +9418,8 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
   }, [blastSortField]);
 
   // Coverage circular progress SVG
-  const coveragePct = evalData.coverage ?? 0;
+  // Cap coverage at 100% to avoid displaying >100%
+  const coveragePct = Math.min(evalData.coverage ?? 0, 100);
   const coverageColor = coveragePct >= 80 ? '#2d8f8f' : coveragePct >= 50 ? '#c9872e' : coveragePct >= 25 ? '#ea580c' : '#dc2626';
   const coverageLabel = coveragePct >= 80 ? 'Excellent' : coveragePct >= 50 ? 'Moderate' : coveragePct >= 25 ? 'Limited' : 'Very Limited';
 

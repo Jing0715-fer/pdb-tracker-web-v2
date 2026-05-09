@@ -6,7 +6,7 @@ import { Loader2, ExternalLink, Palette, RotateCcw, Eye, EyeOff } from 'lucide-r
 interface ChainInfo {
   chain: string;
   asym_id: string;
-  length: number;
+  length: number | null;
 }
 
 interface EntityInfo {
@@ -107,37 +107,73 @@ export default function MoleculeViewer({
     applyColors(pluginRef.current, entityColors);
   }, [entityColors]);
 
+  // Parse entity key like "1MBN.A" into parts
+  const parseEntityKey = (key: string) => {
+    const parts = key.split('.');
+    return {
+      pdbId: parts[0],
+      chainId: parts[1] || ''
+    };
+  };
+
+  // Apply highlight/focus to a specific chain
   async function applyHighlight(plugin: any, entityKey: string) {
     try {
       const { PluginCommands } = await importWithRetry(() => import('molstar/lib/mol-plugin/commands.js'));
       
-      // Get current structure hierarchy
-      const hierarchy = plugin.managers.structure.hierarchy.current;
-      if (!hierarchy || hierarchy.length === 0) return;
-
-      // Focus on the structure by resetting camera
-      try {
-        PluginCommands.Camera.Reset(plugin);
-      } catch { /* ignore */ }
+      const { chainId } = parseEntityKey(entityKey);
       
-      // Try to use zoom-to-fit on the structure
+      // Try to find and focus on the structure containing this chain
       try {
-        const sel = plugin.state.select('');
+        // Use MolScript to select the chain
+        const query = 'chain "' + chainId + '"';
+        const sel = plugin.state.select(query);
+        
         if (sel.length > 0 && sel[0].ref) {
+          // Focus on the selected structure
           PluginCommands.State.SetFocus(plugin, { ref: sel[0].ref });
         }
-      } catch { /* ignore */ }
+      } catch (e) {
+        // Fallback: just reset camera
+        try {
+          PluginCommands.Camera.Reset(plugin);
+        } catch { /* ignore */ }
+      }
       
     } catch (err) {
       console.warn('[molstar] Highlight failed:', err);
     }
   }
 
+  // Apply colors to entities
   async function applyColors(plugin: any, colors: Record<string, string>) {
-    // Color application via molstar themes requires complex structure traversal.
-    // The colors are stored and displayed in the panel; actual 3D coloring
-    // would require deeper molstar API integration.
-    // For now, colors are saved and shown in the UI.
+    try {
+      const { PluginCommands } = await importWithRetry(() => import('molstar/lib/mol-plugin/commands.js'));
+      
+      // Apply colors to each colored entity
+      for (const [entityKey, color] of Object.entries(colors)) {
+        const { chainId } = parseEntityKey(entityKey);
+        
+        try {
+          // Use MolScript to select and apply color
+          const query = `chain "${chainId}"`;
+          const sel = plugin.state.select(query);
+          
+          if (sel.length > 0) {
+            // Apply custom color via theme
+            for (const s of sel) {
+              if (s.ref) {
+                plugin.managers.structure.component.updateTransform(s.ref, { color });
+              }
+            }
+          }
+        } catch (e) {
+          console.warn(`[molstar] Could not apply color to ${entityKey}:`, e);
+        }
+      }
+    } catch (err) {
+      console.warn('[molstar] Color application failed:', err);
+    }
   }
 
   async function resetView() {
@@ -284,6 +320,15 @@ export default function MoleculeViewer({
           >
             <RotateCcw className="h-3.5 w-3.5 text-claude-text-secondary" />
           </button>
+          <a
+            href={`https://www.rcsb.org/structure/${pdbId}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="View on RCSB"
+            className="p-1.5 rounded-md bg-white/90 dark:bg-[#2b2926]/90 border border-claude-border/50 dark:border-[#4a4540]/50 hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
+          >
+            <ExternalLink className="h-3.5 w-3.5 text-claude-text-secondary" />
+          </a>
         </div>
 
         {/* Loading overlay */}
@@ -404,18 +449,13 @@ export default function MoleculeViewer({
                                   <span className="text-[10px] font-mono font-medium text-claude-text-secondary">
                                     {chain.chain}
                                   </span>
-                                  {chain.length && (
+                                  {chain.length != null && chain.length > 0 && (
                                     <span className="text-[8px] text-claude-text-muted">
                                       {chain.length}aa
                                     </span>
                                   )}
                                 </div>
                               </div>
-
-                              {/* Action hint */}
-                              <span className="text-[8px] text-claude-text-muted/40">
-                                {isHovered ? '●' : '○'}
-                              </span>
                             </div>
 
                             {/* Color picker popup */}
@@ -432,17 +472,12 @@ export default function MoleculeViewer({
                                     />
                                   ))}
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                  <input
-                                    type="color"
-                                    value={currentColor}
-                                    onChange={e => handleColorChange(key, e.target.value)}
-                                    className="w-6 h-6 rounded border border-claude-border cursor-pointer"
-                                  />
-                                  <span className="text-[9px] text-claude-text-muted font-mono">
-                                    {currentColor}
-                                  </span>
-                                </div>
+                                <button
+                                  onClick={() => setColorPickerEntity(null)}
+                                  className="w-full text-[9px] text-claude-text-muted hover:text-claude-text text-center"
+                                >
+                                  Done
+                                </button>
                               </div>
                             )}
                           </div>
@@ -455,67 +490,51 @@ export default function MoleculeViewer({
             )}
           </div>
         )}
-
-        {/* Panel Footer */}
-        {showPanel && entities.length > 0 && (
-          <div className="px-2 py-1 border-t border-claude-border/50 dark:border-[#4a4540]/50 bg-white/95 dark:bg-[#2b2926]">
-            <div className="text-[8px] text-claude-text-muted/60 text-center">
-              Click to highlight · Color to change
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
 async function loadStructure(plugin: any, pdbId: string) {
-  const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
-
-  // Try primary RCSB source first
   try {
-    const data = await plugin.builders.data.download(
-      {
-        url: Asset.Url(`https://files.rcsb.org/download/${pdbId}.cif`),
-        isBinary: false,
-      },
-      { state: { isGhost: true } }
-    );
-
-    const trajectory = await plugin.builders.structure.parseTrajectory(data, 'mmcif');
-
-    await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default', {
-      structure: {
-        name: 'model',
-        params: {},
-      },
-      showUnitcell: false,
-      representationPreset: 'auto',
-    });
-  } catch (primaryErr) {
-    console.warn('[molstar] RCSB failed, trying PDBe...');
-    try {
-      const data = await plugin.builders.data.download(
-        {
-          url: Asset.Url(`https://www.ebi.ac.uk/pdbe/static/files/${pdbId.toLowerCase()}.cif`),
-          isBinary: false,
-        },
-        { state: { isGhost: true } }
-      );
-
-      const trajectory = await plugin.builders.structure.parseTrajectory(data, 'mmcif');
-
-      await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default', {
-        structure: {
-          name: 'model',
-          params: {},
-        },
-        showUnitcell: false,
-        representationPreset: 'auto',
-      });
-    } catch (fallbackErr) {
-      console.error('[molstar] Both sources failed:', fallbackErr);
-      throw fallbackErr;
+    const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
+    
+    // Helper to try loading from a URL
+    async function tryLoad(url: string, isBinary: boolean): Promise<boolean> {
+      try {
+        const data = await plugin.builders.data.download({ url: Asset.Url(url), isBinary });
+        // data is a StateObjectSelector
+        const provider = plugin.dataFormats.get('mmcif');
+        if (!provider) {
+          console.warn('[molstar] No mmcif provider found');
+          return false;
+        }
+        // The parse function expects (plugin, dataRef)
+        const parsed = await provider.parse(plugin, data);
+        await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
+        return true;
+      } catch (e) {
+        console.warn('[molstar] Failed to load from', url, e);
+        return false;
+      }
     }
+    
+    // Try multiple sources
+    const sources = [
+      `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`,
+      `https://files.rcsb.org/download/${pdbId.toLowerCase()}.cif`,
+      `https://www.ebi.ac.uk/pdbe/static/files/${pdbId.toLowerCase()}.cif`,
+      `https://www.ebi.ac.uk/pdbe/static/files/${pdbId.toLowerCase()}_assembly-1.cif`,
+    ];
+    
+    for (const url of sources) {
+      if (await tryLoad(url, true)) {
+        return;
+      }
+    }
+    
+    console.error('[molstar] All sources failed for', pdbId);
+  } catch (err) {
+    console.error('[molstar] Failed to load structure:', err);
   }
 }
