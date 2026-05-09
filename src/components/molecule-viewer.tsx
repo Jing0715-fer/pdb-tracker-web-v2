@@ -497,20 +497,21 @@ export default function MoleculeViewer({
 
 async function loadStructure(plugin: any, pdbId: string) {
   try {
-    const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
-    const rcsbUrl = `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`;
+    console.log('[molstar] Loading structure for:', pdbId);
     
-    console.log('[molstar] Loading from:', rcsbUrl);
+    // Use plugin's built-in loadStructureFromUrl if available
+    if (typeof plugin.loadStructureFromUrl === 'function') {
+      await plugin.loadStructureFromUrl(`https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`, 'mmcif');
+      console.log('[molstar] Structure loaded via loadStructureFromUrl');
+      return;
+    }
     
-    // Use plugin's built-in structure loading action
-    const { BuiltInTrajectoryFormat } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/model.js'));
+    // Fallback: use DownloadStructure with pdb source
     const { DownloadStructure } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/actions/structure.js'));
     
-    // Create asset and download
-    const asset = Asset.Url(rcsbUrl);
-    
-    // Use state.build() to create the structure
-    await plugin.state.data.build().apply(DownloadStructure, { url: asset, format: BuiltInTrajectoryFormat.mmcif }).commit();
+    await plugin.state.data.build().apply(DownloadStructure, {
+      source: { pdb: { id: pdbId.toUpperCase() } }
+    }).commit();
     
     console.log('[molstar] Structure loaded successfully');
   } catch (err) {

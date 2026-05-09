@@ -6365,35 +6365,35 @@ export default function PdbTracker() {
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
+                    {(() => {
+                      // Generate tags for eval struct (has organism not organisms, ligand not ligands)
+                      const evalTags: TagInfo[] = [];
+                      const method = (evalStruct.method || '').toUpperCase();
+                      if (method.includes('CRYO') || method.includes('ELECTRON MICROSCOPY')) evalTags.push({ label: 'Cryo-EM', category: 'method' });
+                      else if (method.includes('X-RAY') || method.includes('XRAY')) evalTags.push({ label: 'X-ray', category: 'method' });
+                      else if (method.includes('NMR')) evalTags.push({ label: 'NMR', category: 'method' });
+                      if (evalStruct.resolution != null) {
+                        if (evalStruct.resolution <= 1.5) evalTags.push({ label: 'Ultra-high', category: 'resolution' });
+                        else if (evalStruct.resolution <= 2.0) evalTags.push({ label: 'High Resolution', category: 'resolution' });
+                      }
+                      if (evalStruct.journalIf != null) {
+                        if (evalStruct.journalIf >= 25) evalTags.push({ label: 'Top Journal', category: 'if' });
+                        else if (evalStruct.journalIf >= 10) evalTags.push({ label: 'High Impact', category: 'if' });
+                      }
+                      if (evalStruct.organism) {
+                        const shortOrg = evalStruct.organism.length > 15 ? evalStruct.organism.slice(0, 14) + '…' : evalStruct.organism;
+                        evalTags.push({ label: shortOrg, category: 'organism' });
+                      }
+                      if (evalStruct.ligand) evalTags.push({ label: 'With Ligands', category: 'ligand' });
+                      return evalTags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 mt-2">
+                          {evalTags.map((tag, i) => (
+                            <TagPill key={`eval-detail-tag-${i}-${tag.label}`} tag={tag} size="xs" />
+                          ))}
+                        </div>
+                      ) : null;
+                    })()}
                   </div>
-                  {(() => {
-                    // Generate tags for eval struct (has organism not organisms, ligand not ligands)
-                    const evalTags: TagInfo[] = [];
-                    const method = (evalStruct.method || '').toUpperCase();
-                    if (method.includes('CRYO') || method.includes('ELECTRON MICROSCOPY')) evalTags.push({ label: 'Cryo-EM', category: 'method' });
-                    else if (method.includes('X-RAY') || method.includes('XRAY')) evalTags.push({ label: 'X-ray', category: 'method' });
-                    else if (method.includes('NMR')) evalTags.push({ label: 'NMR', category: 'method' });
-                    if (evalStruct.resolution != null) {
-                      if (evalStruct.resolution <= 1.5) evalTags.push({ label: 'Ultra-high', category: 'resolution' });
-                      else if (evalStruct.resolution <= 2.0) evalTags.push({ label: 'High Resolution', category: 'resolution' });
-                    }
-                    if (evalStruct.journalIf != null) {
-                      if (evalStruct.journalIf >= 25) evalTags.push({ label: 'Top Journal', category: 'if' });
-                      else if (evalStruct.journalIf >= 10) evalTags.push({ label: 'High Impact', category: 'if' });
-                    }
-                    if (evalStruct.organism) {
-                      const shortOrg = evalStruct.organism.length > 15 ? evalStruct.organism.slice(0, 14) + '…' : evalStruct.organism;
-                      evalTags.push({ label: shortOrg, category: 'organism' });
-                    }
-                    if (evalStruct.ligand) evalTags.push({ label: 'With Ligands', category: 'ligand' });
-                    return evalTags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 mt-2 px-3 pb-2">
-                        {evalTags.map((tag, i) => (
-                          <TagPill key={`eval-detail-tag-${i}-${tag.label}`} tag={tag} size="xs" />
-                        ))}
-                      </div>
-                    ) : null;
-                  })()}
                   <ScrollArea className="flex-1 preview-scroll min-h-0">
                     <div className="p-5 space-y-4 max-w-4xl mx-auto">
                       {/* 3D Viewer - only for entries with PDB ID */}
