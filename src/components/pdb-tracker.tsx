@@ -6293,6 +6293,16 @@ export default function PdbTracker() {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
+                  {(() => {
+                    const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
+                    return entryTags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {entryTags.map((tag, i) => (
+                          <TagPill key={`detail-tag-${i}-${tag.label}`} tag={tag} size="xs" />
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
                 </div>
 
                 {/* Detail Content */}
@@ -6356,6 +6366,16 @@ export default function PdbTracker() {
                       </Button>
                     </div>
                   </div>
+                  {(() => {
+                    const evalTags = generateTags(evalStruct as PdbEntry, false);
+                    return evalTags.length > 0 ? (
+                      <div className="flex flex-wrap gap-1 mt-2 px-3 pb-2">
+                        {evalTags.map((tag, i) => (
+                          <TagPill key={`eval-detail-tag-${i}-${tag.label}`} tag={tag} size="xs" />
+                        ))}
+                      </div>
+                    ) : null;
+                  })()}
                   <ScrollArea className="flex-1 preview-scroll min-h-0">
                     <div className="p-5 space-y-4 max-w-4xl mx-auto">
                       {/* 3D Viewer - only for entries with PDB ID */}
