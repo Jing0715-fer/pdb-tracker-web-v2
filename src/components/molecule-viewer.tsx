@@ -499,7 +499,7 @@ async function loadStructure(plugin: any, pdbId: string) {
   try {
     const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
     
-    // Try multiple CIF sources
+    // Try RCSB CIF files
     const sources = [
       `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`,
       `https://files.rcsb.org/download/${pdbId.toLowerCase()}.cif`,
@@ -507,24 +507,27 @@ async function loadStructure(plugin: any, pdbId: string) {
     
     for (const url of sources) {
       try {
-        // Download the data
-        const data = await plugin.builders.data.download({ url: Asset.Url(url), isBinary: true });
+        // Use state.build() to create a proper trajectory
+        const build = plugin.state.data.build();
+        const data = await build.toRoot()
+          .apply(
+            (await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'))).Download,
+            { url: Asset.Url(url), isBinary: true }
+          )
+          .apply(
+            (await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'))).ParseBlob,
+            { format: (await importWithRetry(() => import('molstar/lib/mol-plugin-state/formats/trajectory.js'))).MmcifFormat }
+          )
+          .commit();
         
-        // Get the mmcif provider
-        const provider = plugin.dataFormats.get('mmcif');
-        if (!provider) {
-          console.warn('[molstar] No mmcif provider');
-          continue;
+        // Now get the trajectory and create structure
+        if (data?.cell?.obj) {
+          const trajectory = data.cell.obj;
+          await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
+          return;
         }
-        
-        // Parse the data - pass data directly, not plugin
-        const parsed = await provider.parse(data);
-        
-        // Apply the hierarchy preset
-        await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
-        return;
       } catch (e) {
-        console.warn('[molstar] Failed:', url, e.message || e);
+        console.warn('[molstar] Failed:', url, (e as Error).message || e);
       }
     }
     
