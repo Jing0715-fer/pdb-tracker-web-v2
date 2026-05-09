@@ -502,16 +502,15 @@ async function loadStructure(plugin: any, pdbId: string) {
     
     console.log('[molstar] Loading from:', rcsbUrl);
     
-    const data = await plugin.builders.data.download({
-      url: Asset.Url(rcsbUrl),
-      isBinary: true
-    });
+    // Use plugin's built-in structure loading action
+    const { BuiltInTrajectoryFormat } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/model.js'));
+    const { DownloadStructure } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/actions/structure.js'));
     
-    // Use fromCif which handles parsing and trajectory creation
-    const structure = await plugin.builders.structure.fromCif(data);
+    // Create asset and download
+    const asset = Asset.Url(rcsbUrl);
     
-    // Apply preset
-    await plugin.builders.structure.hierarchy.applyPreset(structure, 'default');
+    // Use state.build() to create the structure
+    await plugin.state.data.build().apply(DownloadStructure, { url: asset, format: BuiltInTrajectoryFormat.mmcif }).commit();
     
     console.log('[molstar] Structure loaded successfully');
   } catch (err) {
