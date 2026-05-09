@@ -497,39 +497,23 @@ export default function MoleculeViewer({
 
 async function loadStructure(plugin: any, pdbId: string) {
   try {
-    // Use fetch to download CIF, then load via molstar's data API
-    const sources = [
-      `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`,
-      `https://files.rcsb.org/download/${pdbId.toLowerCase()}.cif`,
-    ];
+    const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
+    const rcsbUrl = `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`;
     
-    for (const url of sources) {
-      try {
-        // Fetch the CIF file
-        const response = await fetch(url);
-        if (!response.ok) continue;
-        
-        const cifText = await response.text();
-        
-        // Create a Blob from the text
-        const blob = new Blob([cifText], { type: 'chemical/x-cif' });
-        const file = new File([blob], pdbId + '.cif');
-        
-        // Use OpenFiles action to load the file
-        const { OpenFiles } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/actions/file.js'));
-        
-        await plugin.state.data.transaction(async () => {
-          await OpenFiles()
-            .withParams({ files: [file], format: 'cif', visuals: true })
-            .runInContext(plugin);
-        });
-        return;
-      } catch (e) {
-        console.warn('[molstar] Failed:', url, (e as Error).message || e);
-      }
-    }
+    console.log('[molstar] Loading from:', rcsbUrl);
     
-    console.error('[molstar] All sources failed for', pdbId);
+    const data = await plugin.builders.data.download({
+      url: Asset.Url(rcsbUrl),
+      isBinary: true
+    });
+    
+    // Use fromCif which handles parsing and trajectory creation
+    const structure = await plugin.builders.structure.fromCif(data);
+    
+    // Apply preset
+    await plugin.builders.structure.hierarchy.applyPreset(structure, 'default');
+    
+    console.log('[molstar] Structure loaded successfully');
   } catch (err) {
     console.error('[molstar] Failed to load structure:', err);
   }

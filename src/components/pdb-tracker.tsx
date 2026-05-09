@@ -5869,6 +5869,10 @@ export default function PdbTracker() {
             }
           };
 
+          // Quality score for header
+          const qs = computeQualityScore(selectedEntry);
+          const circumference = 2 * Math.PI * 28;
+
           // ── Shared detail content renderer ──
           const detailContent = (
             <div className={isMobile ? 'p-4 space-y-4' : 'p-5 space-y-4 max-w-4xl mx-auto'}>
@@ -5880,37 +5884,6 @@ export default function PdbTracker() {
                   <span>{currentEntryIndex < paginatedEntries.length - 1 ? 'Swipe for next →' : ''}</span>
                 </div>
               )}
-
-              {/* Header - compact single line like eval mode */}
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="font-mono text-sm font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
-                    {getMethodLabel(selectedEntry.method)}
-                  </span>
-                  {selectedEntry.resolution != null && (
-                    <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>
-                  )}
-                  {selectedEntry.title && <span className="text-[11px] text-claude-text-muted truncate ml-2 flex-1">{selectedEntry.title}</span>}
-                </div>
-                {/* Quality Score (mini radial) */}
-                {(() => {
-                  const qs = computeQualityScore(selectedEntry);
-                  const circumference = 2 * Math.PI * 28;
-                  const offset = circumference - (qs.total / 100) * circumference;
-                  return (
-                    <div className="relative flex-shrink-0">
-                      <svg width="44" height="44" viewBox="0 0 60 60">
-                        <circle cx="30" cy="30" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
-                        <circle cx="30" cy="30" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} transform="rotate(-90 30 30)" className="transition-all duration-700" />
-                      </svg>
-                      <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-xs font-bold font-mono" style={{ color: qs.color }}>{qs.total}</span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
 
               {/* 3D Structure Viewer */}
               <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
@@ -6295,32 +6268,31 @@ export default function PdbTracker() {
                 className="bg-claude-surface dark:bg-[#242220] rounded-xl border border-claude-border dark:border-[#3d3832] flex flex-col shadow-2xl no-print overflow-hidden w-full max-w-4xl max-h-[90vh] pointer-events-auto"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Detail Header */}
-                <div className="flex-shrink-0 p-4 pb-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
+                {/* Detail Header - compact single line */}
+                <div className="flex-shrink-0 p-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="font-mono text-lg font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
-                        {getMethodLabel(selectedEntry.method)}
-                      </span>
+                      <span className="font-mono text-sm font-bold text-claude-accent">{selectedEntry.pdbId}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>{getMethodLabel(selectedEntry.method)}</span>
+                      {selectedEntry.resolution != null && <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>}
                       {entryNotes[selectedEntry.pdbId] && (
                         <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                       )}
+                      {selectedEntry.title && <span className="text-[11px] text-claude-text-muted truncate ml-2 flex-1">{selectedEntry.title}</span>}
+                    </div>
+                    <div className="relative flex-shrink-0">
+                      <svg width="44" height="44" viewBox="0 0 60 60">
+                        <circle cx="30" cy="30" r="28" fill="none" stroke="currentColor" strokeWidth="5" className="text-claude-border-light dark:text-claude-border" />
+                        <circle cx="30" cy="30" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference - (qs.total / 100) * circumference} transform="rotate(-90 30 30)" className="transition-all duration-700" />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-xs font-bold font-mono" style={{ color: computeQualityScore(selectedEntry).color }}>{computeQualityScore(selectedEntry).total}</span>
+                      </div>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  {(() => {
-                    const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
-                    return entryTags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {entryTags.map((tag, i) => (
-                          <TagPill key={`desktop-tag-${i}-${tag.label}`} tag={tag} size="xs" />
-                        ))}
-                      </div>
-                    ) : null;
-                  })()}
                 </div>
 
                 {/* Detail Content */}
