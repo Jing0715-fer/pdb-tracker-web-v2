@@ -499,19 +499,16 @@ async function loadStructure(plugin: any, pdbId: string) {
   try {
     console.log('[molstar] Loading structure for:', pdbId);
     
-    // Use plugin's built-in loadStructureFromUrl if available
-    if (typeof plugin.loadStructureFromUrl === 'function') {
-      await plugin.loadStructureFromUrl(`https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`, 'mmcif');
-      console.log('[molstar] Structure loaded via loadStructureFromUrl');
-      return;
-    }
+    const url = `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`;
     
-    // Fallback: use DownloadStructure with pdb source
-    const { DownloadStructure } = await importWithRetry(() => import('molstar/lib/mol-plugin-state/actions/structure.js'));
+    // Download the CIF file - follows official molstar example pattern
+    const data = await plugin.builders.data.download({ url });
     
-    await plugin.state.data.build().apply(DownloadStructure, {
-      source: { pdb: { id: pdbId.toUpperCase() } }
-    }).commit();
+    // Parse to trajectory using mmcif format
+    const trajectory = await plugin.builders.structure.parseTrajectory(data, 'mmcif');
+    
+    // Apply the default structure preset
+    await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
     
     console.log('[molstar] Structure loaded successfully');
   } catch (err) {
