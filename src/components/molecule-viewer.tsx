@@ -498,6 +498,8 @@ export default function MoleculeViewer({
 async function loadStructure(plugin: any, pdbId: string) {
   try {
     const { Asset } = await importWithRetry(() => import('molstar/lib/mol-util/assets.js'));
+    const transforms = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'));
+    const modelTransforms = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/model.js'));
     
     // Try RCSB CIF files
     const sources = [
@@ -507,27 +509,23 @@ async function loadStructure(plugin: any, pdbId: string) {
     
     for (const url of sources) {
       try {
-        // Download data as binary
+        // Download the CIF file
         const data = await plugin.builders.data.download({
           url: Asset.Url(url),
           isBinary: true
         });
         
-        // Get mmcif format provider
-        const format = plugin.dataFormats.get('mmcif');
-        if (!format) {
-          console.warn('[molstar] No mmcif format provider');
-          continue;
-        }
+        // Build the parsing pipeline: Download -> ParseCif -> TrajectoryFromMmCif
+        const state = plugin.state.data;
+        const trajectory = await state.build()
+          .to(data)
+          .apply(transforms.ParseCif, void 0, { state: { isGhost: true } })
+          .apply(modelTransforms.TrajectoryFromMmCif)
+          .commit({ revertOnError: true });
         
-        // Parse to trajectory - mmcif parse returns { trajectory }
-        const result = await format.parse(plugin, data);
-        
-        // Apply structure preset using the trajectory
-        if (result && result.trajectory) {
-          await plugin.builders.structure.hierarchy.applyPreset(result.trajectory, 'default');
-          return;
-        }
+        // Apply the default structure preset
+        await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
+        return;
       } catch (e) {
         console.warn('[molstar] Failed:', url, (e as Error).message || e);
       }
