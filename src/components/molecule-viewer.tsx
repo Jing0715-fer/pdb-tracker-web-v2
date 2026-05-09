@@ -513,16 +513,21 @@ async function loadStructure(plugin: any, pdbId: string) {
           isBinary: true
         });
         
-        // Use ParseCif transformer
-        const transforms = await importWithRetry(() => import('molstar/lib/mol-plugin-state/transforms/data.js'));
-        const parsed = await plugin.state.data.build()
-          .to(data)
-          .apply(transforms.ParseCif)
-          .commit();
+        // Get mmcif format provider
+        const format = plugin.dataFormats.get('mmcif');
+        if (!format) {
+          console.warn('[molstar] No mmcif format provider');
+          continue;
+        }
         
-        // Apply structure preset
-        await plugin.builders.structure.hierarchy.applyPreset(parsed, 'default');
-        return;
+        // Parse to trajectory - mmcif parse returns { trajectory }
+        const result = await format.parse(plugin, data);
+        
+        // Apply structure preset using the trajectory
+        if (result && result.trajectory) {
+          await plugin.builders.structure.hierarchy.applyPreset(result.trajectory, 'default');
+          return;
+        }
       } catch (e) {
         console.warn('[molstar] Failed:', url, (e as Error).message || e);
       }
