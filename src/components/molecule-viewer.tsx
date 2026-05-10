@@ -549,8 +549,8 @@ async function loadStructure(plugin: any, pdbId: string) {
     // Parse to trajectory using mmcif format
     const trajectory = await plugin.builders.structure.parseTrajectory(data, 'mmcif');
     
-    // Apply the default structure preset
-    await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'default');
+    // Apply 'all' preset to create per-chain components (enables individual chain coloring)
+    await plugin.builders.structure.hierarchy.applyPreset(trajectory, 'all');
     
     console.log('[molstar] Structure loaded successfully');
   } catch (err) {
