@@ -168,47 +168,53 @@ export default function MoleculeViewer({
       
       const components = pivotStructure.components || [];
       console.log('[molstar] Pivot structure found, components:', components.length);
-      console.log('[molstar] First component structure:', JSON.stringify(components[0]?.constructor?.name), Object.keys(components[0] || {}));
       
-      // Also check currentStructures
-      const currentStructures = componentManager.currentStructures || [];
-      console.log('[molstar] Current structures:', currentStructures.length);
-      if (currentStructures.length > 0) {
-        console.log('[molstar] First structure keys:', Object.keys(currentStructures[0]));
-        console.log('[molstar] First structure components:', currentStructures[0].components?.length);
-      }
-      
-      // Apply color to ALL components to test if API works
-      const colorValues = Object.values(colors);
-      if (colorValues.length === 0) {
-        console.warn('[molstar] No colors to apply');
-        return;
-      }
-      const color = colorValues[0];
-      const colorNum = parseInt(color.replace('#', ''), 16);
-      console.log('[molstar] Applying color to ALL', components.length, 'components, color:', color, '-> num:', colorNum);
-      
-      for (let i = 0; i < components.length; i++) {
-        const comp = components[i];
-        console.log('[molstar] Component', i, 'keys:', Object.keys(comp), 'cell keys:', comp.cell ? Object.keys(comp.cell) : 'none');
-        
-        // Try to apply color - use any available ref
-        try {
-          const ref = comp.key || comp.cell?.ref || comp.cell?.obj?.ref;
-          console.log('[molstar] Trying to apply color to ref:', ref);
-          if (ref) {
-            componentManager.updateRepresentationsTheme([comp], {
-              color: 'uniform' as any,
-              colorParams: { value: colorNum, saturation: 0, lightness: 0 }
-            });
-            console.log('[molstar] Applied color to component', i);
-          }
-        } catch (e) {
-          console.warn('[molstar] Failed for component', i, ':', e);
+      // Build a map of component key -> component
+      const compByKey: Record<string, any> = {};
+      for (const comp of components) {
+        const key = comp.key;
+        if (key) {
+          compByKey[key] = comp;
+          console.log('[molstar] Component key:', key);
         }
+      }
+      
+      // Apply each entity's color to its corresponding component
+      for (const [entityKey, color] of Object.entries(colors)) {
+        const { chainId } = parseEntityKey(entityKey);
+        console.log('[molstar] Processing entityKey:', entityKey, 'chainId:', chainId, 'color:', color);
+        
+        // Find the component that matches this chainId
+        const comp = compByKey[chainId];
+        if (!comp) {
+          console.warn('[molstar] No component found for chainId:', chainId);
+          // Try to find by partial match (in case key includes pdbid prefix)
+          const matchedKey = Object.keys(compByKey).find(k => k.endsWith('.' + chainId) || k === chainId);
+          if (matchedKey) {
+            console.log('[molstar] Found partial match:', matchedKey);
+            applyColorToComponent(componentManager, compByKey[matchedKey], color);
+          }
+          continue;
+        }
+        
+        applyColorToComponent(componentManager, comp, color);
       }
     } catch (err) {
       console.warn('[molstar] Color application failed:', err);
+    }
+  }
+  
+  function applyColorToComponent(componentManager: any, comp: any, color: string) {
+    try {
+      const colorNum = parseInt(color.replace('#', ''), 16);
+      console.log('[molstar] Applying color', color, '-> num:', colorNum, 'to component key:', comp.key);
+      componentManager.updateRepresentationsTheme([comp], {
+        color: 'uniform' as any,
+        colorParams: { value: colorNum, saturation: 0, lightness: 0 }
+      });
+      console.log('[molstar] Applied color to component:', comp.key);
+    } catch (e) {
+      console.warn('[molstar] Failed to apply color to component:', e);
     }
   }
 
