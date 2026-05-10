@@ -7,170 +7,288 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model PdbStructure {
-  pdbId          String   @map("pdb_id") @id
-  method         String   @map("method")
-  releaseDate    String   @map("release_date")
-  resolution     Float?   @map("resolution")
-  resolutionHigh Float?   @map("resolution_high")
-  title          String   @map("title")
-  doi            String?  @map("doi")
-  journal        String?  @map("journal")
-  journalIf      Float?   @map("journal_if")
-  authors        String?  @map("authors")
-  organisms      String?  @map("organisms")
-  ligands        String?  @map("ligands")
-  pubmedId       String?  @map("pubmed_id")
-  fetchDate      String   @map("fetch_date")
-  weekId         String   @map("week_id")
-  isCryoem       Int      @default(0) @map("is_cryoem")
-  isXray         Int      @default(0) @map("is_xray")
-  ifTier         String   @default("unknown") @map("if_tier")
-
-  @@map("pdb_structures")
-  @@index([releaseDate])
-  @@index([method])
-  @@index([weekId])
-  @@index([journal])
-}
-
-model PdbChain {
-  id                Int     @id @default(autoincrement())
-  pdbId             String  @map("pdb_id")
-  asymId            String  @map("asym_id")
-  entityId          Int     @map("entity_id")
-  uniprotAccession  String? @map("uniprot_accession")
-  uniprotId         String? @map("uniprot_id")
-  geneName          String? @map("gene_name")
-  organismTaxId     Int?    @map("organism_tax_id")
-  organismName      String? @map("organism_name")
-  sequence          String? @map("sequence")
-  startResidue      Int?    @map("start_residue")
-  endResidue        Int?    @map("end_residue")
-
-  @@unique([pdbId, asymId])
-  @@map("pdb_chains")
-  @@index([uniprotAccession])
-  @@index([pdbId])
-}
-
-model WeeklySnapshot {
-  weekId           String  @map("week_id") @id
-  weekStart        String  @map("week_start")
-  weekEnd          String  @map("week_end")
-  totalStructures  Int?    @map("total_structures")
-  cryoemCount      Int?    @map("cryoem_count")
-  xrayCount        Int?    @map("xray_count")
-  nmrCount         Int?    @map("nmr_count")
-  otherCount       Int?    @map("other_count")
-  cryoemResDist    String? @map("cryoem_res_dist")
-  xrayResDist      String? @map("xray_res_dist")
-  cryoemAvgRes     Float?  @map("cryoem_avg_res")
-  xrayAvgRes       Float?  @map("xray_avg_res")
-  topJournals      String? @map("top_journals")
-  ifDist           String? @map("if_dist")
-  createdAt        String  @default("2025-01-01") @map("created_at")
-
-  @@map("weekly_snapshots")
-}
-
-model Evaluation {
-  uniprotId       String  @id @map("uniprot_id")
-  entryName       String? @map("entry_name")
-  proteinName     String? @map("protein_name")
-  geneNames       String? @map("gene_names")
-  organism        String? @map("organism")
-  sequenceLength  Int?    @map("sequence_length")
-  coverage        Float?  @map("coverage")
-  scores          String? @map("scores")
-  report          String? @map("report")
-  createdAt       String  @default("2025-01-01") @map("created_at")
-  updatedAt       String  @default("2025-01-01") @map("updated_at")
-
-  pdbStructures   EvaluationPdbStructure[]
-  blastResults    EvaluationBlastResult[]
-
-  @@map("evaluations")
-}
-
-model EvaluationPdbStructure {
+model evaluation_batches {
   id              Int     @id @default(autoincrement())
-  uniprotId       String  @map("uniprot_id")
-  pdbId           String  @map("pdb_id")
-  method          String? @map("method")
-  resolution      Float?  @map("resolution")
-  title           String? @map("title")
-  depositionDate  String? @map("deposition_date")
-  releaseDate     String? @map("release_date")
-  ligand          String? @map("ligand")
-  ligandNames     String? @map("ligand_names")
-  journal         String? @map("journal")
-  journalIf       Float?  @map("journal_if")
-  doi             String? @map("doi")
-  pubmedId        String? @map("pubmed_id")
-  organism        String? @map("organism")
-  authors         String? @map("authors")
-  isCryoem        Int     @default(0) @map("is_cryoem")
-  isXray          Int     @default(0) @map("is_xray")
-  isNmr           Int     @default(0) @map("is_nmr")
-  ifTier          String  @default("unknown") @map("if_tier")
-  updatedAt       String  @default("2025-01-01") @map("updated_at")
-
-  evaluation      Evaluation @relation(fields: [uniprotId], references: [uniprotId])
-
-  @@unique([uniprotId, pdbId])
-  @@map("evaluation_pdb_structures")
-  @@index([uniprotId])
+  batch_id        String? @unique(map: "sqlite_autoindex_evaluation_batches_1")
+  title           String? @default("")
+  combined_report String? @default("")
+  created_at      String? @default("")
+  updated_at      String? @default("")
 }
 
-model EvaluationBlastResult {
-  id             Int     @id @default(autoincrement())
-  uniprotId      String  @map("uniprot_id")
-  pdbId          String? @map("pdb_id")
-  uniprotRef     String? @map("uniprot_ref")
-  description    String? @map("description")
-  identity       Int?    @map("identity")
-  evalue         Float?  @map("evalue")
-  queryCoverage  Int?    @map("query_coverage")
-  targetCoverage Int?    @map("target_coverage")
-  method         String? @map("method")
-  resolution     Float?  @map("resolution")
-  releaseDate    String? @map("release_date")
-  source         String? @map("source")
-  taxonomyId     Int?    @map("taxonomy_id")
-  journal        String? @map("journal")
-  journalIf      Float?  @map("journal_if")
-  ifTier         String  @default("unknown") @map("if_tier")
-  ligand         String? @map("ligand")
-  title          String? @map("title")
-  updatedAt      String  @default("2025-01-01") @map("updated_at")
+model evaluation_blast_results {
+  id              Int         @id @default(autoincrement())
+  uniprot_id      String
+  pdb_id          String?
+  uniprot_ref     String?
+  description     String?
+  identity        Int?
+  evalue          Float?
+  query_coverage  Int?
+  source          String?
+  taxonomy_id     Int?
+  updated_at      String?
+  target_coverage Int?
+  method          String?     @default("")
+  resolution      Float?
+  release_date    String?     @default("")
+  journal         String?     @default("")
+  journal_if      Float?
+  if_tier         String?     @default("unknown")
+  ligand          String?     @default("")
+  title           String?     @default("")
+  evaluations     evaluations @relation(fields: [uniprot_id], references: [uniprot_id], onDelete: Cascade, onUpdate: NoAction) @ignore
 
-  evaluation     Evaluation @relation(fields: [uniprotId], references: [uniprotId])
-
-  @@map("evaluation_blast_results")
-  @@index([uniprotId])
+  @@index([uniprot_id], map: "idx_eval_blast_uniprot")
 }
 
-model WeeklyReport {
+model evaluation_pdb {
+  id           Int     @id @default(autoincrement())
+  uniprot_id   String
+  pdb_id       String
+  method       String?
+  resolution   Float?
+  title        String?
+  release_date String?
+  organism     String?
+  chain_id     String?
+  unp_start    Int?
+  unp_end      Int?
+  ligand       String?
+  doi          String?
+  pubmed_id    String?
+
+  @@unique([uniprot_id, pdb_id, chain_id], map: "sqlite_autoindex_evaluation_pdb_1")
+}
+
+model evaluation_pdb_structures {
+  id              Int         @id @default(autoincrement())
+  uniprot_id      String
+  pdb_id          String
+  method          String?     @default("")
+  resolution      Float?
+  title           String?     @default("")
+  deposition_date String?     @default("")
+  release_date    String?     @default("")
+  ligand          String?     @default("")
+  ligand_names    String?     @default("")
+  journal         String?     @default("")
+  journal_if      Float?
+  doi             String?     @default("")
+  pubmed_id       String?     @default("")
+  organism        String?     @default("")
+  authors         String?     @default("")
+  is_cryoem       Int?        @default(0)
+  is_xray         Int?        @default(0)
+  is_nmr          Int?        @default(0)
+  if_tier         String?     @default("unknown")
+  updated_at      String?     @default("")
+  evaluations     evaluations @relation(fields: [uniprot_id], references: [uniprot_id], onDelete: Cascade, onUpdate: NoAction) @ignore
+
+  @@unique([uniprot_id, pdb_id], map: "idx_eval_pdb")
+}
+
+model evaluation_reports {
+  id         Int     @id @default(autoincrement())
+  uniprot_id String? @unique(map: "sqlite_autoindex_evaluation_reports_1")
+  title      String? @default("")
+  filename   String?
+  content    String? @default("")
+  created_at String? @default("datetime('now')")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model evaluations {
+  uniprot_id                String?                     @id
+  entry_name                String?
+  protein_name              String?
+  gene_names                String?
+  organism                  String?
+  sequence_length           Int?
+  coverage                  Float?                      @default(0)
+  scores                    String?                     @default("{}")
+  report                    String?                     @default("")
+  created_at                String?                     @default("")
+  updated_at                String?                     @default("")
+  batch_id                  String?
+  evaluation_blast_results  evaluation_blast_results[]
+  evaluation_pdb_structures evaluation_pdb_structures[]
+
+  @@index([batch_id], map: "idx_evaluations_batch")
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model ligands {
+  code        String? @id
+  name        String?
+  formula     String?
+  weight      String?
+  type        String?
+  description String?
+  image_url   String?
+  source      String? @default("rcsb")
+  fetched_at  String? @default("datetime('now')")
+
+  @@ignore
+}
+
+model pdb_chains {
+  id                Int            @id @default(autoincrement())
+  pdb_id            String
+  asym_id           String?
+  entity_id         Int?
+  uniprot_accession String?
+  uniprot_id        String?
+  gene_name         String?
+  organism_tax_id   Int?
+  organism_name     String?
+  sequence          String?
+  start_residue     Int?
+  end_residue       Int?
+  pdb_structures    pdb_structures @relation(fields: [pdb_id], references: [pdb_id], onDelete: Cascade, onUpdate: NoAction) @ignore
+
+  @@unique([pdb_id, asym_id], map: "sqlite_autoindex_pdb_chains_1")
+  @@index([pdb_id], map: "idx_chain_pdb")
+  @@index([uniprot_accession], map: "idx_chain_uniprot")
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model pdb_entities {
+  pdb_id         String
+  entity_id      Int
+  asym_id        String?
+  molecule_type  String?
+  chain          String?
+  description    String?
+  organism       String?
+  gene_name      String?
+  sequence       String?
+  length         Int?
+  pdb_structures pdb_structures @relation(fields: [pdb_id], references: [pdb_id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([pdb_id, entity_id, asym_id], map: "sqlite_autoindex_pdb_entities_1")
+  @@index([pdb_id], map: "idx_entity_pdb")
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model pdb_structures {
+  pdb_id            String?             @id
+  method            String
+  release_date      String
+  resolution        Float?
+  resolution_high   Float?
+  title             String?
+  doi               String?
+  journal           String?
+  journal_if        Float?
+  authors           String?
+  organisms         String?
+  ligands           String?
+  pubmed_id         String?
+  fetch_date        String
+  week_id           String?
+  ligand_info       String?
+  ligand_images     String?
+  ligand_names      String?
+  assembly          String?
+  polymer_entities  Int?
+  chain_count       Int?
+  pdb_chains        pdb_chains[]
+  pdb_entities      pdb_entities[]
+  pubmed_abstracts  pubmed_abstracts[]
+  target_structures target_structures[]
+
+  @@index([journal], map: "idx_pdb_journal")
+  @@index([week_id], map: "idx_pdb_week")
+  @@index([method], map: "idx_pdb_method")
+  @@index([release_date], map: "idx_pdb_release")
+  @@ignore
+}
+
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model pubmed_abstracts {
+  pmid           String?         @id
+  pdb_id         String?
+  doi            String?
+  title          String?
+  abstract       String?
+  authors        String?
+  journal        String?
+  pub_date       String?
+  fetch_date     String?         @default("datetime('now')")
+  pdb_structures pdb_structures? @relation(fields: [pdb_id], references: [pdb_id], onUpdate: NoAction)
+
+  @@index([doi], map: "idx_abstract_doi")
+  @@index([pdb_id], map: "idx_abstract_pdb")
+  @@ignore
+}
+
+model target_structures {
+  id              Int             @id @default(autoincrement())
+  target_id       Int
+  pdb_id          String
+  method          String?
+  release_date    String?
+  resolution      Float?
+  journal         String?
+  journal_if      Float?
+  is_new          Int?            @default(0)
+  first_seen_at   String?         @default("datetime('now')")
+  pdb_structures  pdb_structures  @relation(fields: [pdb_id], references: [pdb_id], onDelete: Cascade, onUpdate: NoAction) @ignore
+  target_tracking target_tracking @relation(fields: [target_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([target_id, pdb_id], map: "sqlite_autoindex_target_structures_1")
+  @@index([is_new], map: "idx_ts_new")
+  @@index([pdb_id], map: "idx_ts_pdb")
+  @@index([target_id], map: "idx_ts_target")
+}
+
+model target_tracking {
+  id                Int                 @id @default(autoincrement())
+  uniprot_acc       String              @unique(map: "sqlite_autoindex_target_tracking_1")
+  gene_name         String?
+  protein_name      String?
+  disease_area      String?
+  target_notes      String?
+  is_active         Int?                @default(1)
+  created_at        String?             @default("datetime('now')")
+  updated_at        String?             @default("datetime('now')")
+  target_structures target_structures[]
+}
+
+model weekly_reports {
   id          Int     @id @default(autoincrement())
-  weekId      String  @map("week_id")
-  reportType  String  @default("all") @map("report_type")
-  title       String? @map("title")
-  filename    String? @map("filename")
-  content     String? @map("content")
-  createdAt   String?  @default("2025-01-01") @map("created_at")
+  week_id     String
+  report_type String? @default("all")
+  title       String? @default("")
+  filename    String?
+  content     String? @default("")
+  created_at  String?
 
-  @@unique([weekId, reportType])
-  @@map("weekly_reports")
+  @@unique([week_id, report_type], map: "sqlite_autoindex_weekly_reports_1")
 }
 
-model EvaluationReport {
-  id          Int     @id @default(autoincrement())
-  uniprotId   String  @map("uniprot_id") @unique
-  title       String? @map("title")
-  filename    String? @map("filename")
-  content     String? @map("content")
-  createdAt   String  @default("2025-01-01") @map("created_at")
+/// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model weekly_snapshots {
+  week_id          String? @id
+  week_start       String
+  week_end         String
+  total_structures Int?
+  cryoem_count     Int?
+  xray_count       Int?
+  nmr_count        Int?
+  other_count      Int?
+  cryoem_res_dist  String?
+  xray_res_dist    String?
+  cryoem_avg_res   Float?
+  xray_avg_res     Float?
+  top_journals     String?
+  if_dist          String?
+  raw_json_path    String?
+  created_at       String? @default("datetime('now')")
 
-  @@map("evaluation_reports")
+  @@index([week_start], map: "idx_snapshot_week")
+  @@ignore
 }

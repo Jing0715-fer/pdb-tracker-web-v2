@@ -16,6 +16,7 @@ import {
   Microscope,
   FlaskConical,
   Database,
+  FileSearch,
   ExternalLink,
   Calendar,
   ArrowUpDown,
@@ -1889,6 +1890,11 @@ export default function PdbTracker() {
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
   const [selectedEvalStructure, setSelectedEvalStructure] = useState<(EvalPdbStructure & { isBlast?: boolean }) | null>(null);
   const [evalReports, setEvalReports] = useState<EvaluationReport[]>([]);
+  // ── Evaluation Group (Batch) State ──
+  const [expandedEvalGroups, setExpandedEvalGroups] = useState<Set<string>>(new Set());
+  const [evalBatches, setEvalBatches] = useState<Array<{isBatch:true; batchId:string; title:string; subTargetCount:number; combinedReport:string; createdAt:string}>>([]);
+  const [evalBatchSubTargets, setEvalBatchSubTargets] = useState<Record<string, Array<{uniprotId:string; proteinName:string; geneName:string; organism:string; bestScore:number; pdbCount:number}>>>({});
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
 
   // ── Filters & Sort ──
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -2010,7 +2016,7 @@ export default function PdbTracker() {
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   // ── Desktop Sidebar Toggle State ──
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(false);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(true);
 
   // Initialize sidebarOpen and previewOpen based on viewport width on mount (hydration-safe)
   useEffect(() => {
@@ -2227,7 +2233,7 @@ export default function PdbTracker() {
       const saved = localStorage.getItem('pdb-sidebar-width');
       if (saved) return Math.min(400, Math.max(190, Number(saved)));
     } catch { /* ignore */ }
-    return 266;
+    return 280;
   });
   const [previewWidth, setPreviewWidth] = useState<number>(() => {
     try {
@@ -2748,7 +2754,9 @@ export default function PdbTracker() {
       try {
         const res = await fetch('/api/evaluations');
         const data = await res.json();
-        setEvaluations(data);
+        setEvaluations(data.individualEvals || []);
+        setEvalBatches(data.batches || []);
+        setEvalBatchSubTargets(data.batchSubTargets || {});
       } catch (e) { console.error('Failed to fetch evaluations:', e); }
       finally { setLoadingEvals(false); }
     }
@@ -3890,71 +3898,85 @@ export default function PdbTracker() {
                     </HoverCardContent>
                   </HoverCard>
                 ))}
-                {mode === 'evaluation' && evaluations.slice(0, 20).map(ev => {
-                  const evCryoem = ev.pdbStructures.filter(s => s.method === 'Cryo-EM').length;
-                  const evXray = ev.pdbStructures.filter(s => s.method === 'X-ray').length;
-                  const resStructures = ev.pdbStructures.filter(s => s.resolution != null);
-                  const evAvgRes = resStructures.length > 0
-                    ? resStructures.reduce((sum, s) => sum + s.resolution!, 0) / resStructures.length
-                    : null;
-                  const evBlast = ev.blastResults.length;
-                  const evTotal = ev.pdbStructures.length + evBlast;
-                  return (
-                    <HoverCard key={ev.uniprotId} openDelay={300} closeDelay={100}>
-                      <HoverCardTrigger asChild>
-                        <button
-                          onClick={() => { setSelectedEvalId(ev.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                          onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setEvalContextMenu({ x: e.clientX, y: e.clientY, uniprotId: ev.uniprotId }); }}
-                          className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
-                            selectedEvalId === ev.uniprotId
-                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                              : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
-                          }`}
-                        >
-                          {ev.uniprotId.replace('U', '')}
-                        </button>
-                      </HoverCardTrigger>
-                      <HoverCardContent
-                        side="right"
-                        align="center"
-                        className="w-56 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl"
-                      >
-                        <div className="text-xs font-semibold text-claude-text truncate">{ev.proteinName || ev.uniprotId}</div>
-                        {ev.geneNames && <div className="text-[10px] text-claude-text-muted">Gene: {ev.geneNames}</div>}
-                        <div className="flex gap-1.5 flex-wrap">
-                          {evCryoem > 0 && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-cryoem-bg text-claude-cryoem">
-                              EM {evCryoem}
-                            </span>
+                {mode === 'evaluation' && (() => {
+                  const evalItems = [...evalBatches.map(b => ({ ...b, _type: 'batch' as const })), ...evaluations.slice(0, 40).map(e => ({ ...e, _type: 'individual' as const }))];
+                  return evalItems.slice(0, 40).map(item => {
+                    if (item._type === 'batch') {
+                      const batch = item as any;
+                      const isExpanded = expandedEvalGroups.has(batch.batchId);
+                      const subs = evalBatchSubTargets[batch.batchId] || [];
+                      return (
+                        <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={v => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (v) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
+                          <CollapsibleTrigger asChild>
+                            <button className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
+                              selectedBatchId === batch.batchId
+                                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 shadow-sm'
+                                : 'text-purple-600 dark:text-purple-400 hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                            }`}>
+                              <Layers className="h-3 w-3 mr-0.5 flex-shrink-0" />
+                              <span className="truncate">{batch.subTargetCount}</span>
+                            </button>
+                          </CollapsibleTrigger>
+                          {isExpanded && (
+                            <CollapsibleContent>
+                              <div className="mt-1 space-y-0.5 pl-1">
+                                {subs.map((sub: any) => (
+                                  <button
+                                    key={sub.uniprotId}
+                                    onClick={() => { setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                    className={`w-full h-6 rounded flex items-center justify-center text-[9px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate ${
+                                      selectedEvalId === sub.uniprotId
+                                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                                        : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                                    }`}
+                                  >
+                                    {sub.uniprotId.replace('U', '')}
+                                  </button>
+                                ))}
+                              </div>
+                            </CollapsibleContent>
                           )}
-                          {evXray > 0 && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-xray-bg text-claude-xray">
-                              XR {evXray}
-                            </span>
-                          )}
-                          {evBlast > 0 && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent">
-                              BLAST {evBlast}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex justify-between text-[10px]">
-                          <span className="text-claude-text-muted">Total structures</span>
-                          <span className="font-mono text-claude-text-secondary">{evTotal}</span>
-                        </div>
-                        {evAvgRes != null && (
-                          <div className="flex justify-between text-[10px]">
-                            <span className="text-claude-text-muted">Avg Resolution</span>
-                            <span className="font-mono text-claude-text-secondary">{evAvgRes.toFixed(2)}Å</span>
+                        </Collapsible>
+                      );
+                    }
+                    const ev = item as Evaluation;
+                    const evCryoem = ev.pdbStructures.filter(s => (s.method as string)?.includes('Cryo') || (s.method as string)?.includes('ELECTRON MICROSCOPY')).length;
+                    const evXray = ev.pdbStructures.filter(s => (s.method as string)?.includes('X-Ray') || (s.method as string)?.includes('X-RAY')).length;
+                    const evBlast = ev.blastResults.length;
+                    const evTotal = ev.pdbStructures.length + evBlast;
+                    return (
+                      <HoverCard key={ev.uniprotId} openDelay={300} closeDelay={100}>
+                        <HoverCardTrigger asChild>
+                          <button
+                            onClick={() => { setSelectedEvalId(ev.uniprotId); setSelectedBatchId(null); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setEvalContextMenu({ x: e.clientX, y: e.clientY, uniprotId: ev.uniprotId }); }}
+                            className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
+                              selectedEvalId === ev.uniprotId
+                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                                : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                            }`}
+                          >
+                            {ev.uniprotId.replace('U', '')}
+                          </button>
+                        </HoverCardTrigger>
+                        <HoverCardContent side="right" align="center" className="w-56 p-3 space-y-2 bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] rounded-xl shadow-xl">
+                          <div className="text-xs font-semibold text-claude-text truncate">{ev.proteinName || ev.uniprotId}</div>
+                          {ev.geneNames && <div className="text-[10px] text-claude-text-muted">Gene: {ev.geneNames}</div>}
+                          <div className="flex gap-1.5 flex-wrap">
+                            {evCryoem > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-cryoem-bg text-claude-cryoem">EM {evCryoem}</span>}
+                            {evXray > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-xray-bg text-claude-xray">XR {evXray}</span>}
+                            {evBlast > 0 && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent">BLAST {evBlast}</span>}
                           </div>
-                        )}
-                        <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">
-                          Click to view
-                        </div>
-                      </HoverCardContent>
-                    </HoverCard>
-                  );
-                })}
+                          <div className="flex justify-between text-[10px]">
+                            <span className="text-claude-text-muted">Total structures</span>
+                            <span className="font-mono text-claude-text-secondary">{evTotal}</span>
+                          </div>
+                          <div className="text-[9px] text-claude-text-muted/60 text-center pt-1 border-t border-claude-border/50">Click to view</div>
+                        </HoverCardContent>
+                      </HoverCard>
+                    );
+                  });
+                })()}
               </div>
             </div>
           )}
@@ -7218,6 +7240,58 @@ export default function PdbTracker() {
 
               <Separator className="my-2" />
 
+              {/* Complex Evaluation Groups */}
+              {evalBatches.length > 0 && (
+                <div className="mb-2">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1 flex items-center gap-1">
+                    <Layers className="h-3 w-3 text-purple-500" />
+                    Complex Evaluation
+                  </div>
+                  <div className="space-y-0.5">
+                    {evalBatches.map(batch => {
+                      const isExpanded = expandedEvalGroups.has(batch.batchId);
+                      const subs = evalBatchSubTargets[batch.batchId] || [];
+                      return (
+                        <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={v => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (v) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
+                          <CollapsibleTrigger asChild>
+                            <button className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
+                              selectedBatchId === batch.batchId
+                                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 shadow-sm'
+                                : 'text-purple-600 dark:text-purple-400 hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
+                            }`}>
+                              <Layers className="h-3 w-3 mr-0.5 flex-shrink-0" />
+                              <span className="truncate">{batch.title || batch.batchId}</span>
+                              <span className="ml-1 text-[9px] opacity-70">({batch.subTargetCount})</span>
+                            </button>
+                          </CollapsibleTrigger>
+                          {isExpanded && (
+                            <CollapsibleContent>
+                              <div className="mt-1 space-y-0.5 pl-1">
+                                {subs.map((sub: any) => (
+                                  <button
+                                    key={sub.uniprotId}
+                                    onClick={() => { setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                    className={`w-full h-6 rounded flex items-center justify-center text-[9px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate ${
+                                      selectedEvalId === sub.uniprotId
+                                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
+                                        : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
+                                    }`}
+                                  >
+                                    {sub.uniprotId.replace('U', '')}
+                                  </button>
+                                ))}
+                              </div>
+                            </CollapsibleContent>
+                          )}
+                        </Collapsible>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              <Separator className="my-2" />
+
               {/* Individual Evaluations */}
               <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1">Individual Evaluations</div>
 
@@ -7415,6 +7489,8 @@ export default function PdbTracker() {
               ) : (
                 <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} entries={entries} />
               )
+            ) : mode === 'evaluation' && selectedEval && selectedBatchId ? (
+              <BatchPreviewContent batchId={selectedBatchId} onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }} selectedSubTargetId={selectedEvalId} allEvals={evaluations} evalBatches={evalBatches} evalBatchSubTargets={evalBatchSubTargets} />
             ) : mode === 'evaluation' && selectedEval ? (
               <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
             ) : (
@@ -9330,6 +9406,149 @@ function WeekComparisonView({
           </ResponsiveContainer>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── Batch Preview Content Sub-Component ────────────────────────────────────────
+
+function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, allEvals, evalBatches, evalBatchSubTargets }: { batchId: string; onSelectSubTarget: (uniprotId: string) => void; selectedSubTargetId: string | null; allEvals: Evaluation[]; evalBatches: any[]; evalBatchSubTargets: Record<string, any[]> }) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+  const batch = evalBatches.find(b => b.batchId === batchId);
+  const subTargets = evalBatchSubTargets[batchId] || [];
+
+  if (!batch) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+        <p className="text-xs">Batch not found</p>
+      </div>
+    );
+  }
+
+  // Compute batch-level stats
+  const totalPdb = subTargets.reduce((sum, sub) => sum + (sub.pdbCount || 0), 0);
+  const totalBlast = subTargets.reduce((sum, sub) => sum + (sub.blastCount || 0), 0);
+  const avgScore = subTargets.length > 0 ? subTargets.reduce((sum, sub) => sum + (sub.bestScore || 0), 0) / subTargets.length : 0;
+  const scoreColor = avgScore >= 80 ? '#2d8f8f' : avgScore >= 50 ? '#c9872e' : avgScore >= 25 ? '#ea580c' : '#dc2626';
+
+  return (
+    <div className="p-3 space-y-3">
+      {/* ── Batch Hero Card ── */}
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-3">
+        <div className="flex items-start gap-3">
+          {/* Batch Icon */}
+          <div className="flex-shrink-0 w-[88px] h-[88px] rounded-full bg-purple-100 dark:bg-purple-900/20 flex flex-col items-center justify-center border-2 border-purple-200 dark:border-purple-800">
+            <Layers className="h-8 w-8 text-purple-500" />
+            <span className="text-[11px] font-bold font-mono text-purple-600 dark:text-purple-300 mt-1">{subTargets.length}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="text-sm font-semibold text-claude-text leading-tight">{batch.title || 'Batch'}</h2>
+            <p className="text-[11px] text-claude-text-muted mt-0.5">Complex Evaluation Group</p>
+            {/* Stats row */}
+            <div className="flex items-center gap-3 mt-2">
+              <div className="flex items-center gap-1">
+                <Database className="h-3 w-3 text-claude-text-muted" />
+                <span className="text-[11px] font-mono font-semibold text-claude-text">{totalPdb}</span>
+                <span className="text-[10px] text-claude-text-muted">PDB</span>
+              </div>
+              <div className="w-px h-3 bg-claude-border" />
+              <div className="flex items-center gap-1">
+                <FileSearch className="h-3 w-3 text-claude-text-muted" />
+                <span className="text-[11px] font-mono font-semibold text-claude-text">{totalBlast}</span>
+                <span className="text-[10px] text-claude-text-muted">BLAST</span>
+              </div>
+              <div className="w-px h-3 bg-claude-border" />
+              <div className="flex items-center gap-1">
+                <span className="text-[10px] text-claude-text-muted">Score</span>
+                <span className="text-[11px] font-mono font-bold" style={{ color: scoreColor }}>{avgScore.toFixed(1)}</span>
+              </div>
+            </div>
+          </div>
+          {/* Batch badge */}
+          <div className="flex-shrink-0">
+            <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+              <Layers className="h-3 w-3 mr-1" />Batch
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Combined Report ── */}
+      {batch.combinedReport && (
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5 text-claude-accent" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Combined Report</span>
+          </div>
+          <div className="text-[11px] text-claude-text-secondary leading-relaxed whitespace-pre-wrap pl-4 border-l-2 border-claude-border/50 dark:border-[#3d3832]/50">
+            {batch.combinedReport}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sub-targets ── */}
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+        <div className="flex items-center gap-1.5">
+          <Layers className="h-3.5 w-3.5 text-purple-500" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Sub-targets ({subTargets.length})</span>
+        </div>
+        <div className="space-y-1">
+          {subTargets.map(sub => {
+            const subEval = allEvals.find(e => e.uniprotId === sub.uniprotId);
+            const covPct = subEval?.coverage ? Math.min(subEval.coverage, 100) : 0;
+            const covColor = covPct >= 80 ? '#2d8f8f' : covPct >= 50 ? '#c9872e' : covPct >= 25 ? '#ea580c' : '#dc2626';
+            const subScore = sub.bestScore || 0;
+            const subScoreColor = subScore >= 80 ? '#2d8f8f' : subScore >= 50 ? '#c9872e' : subScore >= 25 ? '#ea580c' : '#dc2626';
+            return (
+              <button
+                key={sub.uniprotId}
+                onClick={() => onSelectSubTarget(sub.uniprotId)}
+                className={`w-full text-left p-2.5 rounded-lg border transition-all duration-150 ${
+                  selectedSubTargetId === sub.uniprotId
+                    ? 'border-claude-accent/40 bg-claude-accent-light/30 dark:bg-[#3d2a22]/30'
+                    : 'border-claude-border/50 dark:border-[#3d3832]/50 hover:border-claude-accent/30 hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30'
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[11px] font-semibold text-claude-accent">{sub.uniprotId}</span>
+                      {sub.geneName && <span className="text-[10px] text-claude-text-muted">({sub.geneName})</span>}
+                    </div>
+                    <div className="text-[10px] text-claude-text-muted truncate mt-0.5">{sub.proteinName || subEval?.proteinName || '-'}</div>
+                    {/* Mini stats */}
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-[9px] text-claude-text-muted">
+                        <span className="font-mono font-semibold">{sub.pdbCount || 0}</span> PDB
+                      </span>
+                      <span className="text-[9px] text-claude-text-muted">
+                        <span className="font-mono font-semibold">{sub.blastCount || 0}</span> BLAST
+                      </span>
+                      {covPct > 0 && (
+                        <span className="text-[9px] font-mono" style={{ color: covColor }}>{covPct.toFixed(0)}%</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end flex-shrink-0">
+                    {subScore > 0 && (
+                      <div className="flex items-center gap-1">
+                        <div className="w-8 h-1.5 rounded-full bg-claude-border dark:bg-[#3d3832] overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${Math.min(subScore, 100)}%`, backgroundColor: subScoreColor }} />
+                        </div>
+                        <span className="text-[10px] font-mono font-bold" style={{ color: subScoreColor }}>{subScore.toFixed(1)}</span>
+                      </div>
+                    )}
+                    {selectedSubTargetId === sub.uniprotId && (
+                      <span className="text-[9px] text-claude-accent mt-1">Viewing</span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
