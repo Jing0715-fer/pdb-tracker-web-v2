@@ -100,12 +100,14 @@ export default function MoleculeViewer({
     prevHighlightRef.current = highlightEntity;
   }, [highlightEntity]);
 
-  // Apply colors when entityColors changes
+  // Apply colors when entityColors changes (after plugin is initialized)
   useEffect(() => {
     if (!pluginRef.current) return;
     if (Object.keys(entityColors).length === 0) return;
+    if (!entities || entities.length === 0) return;
+    console.log('[molstar] entityColors changed, applying colors:', entityColors);
     applyColors(pluginRef.current, entityColors);
-  }, [entityColors]);
+  }, [entityColors, entities]);
 
   // Parse entity key like "1MBN.A" into parts
   const parseEntityKey = (key: string) => {
@@ -148,27 +150,61 @@ export default function MoleculeViewer({
   // Apply colors to entities
   async function applyColors(plugin: any, colors: Record<string, string>) {
     try {
-      const { PluginCommands } = await importWithRetry(() => import('molstar/lib/mol-plugin/commands.js'));
+      console.log('[molstar] applyColors called with:', colors);
       
-      // Apply colors to each colored entity
-      for (const [entityKey, color] of Object.entries(colors)) {
-        const { chainId } = parseEntityKey(entityKey);
+      // Get structure component manager
+      const componentManager = plugin.managers.structure.component;
+      if (!componentManager) {
+        console.warn('[molstar] No component manager found');
+        return;
+      }
+      
+      // Get current structures from pivot
+      const pivotStructure = componentManager.pivotStructure;
+      if (!pivotStructure) {
+        console.warn('[molstar] No pivot structure found');
+        return;
+      }
+      
+      const components = pivotStructure.components || [];
+      console.log('[molstar] Pivot structure found, components:', components.length);
+      console.log('[molstar] First component structure:', JSON.stringify(components[0]?.constructor?.name), Object.keys(components[0] || {}));
+      
+      // Also check currentStructures
+      const currentStructures = componentManager.currentStructures || [];
+      console.log('[molstar] Current structures:', currentStructures.length);
+      if (currentStructures.length > 0) {
+        console.log('[molstar] First structure keys:', Object.keys(currentStructures[0]));
+        console.log('[molstar] First structure components:', currentStructures[0].components?.length);
+      }
+      
+      // Apply color to ALL components to test if API works
+      const colorValues = Object.values(colors);
+      if (colorValues.length === 0) {
+        console.warn('[molstar] No colors to apply');
+        return;
+      }
+      const color = colorValues[0];
+      const colorNum = parseInt(color.replace('#', ''), 16);
+      console.log('[molstar] Applying color to ALL', components.length, 'components, color:', color, '-> num:', colorNum);
+      
+      for (let i = 0; i < components.length; i++) {
+        const comp = components[i];
+        console.log('[molstar] Component', i, 'keys:', Object.keys(comp), 'cell keys:', comp.cell ? Object.keys(comp.cell) : 'none');
         
+        // Try to apply color - use any available ref
         try {
-          // Use MolScript to select and apply color
-          const query = `chain "${chainId}"`;
-          const sel = plugin.state.select(query);
-          
-          if (sel.length > 0) {
-            // Apply custom color via theme
-            for (const s of sel) {
-              if (s.ref) {
-                plugin.managers.structure.component.updateTransform(s.ref, { color });
-              }
-            }
+          const ref = comp.key || comp.cell?.ref || comp.cell?.obj?.ref;
+          console.log('[molstar] Trying to apply color to ref:', ref);
+          if (ref) {
+            componentManager.updateRepresentationsTheme([comp], {
+              color: 'uniform' as any,
+              colorParams: { value: colorNum, saturation: 0, lightness: 0 }
+            });
+            console.log('[molstar] Applied color to component', i);
           }
         } catch (e) {
-          console.warn(`[molstar] Could not apply color to ${entityKey}:`, e);
+          console.warn('[molstar] Failed for component', i, ':', e);
         }
       }
     } catch (err) {
