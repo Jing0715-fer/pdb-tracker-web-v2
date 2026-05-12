@@ -35,23 +35,29 @@ export async function GET(request: NextRequest) {
     for (const bid of batchIds) {
       const subs = await db.$queryRaw<any[]>`
         SELECT e.uniprot_id, e.protein_name, e.gene_names, e.organism, e.scores,
-               COUNT(p.pdb_id) as pdbCount
+               COUNT(DISTINCT p.pdb_id) as pdbCount
         FROM evaluations e
         LEFT JOIN evaluation_pdb_structures p ON e.uniprot_id = p.uniprot_id
         WHERE e.batch_id = ${bid}
         GROUP BY e.uniprot_id
         ORDER BY e.created_at DESC
       `;
+      const blastCounts: Record<string, number> = {};
+      for (const s of subs) {
+        const bc = await db.$queryRaw<any[]>`SELECT COUNT(*) as cnt FROM evaluation_blast_results WHERE uniprot_id = ${s.uniprot_id}`;
+        blastCounts[s.uniprot_id as string] = Number(bc[0]?.cnt) || 0;
+      }
       batchSubTargets[bid] = subs.map((s: any) => {
         let scoresObj = {};
         try { scoresObj = s.scores ? JSON.parse(s.scores) : {}; } catch { /* ignore */ }
-        return { 
-          uniprotId: s.uniprot_id, 
-          proteinName: s.protein_name || '', 
-          geneName: s.gene_names || '', 
-          organism: s.organism || '', 
+        return {
+          uniprotId: s.uniprot_id,
+          proteinName: s.protein_name || '',
+          geneName: s.gene_names || '',
+          organism: s.organism || '',
           pdbCount: Number(s.pdbCount) || 0,
-          bestScore: scoresObj?.Overall?.score || 0 
+          blastCount: blastCounts[s.uniprot_id] || 0,
+          bestScore: scoresObj?.Overall?.score || 0
         };
       });
     }

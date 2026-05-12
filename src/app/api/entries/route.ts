@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
 import { Prisma } from '@prisma/client';
+import { db } from '@/lib/db';
+
+function toCamelCase(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelCase);
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    result[camelKey] = value;
+  }
+  return result;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -10,41 +21,46 @@ export async function GET(request: NextRequest) {
     const q = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '200');
 
-    const where: Prisma.PdbStructureWhereInput = {};
+    const conditions: any[] = [];
 
     if (week) {
-      where.weekId = week;
+      conditions.push(Prisma.sql`week_id = ${week}`);
     }
 
     if (method && method !== 'all') {
       if (method === 'Cryo-EM') {
-        where.isCryoem = 1;
+        conditions.push(Prisma.sql`method LIKE ${'%Cryo-EM%'}`);
       } else if (method === 'X-RAY DIFFRACTION') {
-        where.isXray = 1;
+        conditions.push(Prisma.sql`method LIKE ${'%X-RAY%'}`);
       } else if (method === 'SOLUTION NMR') {
-        where.method = { contains: 'NMR' };
+        conditions.push(Prisma.sql`method LIKE ${'%NMR%'}`);
       } else if (method === 'ELECTRON CRYSTALLOGRAPHY') {
-        where.method = { contains: 'ELECTRON CRYSTALLOGRAPHY' };
+        conditions.push(Prisma.sql`method LIKE ${'%ELECTRON CRYSTALLOGRAPHY%'}`);
       }
     }
 
     if (q) {
-      where.OR = [
-        { pdbId: { contains: q.toUpperCase() } },
-        { title: { contains: q } },
-        { journal: { contains: q } },
-        { organisms: { contains: q } },
-        { ligands: { contains: q.toUpperCase() } },
-      ];
+      const upperQ = q.toUpperCase();
+      conditions.push(Prisma.sql`(
+        pdb_id LIKE ${'%' + upperQ + '%'} OR
+        title LIKE ${'%' + q + '%'} OR
+        journal LIKE ${'%' + q + '%'} OR
+        organisms LIKE ${'%' + q + '%'} OR
+        ligands LIKE ${'%' + upperQ + '%'}
+      )`);
     }
 
-    const entries = await db.pdbStructure.findMany({
-      where,
-      orderBy: { releaseDate: 'desc' },
-      take: limit,
-    });
+    const whereClause = conditions.length > 0
+      ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+      : Prisma.sql``;
 
-    return NextResponse.json(entries);
+    const entries = await db.$queryRaw`
+      SELECT * FROM pdb_structures ${whereClause}
+      ORDER BY release_date DESC
+      LIMIT ${limit}
+    `;
+
+    return NextResponse.json((entries as any[]).map(toCamelCase));
   } catch (error) {
     console.error('Error fetching entries:', error);
     return NextResponse.json([], { status: 500 });

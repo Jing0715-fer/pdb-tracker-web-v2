@@ -74,7 +74,6 @@ import {
   FileJson,
   ClipboardCopy,
   Table as TableIcon,
-  Grid3x3,
   Columns,
   Sparkles,
   GitMerge,
@@ -1893,8 +1892,9 @@ export default function PdbTracker() {
   // ── Evaluation Group (Batch) State ──
   const [expandedEvalGroups, setExpandedEvalGroups] = useState<Set<string>>(new Set());
   const [evalBatches, setEvalBatches] = useState<Array<{isBatch:true; batchId:string; title:string; subTargetCount:number; combinedReport:string; createdAt:string}>>([]);
-  const [evalBatchSubTargets, setEvalBatchSubTargets] = useState<Record<string, Array<{uniprotId:string; proteinName:string; geneName:string; organism:string; bestScore:number; pdbCount:number}>>>({});
+  const [evalBatchSubTargets, setEvalBatchSubTargets] = useState<Record<string, Array<{uniprotId:string; proteinName:string; geneName:string; organism:string; bestScore:number; pdbCount:number; blastCount:number}>>>({});
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [batchFetchedEvals, setBatchFetchedEvals] = useState<Record<string, Evaluation>>({});
 
   // ── Filters & Sort ──
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -1995,12 +1995,68 @@ export default function PdbTracker() {
     if (expandedComplexId === id) setExpandedComplexId(null);
   }, [selectedComplexId, expandedComplexId]);
 
+  // Batch evaluation data - fetch any missing evals for batch sub-targets
+  useEffect(() => {
+    if (!selectedBatchId) return;
+    const subs = evalBatchSubTargets[selectedBatchId] || [];
+    const missingIds = subs.map((sub: any) => sub.uniprotId as string).filter(uid => !evaluations.find(e => e.uniprotId === uid) && !batchFetchedEvals[uid]);
+    if (missingIds.length === 0) return;
+    let cancelled = false;
+    async function fetchMissing() {
+      const results: Record<string, Evaluation> = {};
+      for (const uid of missingIds) {
+        try {
+          const res = await fetch(`/api/evaluations/${uid}`);
+          if (res.ok) {
+            const data = await res.json();
+            results[uid] = data;
+          }
+        } catch { /* ignore */ }
+      }
+      if (!cancelled && Object.keys(results).length > 0) {
+        setBatchFetchedEvals(prev => ({ ...prev, ...results }));
+      }
+    }
+    fetchMissing();
+    return () => { cancelled = true; };
+  }, [selectedBatchId, evalBatchSubTargets, evaluations, batchFetchedEvals]);
+
   // Complex evaluation data - merge data from multiple evaluations
+  // Also fetch any missing evals (e.g. batch evaluations not in the main evaluations list)
+  const [complexFetchedEvals, setComplexFetchedEvals] = useState<Record<string, Evaluation>>({});
+  useEffect(() => {
+    if (!selectedComplexId) return;
+    const group = complexGroups.find(g => g.id === selectedComplexId);
+    if (!group) return;
+    const missingIds = group.uniprotIds.filter(uid => !evaluations.find(e => e.uniprotId === uid) && !complexFetchedEvals[uid]);
+    if (missingIds.length === 0) return;
+    let cancelled = false;
+    async function fetchMissing() {
+      const results: Record<string, Evaluation> = {};
+      for (const uid of missingIds) {
+        try {
+          const res = await fetch(`/api/evaluations/${uid}`);
+          if (res.ok) {
+            const data = await res.json();
+            results[uid] = data;
+          }
+        } catch { /* ignore */ }
+      }
+      if (!cancelled && Object.keys(results).length > 0) {
+        setComplexFetchedEvals(prev => ({ ...prev, ...results }));
+      }
+    }
+    fetchMissing();
+    return () => { cancelled = true; };
+  }, [selectedComplexId, complexGroups, evaluations, complexFetchedEvals]);
+
   const complexEvalData = useMemo(() => {
     if (!selectedComplexId) return null;
     const group = complexGroups.find(g => g.id === selectedComplexId);
     if (!group) return null;
-    const subEvals = group.uniprotIds.map(uid => evaluations.find(e => e.uniprotId === uid)).filter(Boolean) as Evaluation[];
+    const subEvals = group.uniprotIds.map(uid => {
+      return evaluations.find(e => e.uniprotId === uid) || complexFetchedEvals[uid];
+    }).filter(Boolean) as Evaluation[];
     // Merge all PDB structures and BLAST results
     const allStructures: (EvalPdbStructure & { _type: 'structure'; _sourceUniport: string })[] = [];
     const allBlasts: (EvalBlastResult & { _type: 'blast'; _sourceUniport: string })[] = [];
@@ -2008,8 +2064,16 @@ export default function PdbTracker() {
       (ev.pdbStructures || []).forEach(s => allStructures.push({ ...s, _type: 'structure', _sourceUniport: ev.uniprotId }));
       (ev.blastResults || []).forEach(b => allBlasts.push({ ...b, _type: 'blast', _sourceUniport: ev.uniprotId }));
     });
-    return { group, subEvals, allStructures, allBlasts };
-  }, [selectedComplexId, complexGroups, evaluations]);
+    // Build shared structure map: PDB ID → number of sub-targets it appears in
+    const sharedStructureMap = new Map<string, number>();
+    subEvals.forEach(ev => {
+      const pdbIds = new Set((ev.pdbStructures || []).map(s => s.pdbId));
+      pdbIds.forEach(pdbId => {
+        sharedStructureMap.set(pdbId, (sharedStructureMap.get(pdbId) || 0) + 1);
+      });
+    });
+    return { group, subEvals, allStructures, allBlasts, sharedStructureMap };
+  }, [selectedComplexId, complexGroups, evaluations, complexFetchedEvals]);
 
   // ── Mobile State ──
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -2238,9 +2302,9 @@ export default function PdbTracker() {
   const [previewWidth, setPreviewWidth] = useState<number>(() => {
     try {
       const saved = localStorage.getItem('pdb-preview-width');
-      if (saved) return Math.min(480, Math.max(260, Number(saved)));
+      if (saved) return Math.min(560, Math.max(300, Number(saved)));
     } catch { /* ignore */ }
-    return 320;
+    return 360;
   });
   const [resizingSidebar, setResizingSidebar] = useState(false);
   const [resizingPreview, setResizingPreview] = useState(false);
@@ -2464,6 +2528,11 @@ export default function PdbTracker() {
     toast('Color updated', { description: `Entity ${entityId.split('.')[1]} color changed` });
   }, []);
 
+  // ── Eval Entity Color Handler (for 3D viewer in eval mode) ──
+  const handleEvalEntityColorChange = useCallback((entityId: string, color: string) => {
+    setEvalEntityColors(prev => ({ ...prev, [entityId]: color }));
+  }, []);
+
   // ── Share View: Apply URL Params on Mount ──
   useEffect(() => {
     if (urlParamsApplied.current) return;
@@ -2530,6 +2599,9 @@ export default function PdbTracker() {
   // ── Entity Colors (for 3D viewer) ──
   const [entityColors, setEntityColors] = useState<Record<string, string>>({});
   const [hoveredEntityInPanel, setHoveredEntityInPanel] = useState<string | null>(null);
+  // Eval mode also supports entity interaction
+  const [evalEntityColors, setEvalEntityColors] = useState<Record<string, string>>({});
+  const [evalHoveredEntity, setEvalHoveredEntity] = useState<string | null>(null);
 
   // ── Loading States ──
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
@@ -3052,9 +3124,80 @@ export default function PdbTracker() {
 
   // ── Sorted Evaluation Data ──
   const sortedEvalRows = useMemo(() => {
-    // If a complex group is selected, show merged data
+    // If a batch eval is selected (without specific sub-eval), show merged data for the batch
+    if (selectedBatchId && !selectedEval && !selectedComplexId) {
+      const subs = evalBatchSubTargets[selectedBatchId] || [];
+      const batchEvals = subs.map((sub: any) => evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId]).filter(Boolean) as Evaluation[];
+      const allStructures: (EvalPdbStructure & { _type: 'structure'; _sourceUniport: string })[] = [];
+      const allBlasts: (EvalBlastResult & { _type: 'blast'; _sourceUniport: string })[] = [];
+      batchEvals.forEach(ev => {
+        (ev.pdbStructures || []).forEach(s => allStructures.push({ ...s, _type: 'structure', _sourceUniport: ev.uniprotId }));
+        (ev.blastResults || []).forEach(b => allBlasts.push({ ...b, _type: 'blast', _sourceUniport: ev.uniprotId }));
+      });
+      // Deduplicate: remove BLAST entries whose pdbId already exists in structures
+      const structurePdbIds = new Set(allStructures.map(s => s.pdbId));
+      const filteredBlasts = allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
+      const all = [...allStructures, ...filteredBlasts];
+      return all.sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
+          case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
+          case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
+          case 'journalIf':
+            aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
+            bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
+            break;
+          case 'title':
+            aVal = a.title || ('description' in a ? a.description : '') || '';
+            bVal = b.title || ('description' in b ? b.description : '') || '';
+            break;
+          case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
+          default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
+        }
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+    // If a sub-target is selected within a complex group, show only that target's PDB list
+    if (selectedComplexId && selectedEval && complexEvalData) {
+      const structures: (EvalPdbStructure & { _type: 'structure' })[] =
+        (selectedEval.pdbStructures || []).map(s => ({ ...s, _type: 'structure' as const }));
+      const structurePdbIds = new Set(structures.map(s => s.pdbId));
+      const blasts: (EvalBlastResult & { _type: 'blast' })[] =
+        (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId)).map(b => ({ ...b, _type: 'blast' as const }));
+      const all = [...structures, ...blasts];
+      return all.sort((a, b) => {
+        let aVal: any, bVal: any;
+        switch (sortField) {
+          case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
+          case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
+          case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
+          case 'journalIf':
+            aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
+            bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
+            break;
+          case 'title':
+            aVal = a.title || ('description' in a ? a.description : '') || '';
+            bVal = b.title || ('description' in b ? b.description : '') || '';
+            break;
+          case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
+          default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
+        }
+        if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+        }
+        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+      });
+    }
+    // If a complex group is selected (no sub-target), show merged data for all sub-targets
     if (selectedComplexId && complexEvalData) {
-      const all = [...complexEvalData.allStructures, ...complexEvalData.allBlasts];
+      // Deduplicate: remove BLAST entries whose pdbId already exists in structures
+      const structurePdbIds = new Set(complexEvalData.allStructures.map(s => s.pdbId));
+      const filteredBlasts = complexEvalData.allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
+      const all = [...complexEvalData.allStructures, ...filteredBlasts];
       return all.sort((a, b) => {
         let aVal: any, bVal: any;
         switch (sortField) {
@@ -3082,8 +3225,9 @@ export default function PdbTracker() {
     if (!selectedEval) return [];
     const structures: (EvalPdbStructure & { _type: 'structure' })[] =
       (selectedEval.pdbStructures || []).map(s => ({ ...s, _type: 'structure' as const }));
+    const structurePdbIds = new Set(structures.map(s => s.pdbId));
     const blasts: (EvalBlastResult & { _type: 'blast' })[] =
-      (selectedEval.blastResults || []).map(b => ({ ...b, _type: 'blast' as const }));
+      (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId)).map(b => ({ ...b, _type: 'blast' as const }));
 
     const all = [...structures, ...blasts];
     return all.sort((a, b) => {
@@ -3108,7 +3252,7 @@ export default function PdbTracker() {
       }
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
-  }, [selectedEval, selectedComplexId, complexEvalData, sortField, sortDir]);
+  }, [selectedEval, selectedComplexId, complexEvalData, selectedBatchId, evalBatchSubTargets, evaluations, batchFetchedEvals, sortField, sortDir]);
 
   // ── Paginated Eval Rows ──
   const paginatedEvalRows = useMemo(() => {
@@ -3904,38 +4048,73 @@ export default function PdbTracker() {
                     if (item._type === 'batch') {
                       const batch = item as any;
                       const isExpanded = expandedEvalGroups.has(batch.batchId);
+                      const isSelected = selectedBatchId === batch.batchId;
                       const subs = evalBatchSubTargets[batch.batchId] || [];
+                      const totalPDB = subs.reduce((sum: number, sub: any) => sum + (sub.pdbCount || 0), 0);
+                      const totalBLAST = subs.reduce((sum: number, sub: any) => sum + (sub.blastCount || 0), 0);
                       return (
                         <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={v => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (v) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
-                          <CollapsibleTrigger asChild>
-                            <button className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
-                              selectedBatchId === batch.batchId
-                                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 shadow-sm'
-                                : 'text-purple-600 dark:text-purple-400 hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
-                            }`}>
-                              <Layers className="h-3 w-3 mr-0.5 flex-shrink-0" />
-                              <span className="truncate">{batch.subTargetCount}</span>
-                            </button>
-                          </CollapsibleTrigger>
-                          {isExpanded && (
-                            <CollapsibleContent>
-                              <div className="mt-1 space-y-0.5 pl-1">
-                                {subs.map((sub: any) => (
+                          <div
+                            onClick={() => { setSelectedBatchId(batch.batchId); setSelectedEvalId(null); setSelectedEval(null); setSelectedComplexId(null); setExpandedComplexId(null); setPreviewOpen(true); setMobileSidebarOpen(false); setExpandedEvalGroups(new Set([batch.batchId])); }}
+                            className={`w-full text-left p-2 rounded-[8px] border transition-all duration-200 overflow-hidden cursor-pointer ${
+                              isSelected
+                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent'
+                                : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                            }`}
+                          >
+                              <div className="flex items-center justify-between gap-1 mb-0.5">
+                                <div className="min-w-0 flex-1 flex items-center gap-1">
+                                  <Layers className="h-3 w-3 text-purple-500 flex-shrink-0" />
+                                  <span className="text-[11px] font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{batch.title || batch.batchId}</span>
+                                  <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{batch.subTargetCount}</span>
+                                </div>
+                                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                                   <button
-                                    key={sub.uniprotId}
-                                    onClick={() => { setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                                    className={`w-full h-6 rounded flex items-center justify-center text-[9px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate ${
-                                      selectedEvalId === sub.uniprotId
-                                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                                        : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
-                                    }`}
+                                    onClick={() => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (isExpanded) next.delete(batch.batchId); else next.add(batch.batchId); return next; }); }}
+                                    className="h-4 w-4 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
                                   >
-                                    {sub.uniprotId.replace('U', '')}
+                                    <ChevronDown className={`h-2.5 w-2.5 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                                   </button>
-                                ))}
+                                </div>
                               </div>
-                            </CollapsibleContent>
-                          )}
+                              <div className="flex items-center gap-1.5 text-[9px] text-claude-text-muted dark:text-[#6b6560]">
+                                <span>{subs.length} sub-targets</span>
+                                <span>·</span>
+                                <span>{totalPDB} PDB</span>
+                                <span>·</span>
+                                <span>{totalBLAST} BLAST</span>
+                              </div>
+                            {isExpanded && (
+                              <CollapsibleContent>
+                                <div className="mt-1.5 pt-1.5 space-y-0.5 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
+                                  {subs.map((sub: any) => {
+                                    const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
+                                    const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
+                                    const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
+                                    return (
+                                      <button
+                                        key={sub.uniprotId}
+                                        onClick={() => { setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                        className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
+                                          selectedEvalId === sub.uniprotId && selectedBatchId === batch.batchId
+                                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
+                                            : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
+                                        }`}
+                                      >
+                                        <span className="font-mono text-[9px] font-semibold text-claude-accent">{sub.uniprotId}</span>
+                                        <span className="text-[8px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
+                                        {subScore !== null && (
+                                          <span className="text-[8px] font-mono font-bold" style={{ color: subColor }}>
+                                            {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </CollapsibleContent>
+                            )}
+                          </div>
                         </Collapsible>
                       );
                     }
@@ -3948,7 +4127,7 @@ export default function PdbTracker() {
                       <HoverCard key={ev.uniprotId} openDelay={300} closeDelay={100}>
                         <HoverCardTrigger asChild>
                           <button
-                            onClick={() => { setSelectedEvalId(ev.uniprotId); setSelectedBatchId(null); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                            onClick={() => { setSelectedEvalId(ev.uniprotId); setSelectedBatchId(null); setSelectedComplexId(null); setExpandedComplexId(null); setExpandedEvalGroups(new Set()); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); setEvalContextMenu({ x: e.clientX, y: e.clientY, uniprotId: ev.uniprotId }); }}
                             className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
                               selectedEvalId === ev.uniprotId
@@ -4488,15 +4667,23 @@ export default function PdbTracker() {
                 <>
                   <FlaskConical className="h-4 w-4 text-claude-accent" />
                   <span className="text-sm font-semibold text-claude-text">
-                    {selectedEval ? selectedEval.proteinName || selectedEval.uniprotId : 'Select a protein'}
+                    {selectedEval ? selectedEval.proteinName || selectedEval.uniprotId : selectedComplexId && complexEvalData ? complexEvalData.group.name : selectedBatchId ? (evalBatches.find((b: any) => b.batchId === selectedBatchId)?.title || 'Batch') : 'Select a protein'}
                   </span>
                   {selectedEval && (
                     <span className="font-mono text-xs text-claude-accent">{selectedEval.uniprotId}</span>
                   )}
+                  {selectedComplexId && complexEvalData && !selectedEval && (
+                    <span className="inline-flex items-center gap-1 text-[10px] text-claude-text-muted">
+                      <Layers className="h-3 w-3" />
+                      {complexEvalData.subEvals.length} sub-targets
+                    </span>
+                  )}
                   <span className="text-[10px] text-claude-text-muted ml-auto whitespace-nowrap">
                     {selectedEval
                       ? `${(selectedEval.pdbStructures || []).length} structures · ${(selectedEval.blastResults || []).length} BLAST`
-                      : `${evaluations.length} evaluations`}
+                      : selectedComplexId && complexEvalData
+                        ? `${complexEvalData.allStructures.length} structures · ${complexEvalData.allBlasts.length} BLAST`
+                        : `${evaluations.length} evaluations`}
                   </span>
                 </>
               )}
@@ -5239,7 +5426,7 @@ export default function PdbTracker() {
                 )
               ) : (
                 /* Evaluation Table */
-                !selectedEval && !selectedComplexId ? (
+                !selectedEval && !selectedComplexId && !selectedBatchId ? (
                   <div className="flex flex-col items-center justify-center py-20 text-claude-text-muted relative">
                     <div className="absolute inset-0 empty-state-pattern opacity-40" />
                     <div className="relative z-10 flex flex-col items-center">
@@ -5250,7 +5437,7 @@ export default function PdbTracker() {
                       <p className="text-xs mt-1 text-claude-text-muted dark:text-[#9b9590] max-w-[220px] text-center">Choose from the sidebar to view structures and BLAST results</p>
                     </div>
                   </div>
-                ) : loadingEvalDetail && !selectedComplexId ? (
+                ) : loadingEvalDetail && !selectedComplexId && !selectedBatchId ? (
                   <table className={`min-w-[700px] w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
                     <thead className="sticky top-0 z-10 border-b border-claude-border dark:border-[#3d3832]">
                       <tr className="bg-claude-bg dark:bg-[#1a1917]">
@@ -5283,7 +5470,7 @@ export default function PdbTracker() {
                         {[
                           { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
                           { field: '_type', label: 'Type', w: 'w-[70px]' },
-                          ...(selectedComplexId ? [{ field: '_source', label: 'Source', w: 'w-[80px]' }] : []),
+                          ...(((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) ? [{ field: '_source', label: 'Source', w: 'w-[80px]' }] : []),
                           { field: 'method', label: 'Method', w: 'w-[90px]' },
                           { field: 'resolution', label: 'Resolution', w: 'w-[80px]' },
                           { field: 'journalIf', label: 'IF', w: 'w-[55px]' },
@@ -5329,6 +5516,7 @@ export default function PdbTracker() {
                               {row.pdbId ? (
                                 <Tooltip>
                                   <TooltipTrigger asChild>
+                                    <span className="inline-flex items-center gap-1">
                                     <a
                                       href={`https://www.rcsb.org/structure/${row.pdbId}`}
                                       target="_blank"
@@ -5338,6 +5526,55 @@ export default function PdbTracker() {
                                       {row.pdbId}
                                       <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                     </a>
+                                    {(() => {
+                                      // Shared structure badge for complex groups
+                                      if (selectedComplexId && !selectedEval && complexEvalData?.sharedStructureMap) {
+                                        const sharedCount = complexEvalData.sharedStructureMap.get(row.pdbId) || 0;
+                                        if (sharedCount <= 1) return null;
+                                        const badgeColor = sharedCount >= 4 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/40' :
+                                          sharedCount === 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40' :
+                                          'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40';
+                                        return (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className={`inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] font-mono font-semibold border ${badgeColor}`}>
+                                                <GitMerge className="h-2 w-2" />×{sharedCount}
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="text-[10px]">Shared by {sharedCount} sub-targets</TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      }
+                                      // Shared structure badge for batch evals
+                                      if (selectedBatchId && !selectedEval) {
+                                        const subs = evalBatchSubTargets[selectedBatchId] || [];
+                                        const batchEvals = subs.map((sub: any) => evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId]).filter(Boolean) as Evaluation[];
+                                        const tempMap = new Map<string, number>();
+                                        batchEvals.forEach(ev => {
+                                          const pdbIds = new Set((ev.pdbStructures || []).map(s => s.pdbId));
+                                          pdbIds.forEach(pdbId => {
+                                            tempMap.set(pdbId, (tempMap.get(pdbId) || 0) + 1);
+                                          });
+                                        });
+                                        const sharedCount = tempMap.get(row.pdbId) || 0;
+                                        if (sharedCount <= 1) return null;
+                                        const badgeColor = sharedCount >= 4 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/40' :
+                                          sharedCount === 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40' :
+                                          'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40';
+                                        return (
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <span className={`inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] font-mono font-semibold border ${badgeColor}`}>
+                                                <GitMerge className="h-2 w-2" />×{sharedCount}
+                                              </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="text-[10px]">Shared by {sharedCount} sub-targets</TooltipContent>
+                                          </Tooltip>
+                                        );
+                                      }
+                                      return null;
+                                    })()}
+                                    </span>
                                   </TooltipTrigger>
                                   <TooltipContent side="right" className="p-0 bg-white border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
                                     {structResult ? (
@@ -5364,7 +5601,7 @@ export default function PdbTracker() {
                               )}
                             </td>
                             )}
-                            {selectedComplexId && '_sourceUniport' in row && (
+                            {((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) && '_sourceUniport' in row && (
                             <td className="px-3 py-2">
                               <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">
                                 {row._sourceUniport}
@@ -5562,7 +5799,7 @@ export default function PdbTracker() {
                 />
               </div>
             )}
-            {mode === 'evaluation' && (selectedEval || selectedComplexId) && sortedEvalRows.length > PAGE_SIZE && (
+            {mode === 'evaluation' && (selectedEval || selectedComplexId || selectedBatchId) && sortedEvalRows.length > PAGE_SIZE && (
               <div className="no-print">
                 <Pagination
                   page={currentPage}
@@ -5915,6 +6152,8 @@ export default function PdbTracker() {
                   onEntityClick={(entityId) => setHoveredEntityInPanel(hoveredEntityInPanel === entityId ? null : entityId)}
                   entityColors={entityColors}
                   onEntityColorChange={handleEntityColorChange}
+                  onEntitySelectFrom3D={(entityId) => setHoveredEntityInPanel(hoveredEntityInPanel === entityId ? null : entityId)}
+                  height={320}
                 />
               </div>
 
@@ -6421,7 +6660,15 @@ export default function PdbTracker() {
                       {/* 3D Viewer - only for entries with PDB ID */}
                       {evalStruct.pdbId ? (
                         <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
-                          <MoleculeViewer pdbId={evalStruct.pdbId} />
+                          <MoleculeViewer
+                            pdbId={evalStruct.pdbId}
+                            highlightEntity={evalHoveredEntity}
+                            onEntityClick={(entityId) => setEvalHoveredEntity(evalHoveredEntity === entityId ? null : entityId)}
+                            entityColors={evalEntityColors}
+                            onEntityColorChange={handleEvalEntityColorChange}
+                            onEntitySelectFrom3D={(entityId) => setEvalHoveredEntity(evalHoveredEntity === entityId ? null : entityId)}
+                            height={360}
+                          />
                         </div>
                       ) : (
                         <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832] bg-claude-border-light/30 dark:bg-[#1a1917]/60 flex items-center justify-center" style={{ height: '200px' }}>
@@ -7144,58 +7391,93 @@ export default function PdbTracker() {
                       const ev = evaluations.find(e => e.uniprotId === uid);
                       return sum + (ev?._count?.blastResults || 0);
                     }, 0);
+                    // Compute group average score
+                    const groupScores = group.uniprotIds.map(uid => {
+                      const ev = evaluations.find(e => e.uniprotId === uid);
+                      return ev ? getAvgScore(ev.scores) : null;
+                    }).filter((s): s is number => s !== null);
+                    const groupAvgScore = groupScores.length > 0 ? groupScores.reduce((a, b) => a + b, 0) / groupScores.length : null;
+                    const groupScoreColor = groupAvgScore !== null ? getScoreColor(groupAvgScore) : '#9b9590';
+                    // Compute average coverage
+                    const groupCoverages = group.uniprotIds.map(uid => {
+                      const ev = evaluations.find(e => e.uniprotId === uid);
+                      if (!ev) return null;
+                      const computedCoverage = ev.pdbStructures?.length > 0
+                        ? Math.max(...(ev.pdbStructures || []).map((s: any) => s.coverage || 0))
+                        : null;
+                      return Math.min((ev.coverage != null && ev.coverage > 0) ? ev.coverage : computedCoverage ?? 0, 100);
+                    }).filter((c): c is number => c !== null && c > 0);
+                    const groupAvgCoverage = groupCoverages.length > 0 ? groupCoverages.reduce((a, b) => a + b, 0) / groupCoverages.length : null;
                     return (
                       <div key={group.id}>
                         <div
-                          className={`rounded-[10px] border transition-all duration-200 overflow-hidden ${
+                          onClick={() => {
+                            if (isSelected && selectedEval) {
+                              // Deselect sub-target, keep group selected
+                              setSelectedEvalId(null);
+                              setSelectedEval(null);
+                            } else if (isSelected) {
+                              // Already viewing group (no sub-target), deselect group
+                              setSelectedComplexId(null);
+                            } else {
+                              setSelectedComplexId(group.id);
+                              setSelectedEvalId(null);
+                              setSelectedEval(null);
+                              setSelectedBatchId(null);
+                              setExpandedComplexId(group.id);
+                              setExpandedEvalGroups(new Set());
+                            }
+                          }}
+                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] overflow-hidden cursor-pointer ${
                             isSelected
-                              ? 'bg-claude-accent-light/50 dark:bg-[#3d2a22]/60 border-claude-accent/30 shadow-sm'
-                              : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
+                              : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                           }`}
                         >
-                          <button
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedComplexId(null);
-                              } else {
-                                setSelectedComplexId(group.id);
-                                setSelectedEvalId(null);
-                                setSelectedEval(null);
-                              }
-                            }}
-                            className="w-full text-left p-2.5"
-                          >
-                            <div className="flex items-start justify-between gap-1">
+                            <div className="flex items-start justify-between gap-2 mb-1">
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1">
                                   <Layers className="h-3 w-3 text-claude-accent flex-shrink-0" />
-                                  <span className="text-[11px] font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{group.name}</span>
-                                </div>
-                                <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mt-0.5">
-                                  {group.uniprotIds.length} UniProt IDs · {totalPdbs} PDB · {totalBlasts} BLAST
+                                  <span className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{group.name}</span>
                                 </div>
                               </div>
-                              <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                {groupAvgScore !== null && (
+                                  <span
+                                    className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
+                                    style={{ color: groupScoreColor, backgroundColor: `${groupScoreColor}15` }}
+                                  >
+                                    {groupAvgScore.toFixed(1)}
+                                  </span>
+                                )}
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); setExpandedComplexId(isExpanded ? null : group.id); }}
+                                  onClick={() => { setExpandedComplexId(isExpanded ? null : group.id); }}
                                   className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
                                 >
                                   <ChevronDown className={`h-3 w-3 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                                 </button>
                                 <button
-                                  onClick={(e) => { e.stopPropagation(); removeComplexGroup(group.id); }}
+                                  onClick={() => { removeComplexGroup(group.id); }}
                                   className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
                                 >
                                   <X className="h-3 w-3 text-claude-text-muted hover:text-red-500" />
                                 </button>
                               </div>
                             </div>
-                          </button>
+                            <div className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight">
+                              {group.uniprotIds.length} UniProt IDs
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
+                              {groupAvgCoverage !== null && <span>{groupAvgCoverage.toFixed(1)}% coverage</span>}
+                              <span>·</span>
+                              <span>{totalPdbs} PDB</span>
+                              <span>{totalBlasts} BLAST</span>
+                            </div>
                           {/* Expanded sub-entries */}
                           {isExpanded && (
-                            <div className="px-2 pb-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50">
+                            <div className="mt-2 pt-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
                               {group.uniprotIds.map(uid => {
-                                const subEv = evaluations.find(e => e.uniprotId === uid);
+                                const subEv = evaluations.find(e => e.uniprotId === uid) || complexFetchedEvals[uid];
                                 const subScore = subEv ? getAvgScore(subEv.scores) : null;
                                 const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
                                 return (
@@ -7203,10 +7485,15 @@ export default function PdbTracker() {
                                     key={uid}
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      setSelectedEval(null);
                                       setSelectedEvalId(uid);
                                       setSelectedComplexId(group.id);
                                     }}
-                                    className="w-full text-left p-1.5 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 flex items-center gap-1.5"
+                                    className={`w-full text-left p-1.5 rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
+                                      selectedEvalId === uid && selectedComplexId === group.id
+                                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
+                                        : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
+                                    }`}
                                   >
                                     <span className="font-mono text-[10px] font-semibold text-claude-accent">{uid}</span>
                                     {subEv && (
@@ -7218,9 +7505,6 @@ export default function PdbTracker() {
                                           </span>
                                         )}
                                       </>
-                                    )}
-                                    {!subEv && (
-                                      <span className="text-[9px] text-claude-text-muted/50 italic">Not found</span>
                                     )}
                                   </button>
                                 );
@@ -7247,42 +7531,79 @@ export default function PdbTracker() {
                     <Layers className="h-3 w-3 text-purple-500" />
                     Complex Evaluation
                   </div>
-                  <div className="space-y-0.5">
+                  <div className="space-y-1.5">
                     {evalBatches.map(batch => {
                       const isExpanded = expandedEvalGroups.has(batch.batchId);
+                      const isSelected = selectedBatchId === batch.batchId;
                       const subs = evalBatchSubTargets[batch.batchId] || [];
+                      const totalPDB = subs.reduce((sum: number, sub: any) => sum + (sub.pdbCount || 0), 0);
+                      const totalBLAST = subs.reduce((sum: number, sub: any) => sum + (sub.blastCount || 0), 0);
                       return (
                         <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={v => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (v) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
-                          <CollapsibleTrigger asChild>
-                            <button className={`w-full h-8 rounded-lg flex items-center justify-center text-[10px] font-semibold transition-all duration-150 overflow-hidden truncate px-1 ${
-                              selectedBatchId === batch.batchId
-                                ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 shadow-sm'
-                                : 'text-purple-600 dark:text-purple-400 hover:bg-claude-border-light dark:hover:bg-[#3d3832]'
-                            }`}>
-                              <Layers className="h-3 w-3 mr-0.5 flex-shrink-0" />
-                              <span className="truncate">{batch.title || batch.batchId}</span>
-                              <span className="ml-1 text-[9px] opacity-70">({batch.subTargetCount})</span>
-                            </button>
-                          </CollapsibleTrigger>
-                          {isExpanded && (
-                            <CollapsibleContent>
-                              <div className="mt-1 space-y-0.5 pl-1">
-                                {subs.map((sub: any) => (
+                          <div
+                            onClick={() => { setSelectedBatchId(batch.batchId); setSelectedEvalId(null); setSelectedEval(null); setSelectedComplexId(null); setExpandedComplexId(null); setPreviewOpen(true); setMobileSidebarOpen(false); setExpandedEvalGroups(new Set([batch.batchId])); }}
+                            className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] overflow-hidden cursor-pointer ${
+                              isSelected
+                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
+                                : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
+                            }`}
+                          >
+                              <div className="flex items-start justify-between gap-2 mb-1">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-1">
+                                    <Layers className="h-3 w-3 text-purple-500 flex-shrink-0" />
+                                    <span className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{batch.title || batch.batchId}</span>
+                                    <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{batch.subTargetCount}</span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                                   <button
-                                    key={sub.uniprotId}
-                                    onClick={() => { setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                                    className={`w-full h-6 rounded flex items-center justify-center text-[9px] font-mono font-semibold transition-all duration-150 overflow-hidden truncate ${
-                                      selectedEvalId === sub.uniprotId
-                                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent shadow-sm'
-                                        : 'text-claude-text-muted hover:bg-claude-border-light dark:hover:bg-[#3d3832] hover:text-claude-text-secondary'
-                                    }`}
+                                    onClick={() => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (isExpanded) next.delete(batch.batchId); else next.add(batch.batchId); return next; }); }}
+                                    className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
                                   >
-                                    {sub.uniprotId.replace('U', '')}
+                                    <ChevronDown className={`h-3 w-3 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                                   </button>
-                                ))}
+                                </div>
                               </div>
-                            </CollapsibleContent>
-                          )}
+                              <div className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight">
+                                {subs.length} sub-targets
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
+                                <span>{totalPDB} PDB</span>
+                                <span>·</span>
+                                <span>{totalBLAST} BLAST</span>
+                              </div>
+                            {isExpanded && (
+                              <CollapsibleContent>
+                                <div className="mt-2 pt-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
+                                  {subs.map((sub: any) => {
+                                    const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
+                                    const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
+                                    const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
+                                    return (
+                                      <button
+                                        key={sub.uniprotId}
+                                        onClick={() => { setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                        className={`w-full text-left p-1.5 rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
+                                          selectedEvalId === sub.uniprotId && selectedBatchId === batch.batchId
+                                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
+                                            : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
+                                        }`}
+                                      >
+                                        <span className="font-mono text-[10px] font-semibold text-claude-accent">{sub.uniprotId}</span>
+                                        <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
+                                        {subScore !== null && (
+                                          <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
+                                            {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
+                                          </span>
+                                        )}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </CollapsibleContent>
+                            )}
+                          </div>
                         </Collapsible>
                       );
                     })}
@@ -7336,7 +7657,7 @@ export default function PdbTracker() {
                     <ContextMenu key={ev.uniprotId}>
                       <ContextMenuTrigger asChild>
                     <button
-                      onClick={() => { setSelectedEvalId(ev.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                      onClick={() => { setSelectedEvalId(ev.uniprotId); setSelectedBatchId(null); setSelectedComplexId(null); setExpandedComplexId(null); setExpandedEvalGroups(new Set()); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                       className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
                         selectedEvalId === ev.uniprotId
                           ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
@@ -7429,19 +7750,19 @@ export default function PdbTracker() {
     const previewTabs = [
       { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
       { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
-      { value: 'heatmap', icon: <Grid3x3 className="h-3 w-3 mr-1" />, label: 'Heatmap' },
+      { value: 'heatmap', icon: <BookOpen className="h-3 w-3 mr-1" />, label: 'Literature' },
       { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Report' },
     ];
 
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col min-h-0">
-        <div className="relative px-3 border-b border-claude-border dark:border-[#3d3832] h-12 flex items-center">
+        <div className="relative px-2 pr-9 border-b border-claude-border dark:border-[#3d3832] h-12 flex items-center">
           <TabsList className="w-full h-8 bg-claude-border-light dark:bg-[#2b2926] p-0.5 relative rounded-md">
             {previewTabs.map((tab) => (
               <TabsTrigger
                 key={tab.value}
                 value={tab.value}
-                className="tab-gradient-active flex-1 text-[10px] h-7 relative z-[1] data-[state=active]:text-white data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200 rounded-md"
+                className="tab-gradient-active flex-1 text-[9px] h-7 relative z-[1] data-[state=active]:text-white data-[state=active]:bg-transparent data-[state=active]:shadow-none transition-colors duration-200 rounded-md"
               >
                 {previewTab === tab.value && (
                   <motion.div
@@ -7451,7 +7772,7 @@ export default function PdbTracker() {
                     transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                   />
                 )}
-                <span className="relative z-[2] flex items-center justify-start">
+                <span className="relative z-[2] flex items-center justify-center gap-0.5">
                   {tab.icon}
                   {tab.label}
                 </span>
@@ -7489,8 +7810,32 @@ export default function PdbTracker() {
               ) : (
                 <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} entries={entries} />
               )
+            ) : mode === 'evaluation' && selectedBatchId && !selectedEval ? (
+              <BatchPreviewContent batchId={selectedBatchId} onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }} selectedSubTargetId={selectedEvalId} allEvals={evaluations} batchFetchedEvals={batchFetchedEvals} evalBatches={evalBatches} evalBatchSubTargets={evalBatchSubTargets} />
             ) : mode === 'evaluation' && selectedEval && selectedBatchId ? (
-              <BatchPreviewContent batchId={selectedBatchId} onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }} selectedSubTargetId={selectedEvalId} allEvals={evaluations} evalBatches={evalBatches} evalBatchSubTargets={evalBatchSubTargets} />
+              <div>
+                <button
+                  onClick={() => { setSelectedEvalId(null); setSelectedEval(null); }}
+                  className="flex items-center gap-1 px-2 py-1.5 mb-2 rounded-md text-[10px] text-claude-text-muted hover:text-claude-accent hover:bg-claude-border-light/50 dark:hover:bg-[#3d3832]/50 transition-colors"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                  Back to batch
+                </button>
+                <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
+              </div>
+            ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval ? (
+              <ComplexEvalSummary subEvals={complexEvalData.subEvals} group={complexEvalData.group} openReport={openEvalReport} onSelectEval={(uniprotId) => setSelectedEvalId(uniprotId)} />
+            ) : mode === 'evaluation' && selectedEval && selectedComplexId && complexEvalData ? (
+              <div>
+                <button
+                  onClick={() => { setSelectedEvalId(null); setSelectedEval(null); }}
+                  className="flex items-center gap-1 px-2 py-1.5 mb-2 rounded-md text-[10px] text-claude-text-muted hover:text-claude-accent hover:bg-claude-border-light/50 dark:hover:bg-[#3d3832]/50 transition-colors"
+                >
+                  <ChevronLeft className="h-3 w-3" />
+                  Back to {complexEvalData.group.name}
+                </button>
+                <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
+              </div>
             ) : mode === 'evaluation' && selectedEval ? (
               <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
             ) : (
@@ -7529,6 +7874,24 @@ export default function PdbTracker() {
                   }
                 }}
               />
+            ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval && ((complexEvalData.allStructures?.length || 0) + (complexEvalData.allBlasts?.length || 0)) > 0 ? (
+              <EvaluationTimeline
+                pdbStructures={complexEvalData.allStructures as any}
+                blastResults={complexEvalData.allBlasts.filter(b => b.pdbId) as any}
+                onSelectPdb={(pdbId) => {
+                  const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
+                  const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
+                  if (struct) {
+                    setSelectedEntry({ ...struct, _type: 'weekly' } as unknown as PdbEntry);
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  } else if (blast) {
+                    setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  }
+                }}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Clock className="h-8 w-8 mb-2 opacity-30" />
@@ -7561,10 +7924,28 @@ export default function PdbTracker() {
                   }
                 }}
               />
+            ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval && ((complexEvalData.allStructures?.length || 0) + (complexEvalData.allBlasts?.length || 0)) > 0 ? (
+              <EvaluationHeatmap
+                pdbStructures={complexEvalData.allStructures as any}
+                blastResults={complexEvalData.allBlasts.filter(b => b.pdbId) as any}
+                onSelectPdb={(pdbId) => {
+                  const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
+                  const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
+                  if (struct) {
+                    setSelectedEntry({ ...struct, _type: 'weekly' } as unknown as PdbEntry);
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  } else if (blast) {
+                    setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
+                  }
+                }}
+              />
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
-                <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
-                <p className="text-xs">{mode === 'evaluation' ? 'No PDB structures for heatmap' : 'Heatmap available in weekly mode'}</p>
+                <BookOpen className="h-8 w-8 mb-2 opacity-30" />
+                <p className="text-xs">{mode === 'evaluation' ? 'No literature data available' : 'Literature available in evaluation mode'}</p>
               </div>
             )
           ) : (
@@ -9035,9 +9416,9 @@ function ActivityHeatmap({
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
-        <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
-        <p className="text-xs">No data available for heatmap</p>
-        <p className="text-[10px] mt-1 opacity-60">Switch to weekly mode and select a week</p>
+        <BookOpen className="h-8 w-8 mb-2 opacity-30" />
+        <p className="text-xs">No data available for literature</p>
+        <p className="text-[10px] mt-1 opacity-60">Switch to evaluation mode and select an evaluation</p>
       </div>
     );
   }
@@ -9412,7 +9793,7 @@ function WeekComparisonView({
 
 // ─── Batch Preview Content Sub-Component ────────────────────────────────────────
 
-function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, allEvals, evalBatches, evalBatchSubTargets }: { batchId: string; onSelectSubTarget: (uniprotId: string) => void; selectedSubTargetId: string | null; allEvals: Evaluation[]; evalBatches: any[]; evalBatchSubTargets: Record<string, any[]> }) {
+function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, allEvals, batchFetchedEvals, evalBatches, evalBatchSubTargets }: { batchId: string; onSelectSubTarget: (uniprotId: string) => void; selectedSubTargetId: string | null; allEvals: Evaluation[]; batchFetchedEvals: Record<string, Evaluation>; evalBatches: any[]; evalBatchSubTargets: Record<string, any[]> }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const batch = evalBatches.find(b => b.batchId === batchId);
@@ -9495,7 +9876,7 @@ function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, 
         </div>
         <div className="space-y-1">
           {subTargets.map(sub => {
-            const subEval = allEvals.find(e => e.uniprotId === sub.uniprotId);
+            const subEval = allEvals.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
             const covPct = subEval?.coverage ? Math.min(subEval.coverage, 100) : 0;
             const covColor = covPct >= 80 ? '#2d8f8f' : covPct >= 50 ? '#c9872e' : covPct >= 25 ? '#ea580c' : '#dc2626';
             const subScore = sub.bestScore || 0;
@@ -9549,6 +9930,617 @@ function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, 
           })}
         </div>
       </div>
+
+      {/* ── Shared Structure Analysis ── */}
+      {(() => {
+        const batchEvals = subTargets.map((sub: any) => allEvals.find(e => e.uniprotId === sub.uniprotId)).filter(Boolean) as Evaluation[];
+        if (batchEvals.length < 2) return null;
+        const sharedMap = new Map<string, number>();
+        batchEvals.forEach(ev => {
+          const pdbIds = new Set((ev.pdbStructures || []).map(s => s.pdbId));
+          pdbIds.forEach(pdbId => {
+            sharedMap.set(pdbId, (sharedMap.get(pdbId) || 0) + 1);
+          });
+        });
+        const sharedEntries = Array.from(sharedMap.entries())
+          .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+        const sharedOnly = sharedEntries.filter(([, count]) => count > 1);
+        if (sharedOnly.length === 0) return null;
+        const getSharedColor = (count: number) => {
+          if (count >= 4) return { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800/40' };
+          if (count === 3) return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800/40' };
+          return { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400', border: 'border-teal-200 dark:border-teal-800/40' };
+        };
+        return (
+          <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-claude-text">
+                Shared Structures <span className="text-claude-text-muted font-normal">({sharedOnly.length})</span>
+              </h4>
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border border-teal-200/50 dark:border-teal-800/30">
+                across 2+ targets
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto">
+              {sharedOnly.map(([pdbId, count]) => {
+                const colors = getSharedColor(count);
+                return (
+                  <a
+                    key={pdbId}
+                    href={`https://www.rcsb.org/structure/${pdbId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold border ${colors.bg} ${colors.text} ${colors.border} hover:opacity-80 transition-opacity`}
+                  >
+                    {pdbId}
+                    <span className="text-[8px] font-normal opacity-70">×{count}</span>
+                  </a>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-3 text-[9px] text-claude-text-muted pt-1 border-t border-claude-border/30 dark:border-[#3d3832]/30">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-teal-400" /> 2 targets</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400" /> 3 targets</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-orange-400" /> 4+ targets</span>
+            </div>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+// ─── Complex Evaluation Summary Sub-Component ──────────────────────────────
+
+function ComplexEvalSummary({
+  subEvals,
+  group,
+  openReport,
+  onSelectEval,
+}: {
+  subEvals: Evaluation[];
+  group: { id: string; name: string; uniprotIds: string[]; createdAt: number };
+  openReport: (id: number, title: string) => void;
+  onSelectEval: (uniprotId: string) => void;
+}) {
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
+
+  // Parse scores for each sub-evaluation
+  const evalScoresMap = useMemo(() => {
+    const map: Record<string, Record<string, number>> = {};
+    subEvals.forEach(ev => {
+      try {
+        const parsed = ev.scores ? JSON.parse(ev.scores) : {};
+        const flatScores: Record<string, number> = {};
+        for (const [key, value] of Object.entries(parsed)) {
+          flatScores[key] = typeof value === 'number' ? value : (value as any)?.score ?? 0;
+        }
+        map[ev.uniprotId] = flatScores;
+      } catch {
+        map[ev.uniprotId] = {};
+      }
+    });
+    return map;
+  }, [subEvals]);
+
+  // Get all unique score categories across all sub-evaluations
+  const allCategories = useMemo(() => {
+    const cats = new Set<string>();
+    Object.values(evalScoresMap).forEach(scores => {
+      Object.keys(scores).forEach(k => cats.add(k));
+    });
+    return Array.from(cats).sort();
+  }, [evalScoresMap]);
+
+  // Compute overall scores
+  const overallScores = useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const [uid, scores] of Object.entries(evalScoresMap)) {
+      const vals = Object.values(scores);
+      result[uid] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    }
+    return result;
+  }, [evalScoresMap]);
+
+  // Compute group average scores
+  const groupAvgScores = useMemo(() => {
+    const result: Record<string, number> = {};
+    for (const cat of allCategories) {
+      const vals = subEvals.map(ev => evalScoresMap[ev.uniprotId]?.[cat]).filter((v): v is number => v !== undefined);
+      result[cat] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+    }
+    return result;
+  }, [allCategories, subEvals, evalScoresMap]);
+
+  // Compute group overall average
+  const groupOverallAvg = useMemo(() => {
+    const vals = Object.values(overallScores);
+    return vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0;
+  }, [overallScores]);
+
+  // Max and min scores per category for highlighting differences
+  const scoreExtremes = useMemo(() => {
+    const result: Record<string, { max: number; min: number; maxUid: string; minUid: string; diff: number }> = {};
+    for (const cat of allCategories) {
+      let max = -Infinity, min = Infinity, maxUid = '', minUid = '';
+      for (const ev of subEvals) {
+        const score = evalScoresMap[ev.uniprotId]?.[cat];
+        if (score !== undefined) {
+          if (score > max) { max = score; maxUid = ev.uniprotId; }
+          if (score < min) { min = score; minUid = ev.uniprotId; }
+        }
+      }
+      result[cat] = { max, min, maxUid, minUid, diff: max - min };
+    }
+    return result;
+  }, [allCategories, subEvals, evalScoresMap]);
+
+  // Overall extremes
+  const overallExtremes = useMemo(() => {
+    let max = -Infinity, min = Infinity, maxUid = '', minUid = '';
+    for (const [uid, score] of Object.entries(overallScores)) {
+      if (score > max) { max = score; maxUid = uid; }
+      if (score < min) { min = score; minUid = uid; }
+    }
+    return { max, min, maxUid, minUid, diff: max - min };
+  }, [overallScores]);
+
+  // Coverage data
+  const coverageData = useMemo(() => {
+    return subEvals.map(ev => ({
+      uniprotId: ev.uniprotId,
+      proteinName: ev.proteinName || ev.entryName || ev.uniprotId,
+      coverage: Math.min(ev.coverage ?? 0, 100),
+      pdbCount: ev._count?.pdbStructures || ev.pdbStructures?.length || 0,
+      blastCount: ev._count?.blastResults || ev.blastResults?.length || 0,
+    }));
+  }, [subEvals]);
+
+  // Radar chart data for comparison
+  const radarData = useMemo(() => {
+    if (allCategories.length < 3) return [];
+    return allCategories.map(cat => {
+      const entry: Record<string, any> = { metric: cat.charAt(0).toUpperCase() + cat.slice(1).replace(/([A-Z])/g, ' $1'), fullMark: 10 };
+      subEvals.forEach((ev, idx) => {
+        entry[ev.uniprotId] = evalScoresMap[ev.uniprotId]?.[cat] ?? 0;
+      });
+      return entry;
+    });
+  }, [allCategories, subEvals, evalScoresMap]);
+
+  const EVAL_COLORS = ['#c96442', '#2d8f8f', '#805ad5', '#d69e2e', '#e53e3e', '#00b5d8', '#38a169', '#d53f8c'];
+
+  return (
+    <div className="p-3 space-y-3">
+      {/* ── Complex Group Hero Card ── */}
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-3">
+        <div className="flex items-start gap-3">
+          <div className="flex-shrink-0 w-[72px] h-[72px] rounded-xl bg-gradient-to-br from-claude-accent/20 to-purple-500/20 flex flex-col items-center justify-center border border-claude-accent/20">
+            <Layers className="h-6 w-6 text-claude-accent" />
+            <span className="text-[10px] font-bold font-mono text-claude-accent mt-0.5">{subEvals.length}</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-semibold text-claude-text leading-snug">{group.name}</h3>
+            <p className="text-[10px] text-claude-text-muted mt-0.5">Complex Evaluation Group</p>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-claude-border-light/60 dark:bg-[#2b2926] text-claude-text-muted border border-claude-border/50">
+                <Database className="h-2.5 w-2.5" />{coverageData.reduce((s, c) => s + c.pdbCount, 0)} PDB
+              </span>
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-claude-border-light/60 dark:bg-[#2b2926] text-claude-text-muted border border-claude-border/50">
+                <FileSearch className="h-2.5 w-2.5" />{coverageData.reduce((s, c) => s + c.blastCount, 0)} BLAST
+              </span>
+              {groupOverallAvg > 0 && (
+                <span className="text-[10px] font-mono font-bold" style={{ color: getScoreColor(groupOverallAvg) }}>
+                  Avg {groupOverallAvg.toFixed(1)}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Comparative Score Table ── */}
+      {allCategories.length > 0 && (
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-semibold text-claude-text">Score Comparison</h4>
+            {overallExtremes.diff > 0 && (
+              <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-800/30">
+                Δ {overallExtremes.diff.toFixed(1)} max diff
+              </span>
+            )}
+          </div>
+
+          {/* Table header */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-[10px]">
+              <thead>
+                <tr className="border-b border-claude-border/30 dark:border-[#3d3832]/30">
+                  <th className="text-left py-1 px-1.5 text-claude-text-muted font-medium">Category</th>
+                  {subEvals.map((ev, idx) => (
+                    <th key={ev.uniprotId} className="text-center py-1 px-1.5 font-medium min-w-[60px]">
+                      <button
+                        onClick={() => onSelectEval(ev.uniprotId)}
+                        className="hover:underline"
+                        style={{ color: EVAL_COLORS[idx % EVAL_COLORS.length] }}
+                      >
+                        {ev.uniprotId}
+                      </button>
+                    </th>
+                  ))}
+                  <th className="text-center py-1 px-1.5 text-claude-text-muted font-medium">Diff</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allCategories.map(cat => {
+                  const extremes = scoreExtremes[cat];
+                  const hasDiff = extremes && extremes.diff > 0.5;
+                  return (
+                    <tr key={cat} className="border-b border-claude-border/10 dark:border-[#3d3832]/10">
+                      <td className="py-1 px-1.5 text-claude-text-secondary font-medium">
+                        {cat.charAt(0).toUpperCase() + cat.slice(1).replace(/([A-Z])/g, ' $1')}
+                      </td>
+                      {subEvals.map((ev, idx) => {
+                        const score = evalScoresMap[ev.uniprotId]?.[cat];
+                        if (score === undefined) return <td key={ev.uniprotId} className="text-center py-1 px-1.5 text-claude-text-muted">—</td>;
+                        const isMax = ev.uniprotId === extremes?.maxUid && hasDiff;
+                        const isMin = ev.uniprotId === extremes?.minUid && hasDiff;
+                        return (
+                          <td key={ev.uniprotId} className="text-center py-1 px-1.5">
+                            <span
+                              className={`font-mono font-semibold ${
+                                isMax ? 'text-emerald-600 dark:text-emerald-400' :
+                                isMin ? 'text-red-500 dark:text-red-400' :
+                                ''
+                              }`}
+                              style={(!isMax && !isMin) ? { color: getScoreColor(score) } : undefined}
+                            >
+                              {score.toFixed(1)}
+                              {isMax && ' ▲'}
+                              {isMin && ' ▼'}
+                            </span>
+                          </td>
+                        );
+                      })}
+                      <td className="text-center py-1 px-1.5">
+                        {extremes ? (
+                          <span className={`font-mono font-semibold ${extremes.diff > 2 ? 'text-red-500' : extremes.diff > 1 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                            {extremes.diff.toFixed(1)}
+                          </span>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {/* Overall row */}
+                <tr className="border-t-2 border-claude-border/50 dark:border-[#3d3832]/50 font-semibold">
+                  <td className="py-1.5 px-1.5 text-claude-text">Overall</td>
+                  {subEvals.map((ev, idx) => {
+                    const score = overallScores[ev.uniprotId];
+                    const isMax = ev.uniprotId === overallExtremes.maxUid && overallExtremes.diff > 0.5;
+                    const isMin = ev.uniprotId === overallExtremes.minUid && overallExtremes.diff > 0.5;
+                    return (
+                      <td key={ev.uniprotId} className="text-center py-1.5 px-1.5">
+                        <span
+                          className={`font-mono ${
+                            isMax ? 'text-emerald-600 dark:text-emerald-400' :
+                            isMin ? 'text-red-500 dark:text-red-400' : ''
+                          }`}
+                          style={(!isMax && !isMin) ? { color: getScoreColor(score) } : undefined}
+                        >
+                          {score.toFixed(1)}
+                          {isMax && ' ▲'}
+                          {isMin && ' ▼'}
+                        </span>
+                      </td>
+                    );
+                  })}
+                  <td className="text-center py-1.5 px-1.5">
+                    <span className={`font-mono font-bold ${overallExtremes.diff > 2 ? 'text-red-500' : overallExtremes.diff > 1 ? 'text-amber-500' : 'text-emerald-500'}`}>
+                      {overallExtremes.diff.toFixed(1)}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Comparative Radar Chart ── */}
+      {radarData.length > 0 && subEvals.length >= 2 && (
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-claude-text">Score Radar Comparison</h4>
+          <ResponsiveContainer width="100%" height={200}>
+            <RadarChart cx="50%" cy="50%" outerRadius="65%" data={radarData}>
+              <PolarGrid stroke={isDark ? '#3d3832' : '#e8e4dd'} />
+              <PolarAngleAxis dataKey="metric" tick={{ fontSize: 8, fill: isDark ? '#9b9590' : '#6b6560' }} />
+              <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fontSize: 7, fill: isDark ? '#6b6560' : '#9b9590' }} axisLine={false} />
+              {subEvals.map((ev, idx) => (
+                <Radar
+                  key={ev.uniprotId}
+                  name={ev.uniprotId}
+                  dataKey={ev.uniprotId}
+                  stroke={EVAL_COLORS[idx % EVAL_COLORS.length]}
+                  fill={EVAL_COLORS[idx % EVAL_COLORS.length]}
+                  fillOpacity={0.08}
+                  strokeWidth={2}
+                />
+              ))}
+              <Legend wrapperStyle={{ fontSize: '9px', color: isDark ? '#9b9590' : '#7c756e' }} />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
+      {/* ── Coverage Comparison ── */}
+      {coverageData.length > 0 && (
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-claude-text">Coverage Comparison</h4>
+          <div className="space-y-2">
+            {coverageData.map((cd, idx) => {
+              const covColor = cd.coverage >= 80 ? '#2d8f8f' : cd.coverage >= 50 ? '#c9872e' : cd.coverage >= 25 ? '#ea580c' : '#dc2626';
+              return (
+                <button
+                  key={cd.uniprotId}
+                  onClick={() => onSelectEval(cd.uniprotId)}
+                  className="w-full text-left p-2 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 hover:border-claude-accent/30 hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30 transition-all"
+                >
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[10px] font-semibold" style={{ color: EVAL_COLORS[idx % EVAL_COLORS.length] }}>
+                        {cd.uniprotId}
+                      </span>
+                      <span className="text-[9px] text-claude-text-muted truncate max-w-[120px]">{cd.proteinName}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] text-claude-text-muted">{cd.pdbCount} PDB</span>
+                      <span className="text-[10px] font-mono font-bold" style={{ color: covColor }}>{cd.coverage.toFixed(0)}%</span>
+                    </div>
+                  </div>
+                  <div className="h-1.5 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${cd.coverage}%` }}
+                      transition={{ duration: 0.6, ease: 'easeOut', delay: idx * 0.1 }}
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: covColor }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Score Difference Heatmap ── */}
+      {allCategories.length > 0 && subEvals.length >= 2 && (
+        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+          <h4 className="text-xs font-semibold text-claude-text">Score Differences</h4>
+          <p className="text-[9px] text-claude-text-muted">Visualizes deviation from group average for each category</p>
+          <div className="space-y-1.5">
+            {allCategories.map(cat => {
+              const avg = groupAvgScores[cat] || 0;
+              return (
+                <div key={cat} className="space-y-0.5">
+                  <div className="text-[9px] text-claude-text-secondary font-medium">
+                    {cat.charAt(0).toUpperCase() + cat.slice(1).replace(/([A-Z])/g, ' $1')}
+                    <span className="text-claude-text-muted ml-1">avg {avg.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {subEvals.map((ev, idx) => {
+                      const score = evalScoresMap[ev.uniprotId]?.[cat] ?? 0;
+                      const diff = score - avg;
+                      const isAbove = diff > 0.2;
+                      const isBelow = diff < -0.2;
+                      return (
+                        <div key={ev.uniprotId} className="flex-1 min-w-0">
+                          <div
+                            className={`h-2 rounded-sm transition-colors ${
+                              isAbove ? 'bg-emerald-400 dark:bg-emerald-500' :
+                              isBelow ? 'bg-red-400 dark:bg-red-500' :
+                              'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                            style={{
+                              opacity: Math.min(1, 0.3 + Math.abs(diff) / 3),
+                            }}
+                            title={`${ev.uniprotId}: ${score.toFixed(1)} (${diff > 0 ? '+' : ''}${diff.toFixed(1)})`}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {subEvals.map((ev, idx) => {
+                      const score = evalScoresMap[ev.uniprotId]?.[cat] ?? 0;
+                      const diff = score - avg;
+                      return (
+                        <div key={ev.uniprotId} className="flex-1 min-w-0 text-center">
+                          <span className={`text-[8px] font-mono ${
+                            diff > 0.2 ? 'text-emerald-600 dark:text-emerald-400' :
+                            diff < -0.2 ? 'text-red-500 dark:text-red-400' :
+                            'text-claude-text-muted'
+                          }`}>
+                            {diff > 0 ? '+' : ''}{diff.toFixed(1)}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Sub-evaluation Quick Links ── */}
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+        <h4 className="text-xs font-semibold text-claude-text">Individual Evaluations</h4>
+        <div className="space-y-1">
+          {subEvals.map((ev, idx) => {
+            const overall = overallScores[ev.uniprotId];
+            const covPct = Math.min(ev.coverage ?? 0, 100);
+            const covColor = covPct >= 80 ? '#2d8f8f' : covPct >= 50 ? '#c9872e' : covPct >= 25 ? '#ea580c' : '#dc2626';
+            return (
+              <button
+                key={ev.uniprotId}
+                onClick={() => onSelectEval(ev.uniprotId)}
+                className="w-full text-left p-2 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 hover:border-claude-accent/30 hover:bg-claude-accent-light/20 dark:hover:bg-[#3d2a22]/20 transition-all"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: EVAL_COLORS[idx % EVAL_COLORS.length] }} />
+                      <span className="font-mono text-[10px] font-semibold text-claude-accent">{ev.uniprotId}</span>
+                      <span className="text-[9px] text-claude-text-muted truncate">{ev.proteinName || ev.entryName}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {covPct > 0 && (
+                      <span className="text-[9px] font-mono" style={{ color: covColor }}>{covPct.toFixed(0)}%</span>
+                    )}
+                    {overall > 0 && (
+                      <span className="text-[10px] font-mono font-bold" style={{ color: getScoreColor(overall) }}>
+                        {overall.toFixed(1)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── Shared Structure Analysis ── */}
+      {(() => {
+        // Build map: PDB ID → { count, targets: [{ uniprotId, idx }] }
+        const sharedDetailMap = new Map<string, { count: number; targets: { uniprotId: string; idx: number }[] }>();
+        subEvals.forEach((ev, idx) => {
+          const pdbIds = new Set((ev.pdbStructures || []).map(s => s.pdbId));
+          pdbIds.forEach(pdbId => {
+            const existing = sharedDetailMap.get(pdbId);
+            if (existing) {
+              existing.count++;
+              existing.targets.push({ uniprotId: ev.uniprotId, idx });
+            } else {
+              sharedDetailMap.set(pdbId, { count: 1, targets: [{ uniprotId: ev.uniprotId, idx }] });
+            }
+          });
+        });
+        const sharedEntries = Array.from(sharedDetailMap.entries())
+          .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]));
+        const sharedOnly = sharedEntries.filter(([, detail]) => detail.count > 1);
+        const uniqueOnly = sharedEntries.filter(([, detail]) => detail.count === 1);
+        if (sharedEntries.length === 0) return null;
+        const getSharedColor = (count: number) => {
+          if (count >= 4) return { bg: 'bg-orange-100 dark:bg-orange-900/30', text: 'text-orange-700 dark:text-orange-400', border: 'border-orange-200 dark:border-orange-800/40', dot: 'bg-orange-400' };
+          if (count === 3) return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-700 dark:text-amber-400', border: 'border-amber-200 dark:border-amber-800/40', dot: 'bg-amber-400' };
+          if (count === 2) return { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-700 dark:text-teal-400', border: 'border-teal-200 dark:border-teal-800/40', dot: 'bg-teal-400' };
+          return { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-700 dark:text-emerald-400', border: 'border-emerald-200 dark:border-emerald-800/40', dot: 'bg-emerald-400' };
+        };
+        return (
+          <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-semibold text-claude-text flex items-center gap-1.5">
+                <GitMerge className="h-3 w-3 text-claude-accent" />
+                Structure Distribution
+              </h4>
+              {sharedOnly.length > 0 && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded font-medium bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400 border border-teal-200/50 dark:border-teal-800/30">
+                  {sharedOnly.length} shared across 2+ targets
+                </span>
+              )}
+            </div>
+
+            {/* Shared structures (2+ targets) — show with source indicators */}
+            {sharedOnly.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-[9px] font-medium text-claude-text-muted uppercase tracking-wider">Shared by multiple targets</div>
+                <div className="max-h-56 overflow-y-auto space-y-1 pr-1" style={{ scrollbarWidth: 'thin' }}>
+                  {sharedOnly.map(([pdbId, detail]) => {
+                    const colors = getSharedColor(detail.count);
+                    return (
+                      <div
+                        key={pdbId}
+                        className="flex items-center gap-1.5 p-1 rounded-md border border-claude-border/30 dark:border-[#3d3832]/30 hover:border-claude-border/60 transition-colors"
+                      >
+                        <a
+                          href={`https://www.rcsb.org/structure/${pdbId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[10px] font-mono font-semibold border ${colors.bg} ${colors.text} ${colors.border} hover:opacity-80 transition-opacity flex-shrink-0`}
+                        >
+                          {pdbId}
+                        </a>
+                        <div className="flex items-center gap-0.5 flex-1 min-w-0 flex-wrap">
+                          {detail.targets.map((t, ti) => (
+                            <button
+                              key={ti}
+                              onClick={() => onSelectEval(t.uniprotId)}
+                              className="flex items-center gap-0.5 hover:opacity-80 transition-opacity"
+                              title={subEvals.find(e => e.uniprotId === t.uniprotId)?.proteinName || t.uniprotId}
+                            >
+                              <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: EVAL_COLORS[t.idx % EVAL_COLORS.length] }} />
+                              <span className="text-[8px] font-mono text-claude-text-muted">{t.uniprotId}</span>
+                            </button>
+                          ))}
+                        </div>
+                        <span className={`text-[8px] font-mono font-semibold ${colors.text} flex-shrink-0`}>×{detail.count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Unique structures (1 target only) — compact grid */}
+            {uniqueOnly.length > 0 && (
+              <div className="space-y-1">
+                <div className="text-[9px] font-medium text-claude-text-muted uppercase tracking-wider">Unique to single target</div>
+                <div className="flex flex-wrap gap-1 max-h-32 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+                  {uniqueOnly.map(([pdbId, detail]) => {
+                    const t = detail.targets[0];
+                    return (
+                      <a
+                        key={pdbId}
+                        href={`https://www.rcsb.org/structure/${pdbId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-semibold border bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800/40 hover:opacity-80 transition-opacity"
+                      >
+                        {pdbId}
+                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: EVAL_COLORS[t.idx % EVAL_COLORS.length] }} />
+                      </a>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Color legend */}
+            <div className="flex items-center gap-3 text-[9px] text-claude-text-muted pt-1 border-t border-claude-border/30 dark:border-[#3d3832]/30">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-emerald-400" /> Unique</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-teal-400" /> 2 targets</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-amber-400" /> 3 targets</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-sm bg-orange-400" /> 4+ targets</span>
+            </div>
+
+            {/* Target color legend */}
+            <div className="flex items-center gap-2 flex-wrap text-[9px] text-claude-text-muted">
+              {subEvals.map((ev, idx) => (
+                <span key={ev.uniprotId} className="flex items-center gap-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: EVAL_COLORS[idx % EVAL_COLORS.length] }} />
+                  <span className="font-mono text-[8px]">{ev.uniprotId}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -9576,6 +10568,9 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
   const [blastSortField, setBlastSortField] = useState<string>('identity');
   const [blastSortDir, setBlastSortDir] = useState<'asc' | 'desc'>('desc');
 
+  const blastResults = evalData.blastResults || [];
+  const pdbStructures = evalData.pdbStructures || [];
+
   // Ligand cache for PDB structure tooltips
   const [ligandCache, setLigandCache] = useState<Record<string, LigandInfo>>({});
   const fetchLigandInfo = useCallback(async (code: string) => {
@@ -9598,7 +10593,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
       }
     });
     allCodes.forEach(code => fetchLigandInfo(code));
-  }, [evalData.uniprotId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [evalData.uniprotId, fetchLigandInfo]);
 
   useEffect(() => {
     async function load() {
@@ -9611,9 +10606,6 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
     }
     load();
   }, [evalData.uniprotId]);
-
-  const blastResults = evalData.blastResults || [];
-  const pdbStructures = evalData.pdbStructures || [];
 
   // Sort BLAST results
   const sortedBlastResults = useMemo(() => {
@@ -9860,95 +10852,11 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
         </div>
       )}
 
-      {/* ── PDB Structures Grid ── */}
-      {pdbStructures.length > 0 && (
-        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
-          <h4 className="text-xs font-semibold text-claude-text">
-            PDB Structures <span className="text-claude-text-muted font-normal">({pdbStructures.length})</span>
-          </h4>
-          <div className="grid grid-cols-2 gap-1.5">
-            {pdbStructures.map((s) => {
-              const methodColors = s.method ? getMethodColor(s.method) : null;
-              const methodLabel = s.method ? getMethodLabel(s.method) : '—';
-              const ligandList = s.ligand ? s.ligand.split(/[;,\s]+/).filter(Boolean) : [];
-              return (
-                <div
-                  key={`${s.uniprotId}-${s.pdbId}`}
-                  className="block p-2 rounded-lg border border-claude-border/60 bg-claude-border-light/20 dark:bg-[#1a1917]/60 hover:bg-claude-border-light/50 dark:hover:bg-[#2b2926] transition-all duration-150 group"
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <a
-                      href={`https://www.rcsb.org/structure/${s.pdbId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-[11px] font-bold text-claude-accent group-hover:text-claude-accent-hover transition-colors"
-                    >{s.pdbId}</a>
-                    {methodColors && (
-                      <span className={`text-[8px] px-1 py-0.5 rounded font-medium ${methodColors.bg} ${methodColors.text} leading-none`}>
-                        {methodLabel}
-                      </span>
-                    )}
-                  </div>
-                  {s.resolution != null && (
-                    <div className="text-[10px] text-claude-text-muted">
-                      <span className={`font-mono font-medium ${getResolutionColor(s.resolution)}`}>{s.resolution}Å</span>
-                    </div>
-                  )}
-                  {s.title && (
-                    <div className="text-[9px] text-claude-text-muted line-clamp-1 mt-0.5">{s.title}</div>
-                  )}
-                  {ligandList.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {ligandList.slice(0, 3).map((lig, i) => (
-                        <HoverCard key={`eval-lig-${s.pdbId}-${i}-${lig}`} openDelay={200} closeDelay={100}>
-                          <HoverCardTrigger asChild>
-                            <span
-                              className="ligand-chip"
-                              onMouseEnter={() => fetchLigandInfo(lig)}
-                            >
-                              {lig}
-                            </span>
-                          </HoverCardTrigger>
-                          <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
-                            {ligandCache[lig] ? (
-                              <LigandTooltipContent ligand={ligandCache[lig]} />
-                            ) : (
-                              <div className="p-3 flex items-center gap-2">
-                                <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
-                                <span className="text-xs text-claude-text-muted">Loading...</span>
-                              </div>
-                            )}
-                          </HoverCardContent>
-                        </HoverCard>
-                      ))}
-                      {ligandList.length > 3 && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="ligand-chip cursor-default">+{ligandList.length - 3}</span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <div className="flex flex-wrap gap-1 max-w-48">
-                              {ligandList.map((l, li) => (
-                                <span key={`eval-lig-all-${s.pdbId}-${li}`} className="ligand-chip">{l}</span>
-                              ))}
-                            </div>
-                          </TooltipContent>
-                        </Tooltip>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       {/* ── Recommendations ── */}
       {evalData.report && (
         <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-1.5">
           <h4 className="text-xs font-semibold text-claude-text">Recommendations</h4>
-          <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#2b2926] text-[11px] text-claude-text-secondary dark:text-[#9b9590] leading-relaxed line-clamp-4">
+          <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#2b2926] text-[11px] text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">
             {evalData.report
               .replace(/[#*_]/g, '')
               .split('\n')
@@ -10059,9 +10967,9 @@ function EvaluationTimeline({
   // Generate day labels
   const dayLabels = useMemo(() => {
     const days: { date: Date; dayName: string; dateLabel: string }[] = [];
+    const startMs = dateRange.start.getTime();
     for (let i = 0; i < totalDays; i++) {
-      const d = new Date(dateRange.start);
-      d.setDate(d.getDate() + i);
+      const d = new Date(startMs + i * 86400000);
       days.push({
         date: d,
         dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
@@ -10069,7 +10977,7 @@ function EvaluationTimeline({
       });
     }
     return days;
-  }, [dateRange]);
+  }, [dateRange, totalDays]);
 
   // Group entries by day
   const entriesByDay = useMemo(() => {
@@ -10363,7 +11271,7 @@ function EvaluationHeatmap({
   if (allLiterature.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
-        <Grid3x3 className="h-8 w-8 mb-2 opacity-30" />
+        <BookOpen className="h-8 w-8 mb-2 opacity-30" />
         <p className="text-xs">No literature data available</p>
       </div>
     );
