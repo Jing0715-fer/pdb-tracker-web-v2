@@ -6281,9 +6281,11 @@ export default function PdbTracker() {
               )}
 
               {/* 3D Structure Viewer + Entity Panel Layout */}
-              <div className="space-y-3">
-                {/* Viewer - full width */}
-                <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
+              <div className="flex flex-col gap-3">
+                {/* Viewer + EntityPanel side-by-side */}
+                <div className="flex gap-3">
+                  {/* Viewer - takes ~65% width */}
+                  <div className="flex-1 min-w-0 rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
                   {selectedPdbId ? (
                     <MoleculeViewer
                       pdbId={selectedPdbId}
@@ -6314,9 +6316,10 @@ export default function PdbTracker() {
                   )}
                 </div>
 
-                {/* Entity Panel below the viewer */}
-                {selectedPdbId && entities.length > 0 && (
-                  <EntityPanel
+                  {/* EntityPanel - takes ~35% width */}
+                  {selectedPdbId && entities.length > 0 && (
+                    <div className="w-[280px] flex-shrink-0">
+                      <EntityPanel
                     pdbId={selectedPdbId}
                     entities={entities}
                     ligandCodes={ligandCodes}
@@ -6372,8 +6375,9 @@ export default function PdbTracker() {
                     onExportAll={() => {}}
                     onLoadStructure={(pdbId: string) => setSelectedPdbId(pdbId)}
                     collapsed={false}
-                  />
-                )}
+                    />
+                    </div>
+                  )}
 
                 {/* Structure Analysis Tabs - below viewer + entity panel */}
                 {selectedPdbId && entities.length > 0 && (
