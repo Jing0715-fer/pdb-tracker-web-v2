@@ -1939,7 +1939,26 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Allowed region: amber fill drawn ON TOP, partially obscuring non-favored areas */}
+        {/* Allowed region: amber fill — clipPath cuts out favored zones so green shows through */}
+        <defs>
+          <clipPath id="favoredClip">
+            <path d={favoredPathAlpha} transform={`translate(${center}, ${center}) scale(${plotSize / 360})`} />
+            <path d={favoredPathBeta} transform={`translate(${center}, ${center}) scale(${plotSize / 360})`} />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#favoredClip)">
+          <rect
+            x={padding}
+            y={padding}
+            width={plotSize}
+            height={plotSize}
+            fill={regionFills.allowed}
+            rx={4}
+            opacity={0.7}
+            onClick={() => setSelectedRegion('allowed')}
+            style={{ cursor: 'pointer' }}
+          />
+        </g>
         <rect
           x={padding}
           y={padding}
@@ -1947,7 +1966,7 @@ function RamachandranPlot({
           height={plotSize}
           fill={regionFills.allowed}
           rx={4}
-          opacity={0.6}
+          opacity={0.15}
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
@@ -2015,9 +2034,9 @@ function RamachandranPlot({
             key={i}
             cx={toX(pt.phi)}
             cy={toY(pt.psi)}
-            r={2}
+            r={pt.region === 'favored' ? 2.5 : 2}
             fill={regionColors[pt.region]}
-            opacity={pt.region === 'favored' ? 0.7 : pt.region === 'allowed' ? 0.6 : 0.8}
+            opacity={pt.region === 'favored' ? 1 : pt.region === 'allowed' ? 0.85 : 1}
             className="rama-plot-dot"
             style={{ animationDelay: `${i * 5}ms` }}
           />
@@ -3210,11 +3229,11 @@ function ContactNetworkGraph({
             <line x1={50} y1={4} x2={62} y2={4} stroke="var(--claude-accent)" strokeWidth={1.5} opacity={0.5} />
             <text x={65} y={4} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '7px' }}>Edge</text>
             {/* Distance colors */}
-            <circle cx={54} cy={17} r={2} fill="#22c55e" />
+            <circle cx={54} cy={17} r={pt.region === 'favored' ? 2.5 : 2} fill="#22c55e" />
             <text x={58} y={17} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '6px' }}>≤3Å</text>
-            <circle cx={68} cy={17} r={2} fill="#f59e0b" />
+            <circle cx={68} cy={17} r={pt.region === 'favored' ? 2.5 : 2} fill="#f59e0b" />
             <text x={72} y={17} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '6px' }}>≤4Å</text>
-            <circle cx={82} cy={17} r={2} fill="#ef4444" />
+            <circle cx={82} cy={17} r={pt.region === 'favored' ? 2.5 : 2} fill="#ef4444" />
             <text x={86} y={17} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '6px' }}>4Å+</text>
           </g>
         </svg>
@@ -4866,9 +4885,10 @@ function ResidueHeatmap({
 
 // ─── Quick Actions Toolbar ────────────────────────────────────────────────
 
+// Distinct colors for different chains — palette order matches default MoleculeViewer assignment
 const DEFAULT_ENTITY_COLORS = [
-  '#718096', '#3182ce', '#38a169', '#805ad5', '#d53f8c',
-  '#dd6b20', '#00b5d8', '#e53e3e', '#d69e2e', '#1a202c',
+  '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444',
+  '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
 ];
 const DEFAULT_LIGAND_COLOR = '#d69e2e';
 const DEFAULT_LIGAND_COLORS = [
@@ -4942,11 +4962,11 @@ function QuickActionsToolbar({
         <TooltipTrigger asChild>
           <button
             onClick={handleResetColors}
-            className="p-2 rounded text-claude-text-muted hover:text-claude-accent
-                       hover:bg-claude-accent-light transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+            className="p-1.5 rounded text-claude-text-muted hover:text-claude-accent
+                       hover:bg-claude-accent-light transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
             title="Reset all colors"
           >
-            <RotateCcw className="w-4 h-4" />
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg text-[9px]">
@@ -4959,11 +4979,11 @@ function QuickActionsToolbar({
         <TooltipTrigger asChild>
           <button
             onClick={handleToggleAllLigands}
-            className="p-2 rounded text-claude-text-muted hover:text-claude-accent
-                       hover:bg-claude-accent-light transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+            className="p-1.5 rounded text-claude-text-muted hover:text-claude-accent
+                       hover:bg-claude-accent-light transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
             title={allLigandsVisible ? 'Hide all ligands' : 'Show all ligands'}
           >
-            {allLigandsVisible ? <Layers className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+            {allLigandsVisible ? <Layers className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg text-[9px]">
@@ -4976,11 +4996,11 @@ function QuickActionsToolbar({
         <TooltipTrigger asChild>
           <button
             onClick={handleToggleAllExpanded}
-            className="p-2 rounded text-claude-text-muted hover:text-claude-accent
-                       hover:bg-claude-accent-light transition-colors min-w-[36px] min-h-[36px] flex items-center justify-center"
+            className="p-1.5 rounded text-claude-text-muted hover:text-claude-accent
+                       hover:bg-claude-accent-light transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
             title={allExpanded ? 'Collapse all sections' : 'Expand all sections'}
           >
-            {allExpanded ? <FoldVertical className="w-4 h-4" /> : <UnfoldVertical className="w-4 h-4" />}
+            {allExpanded ? <FoldVertical className="w-3.5 h-3.5" /> : <UnfoldVertical className="w-3.5 h-3.5" />}
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg text-[9px]">
