@@ -1860,7 +1860,7 @@ function RamachandranPlot({
 
     // Generate disallowed/outlier points
     const outlierCount = Math.round(count * (Math.max(outliersPct, 0) / 100));
-    for (let i = 0; i < Math.max(outlierCount, 1); i++) {
+    for (let i = 0; i < outlierCount; i++) {
       pts.push({
         phi: (Math.random() - 0.5) * 300,
         psi: (Math.random() - 0.5) * 300,
@@ -1923,7 +1923,7 @@ function RamachandranPlot({
           y={padding}
           width={plotSize}
           height={plotSize}
-          fill={regionFills.allowed}
+          fill="rgba(245, 158, 11, 0.25)"
           rx={4}
           opacity={1}
           onClick={() => setSelectedRegion('allowed')}
@@ -1937,7 +1937,7 @@ function RamachandranPlot({
           rx={30 * (plotSize / 360)}
           ry={30 * (plotSize / 360)}
           fill={regionFills.favored}
-          opacity={0.9}
+          opacity={1}
           onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
@@ -1947,7 +1947,7 @@ function RamachandranPlot({
           rx={35 * (plotSize / 360)}
           ry={35 * (plotSize / 360)}
           fill={regionFills.favored}
-          opacity={0.9}
+          opacity={1}
           onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
