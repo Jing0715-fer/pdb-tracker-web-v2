@@ -1930,22 +1930,17 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Green favored ellipses — alpha helix center(-60,-45) and beta-sheet center(-120,120) */}
-        <ellipse
-          cx={toX(-60)}
-          cy={toY(-45)}
-          rx={30 * (plotSize / 360)}
-          ry={30 * (plotSize / 360)}
+        {/* Alpha-helix favored region */}
+        <path
+          d={`M ${toX(-90)},${toY(-75)} Q ${toX(-60)},${toY(-90)} ${toX(-30)},${toY(-75)} Q ${toX(-20)},${toY(-45)} ${toX(-30)},${toY(-15)} Q ${toX(-60)},${toY(0)} ${toX(-90)},${toY(-15)} Q ${toX(-110)},${toY(-45)} ${toX(-90)},${toY(-75)} Z`}
           fill={regionFills.favored}
           opacity={1}
           onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
-        <ellipse
-          cx={toX(-120)}
-          cy={toY(120)}
-          rx={35 * (plotSize / 360)}
-          ry={35 * (plotSize / 360)}
+        {/* Beta-sheet favored region */}
+        <path
+          d={`M ${toX(-180)},${toY(100)} Q ${toX(-140)},${toY(70)} ${toX(-90)},${toY(80)} Q ${toX(-60)},${toY(140)} ${toX(-90)},${toY(180)} Q ${toX(-140)},${toY(180)} ${toX(-180)},${toY(160)} Q ${toX(-180)},${toY(130)} ${toX(-180)},${toY(100)} Z`}
           fill={regionFills.favored}
           opacity={1}
           onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}

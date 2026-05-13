@@ -91,6 +91,10 @@ export interface MoleculeViewerProps {
   onLigandsDetected?: (ligandCodes: string[]) => void;
   onEntityColorChange?: (entityKey: string, color: string) => void;
   onLigandColorChange?: (ligandCode: string, color: string) => void;
+  onResetColors?: () => void;
+  onToggleAllLigands?: () => void;
+  onToggleAllExpanded?: () => void;
+  onRepresentationChange?: (rep: 'cartoon' | 'ball-stick' | 'surface') => void;
   representation?: 'cartoon' | 'ball-stick' | 'surface';
   darkMode?: boolean;
   overlayPdbId?: string | null;
@@ -412,6 +416,10 @@ export function MoleculeViewer({
   onLigandsDetected,
   onEntityColorChange,
   onLigandColorChange,
+  onResetColors,
+  onToggleAllLigands,
+  onToggleAllExpanded,
+  onRepresentationChange,
   representation = 'cartoon',
   darkMode = false,
   overlayPdbId,
@@ -3802,6 +3810,102 @@ export function MoleculeViewer({
               className="bg-claude-surface text-claude-text border border-claude-border shadow-lg"
             >
               View on RCSB PDB
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Separator */}
+          <div className="w-px h-5 bg-claude-border-light mx-0.5" />
+
+          {/* Reset colors */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onResetColors ?? (() => {})}
+                className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
+              Reset all colors
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Show/Hide all ligands */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleAllLigands ?? (() => {})}
+                className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
+              >
+                <Layers className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
+              Show/Hide all ligands
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Expand/Collapse all */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={onToggleAllExpanded ?? (() => {})}
+                className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
+              >
+                <UnfoldVertical className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
+              Expand/Collapse all
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Separator */}
+          <div className="w-px h-5 bg-claude-border-light mx-0.5" />
+
+          {/* Cartoon rep */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onRepresentationChange?.('cartoon')}
+                className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
+              >
+                <Boxes className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
+              Cartoon
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Ball-stick rep */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onRepresentationChange?.('ball-stick')}
+                className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
+              >
+                <FlaskConical className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
+              Ball &amp; Stick
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Surface rep */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={() => onRepresentationChange?.('surface')}
+                className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
+              >
+                <Dna className="w-3.5 h-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
+              Surface
             </TooltipContent>
           </Tooltip>
         </div>
