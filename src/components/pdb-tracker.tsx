@@ -81,6 +81,7 @@ import {
   RefreshCw,
   AlertTriangle,
 } from 'lucide-react';
+import { StructureAnalysisSection } from './StructureAnalysisSection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -6371,6 +6372,17 @@ export default function PdbTracker() {
                     onExportAll={() => {}}
                     onLoadStructure={(pdbId: string) => setSelectedPdbId(pdbId)}
                     collapsed={false}
+                  />
+                )}
+
+                {/* Structure Analysis Tabs - below viewer + entity panel */}
+                {selectedPdbId && entities.length > 0 && (
+                  <StructureAnalysisSection
+                    pdbId={selectedPdbId}
+                    entities={entities}
+                    ligandCodes={ligandCodes}
+                    entityColors={entityColors}
+                    ligandColors={ligandColors}
                   />
                 )}
               </div>

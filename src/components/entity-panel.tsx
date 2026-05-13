@@ -2069,7 +2069,7 @@ function RamachandranPlot({
   );
 }
 
-function QualityMetricsSection({ pdbId }: { pdbId: string }) {
+export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
   const { data, loading } = useValidationData(pdbId);
   const [expanded, setExpanded] = useState(true);
   const [ramaExpanded, setRamaExpanded] = useState(true);
@@ -2311,7 +2311,7 @@ interface LigandNetworkEdge {
   label: string;
 }
 
-function LigandInteractionNetwork({
+export function LigandInteractionNetwork({
   pdbId,
   entities,
   ligandCodes,
@@ -3354,7 +3354,7 @@ function getDistanceBgColor(distance: number): string {
   return 'bg-red-100 dark:bg-red-900/30';
 }
 
-function ContactsSection({ pdbId, entities, ligandCodes, entityColors, ligandColors }: {
+export function ContactsSection({ pdbId, entities, ligandCodes, entityColors, ligandColors }: {
   pdbId: string;
   entities: EntityInfo[];
   ligandCodes: string[];
@@ -3662,7 +3662,7 @@ function useSimilarityData(pdbId: string): {
 
 // ─── Similarity Section ──────────────────────────────────────────────────
 
-function SimilaritySection({
+export function SimilaritySection({
   pdbId,
   onLoadStructure,
 }: {
@@ -3874,7 +3874,7 @@ function SimilaritySection({
   );
 }
 
-function AnnotationsSection({ pdbId, entities, ligandCodes, entityColors, ligandColors }: {
+export function AnnotationsSection({ pdbId, entities, ligandCodes, entityColors, ligandColors }: {
   pdbId: string;
   entities: EntityInfo[];
   ligandCodes: string[];
@@ -4178,7 +4178,7 @@ function AnnotationsSection({ pdbId, entities, ligandCodes, entityColors, ligand
 
 // ─── Summary Section ─────────────────────────────────────────────────────
 
-function SummarySection({
+export function SummarySection({
   entities,
   ligandCodes,
   pdbId,
@@ -4317,7 +4317,7 @@ const PDB_GROWTH_DATA: { year: number; entries: number }[] = [
   { year: 2024, entries: 220000 },
 ];
 
-function PdbTimelineSection({ pdbId }: { pdbId: string }) {
+export function PdbTimelineSection({ pdbId }: { pdbId: string }) {
   const [expanded, setExpanded] = useState(true);
   const [hoveredMilestone, setHoveredMilestone] = useState<number | null>(null);
   const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number } | null>(null);
@@ -5893,51 +5893,7 @@ export function EntityPanel({
             </div>
           </div>
 
-          {/* ─── Quality Metrics Section ───────────────────────────── */}
-          <QualityMetricsSection pdbId={pdbId} />
 
-          <div className="gradient-divider" />
-
-          {/* ─── Contacts Section ────────────────────────────────── */}
-          <ContactsSection
-            pdbId={pdbId}
-            entities={entities}
-            ligandCodes={ligandCodes}
-            entityColors={entityColors}
-            ligandColors={ligandColors}
-          />
-
-          <div className="gradient-divider" />
-
-          {/* ─── Annotations Section ──────────────────────────────── */}
-          <AnnotationsSection
-            pdbId={pdbId}
-            entities={entities}
-            ligandCodes={ligandCodes}
-            entityColors={entityColors}
-            ligandColors={ligandColors}
-          />
-
-          <div className="gradient-divider" />
-
-          {/* ─── Similar Structures Section ─────────────────────── */}
-          <SimilaritySection
-            pdbId={pdbId}
-            onLoadStructure={onLoadStructure}
-          />
-
-          <div className="gradient-divider" />
-
-          {/* ─── Summary Section ──────────────────────────────────── */}
-          <SummarySection
-            entities={entities}
-            ligandCodes={ligandCodes}
-            pdbId={pdbId}
-            onExportAll={onExportAll}
-          />
-
-          {/* ─── PDB Timeline Section ─────────────────────────────── */}
-          <PdbTimelineSection pdbId={pdbId} />
         </div>
       )}
 
