@@ -1506,12 +1506,14 @@ export function MoleculeViewer({
 
     const plugin = pluginRef.current;
 
+    let cancelled = false;
+
     (async () => {
       try {
-        const { Color, MolScriptBuilder, compile, StructureSelectionQuery, StructureSelectionQueries } = await getMolstarModules();
+        const { Color, MolScriptBuilder, StructureSelectionQuery, StructureSelectionQueries } = await getMolstarModules();
 
         const hierarchy = plugin.managers.structure.hierarchy.current;
-        if (!hierarchy) return;
+        if (!hierarchy || cancelled) return;
 
         // Build a chain color map from entityColors
         const chainPalette: Record<string, number> = {};
@@ -1525,84 +1527,32 @@ export function MoleculeViewer({
 
         if (Object.keys(chainPalette).length === 0) return;
 
-        // Use applyTheme with overpaint for per-chain coloring on the polymer component.
-        // First clear any existing overpaint, then apply each chain color.
-        await plugin.dataTransaction(async () => {
-          // Clear existing overpaint on all structures
+        // Apply each chain color — skip errors per chain to avoid node-not-found crashes
+        for (const [chainId, colorNum] of Object.entries(chainPalette)) {
+          if (cancelled) break;
           try {
+            const expression = createChainSelectionQuery(MolScriptBuilder, chainId);
+            const chainQuery = StructureSelectionQuery(
+              `Chain ${chainId}`,
+              expression,
+              { category: 'Chain', isHidden: true }
+            );
+
             await plugin.managers.structure.component.applyTheme({
-              selection: StructureSelectionQueries.all,
-              action: { name: 'resetColor' as const, params: {} },
+              selection: chainQuery,
+              action: { name: 'color' as const, params: { color: Color(colorNum) } },
               representations: [],
             });
-          } catch { /* ignore reset errors */ }
-
-          // Apply each chain color as an overpaint layer using MolScriptBuilder
-          // (Script.toExpression with string syntax fails for per-chain queries)
-          for (const [chainId, colorNum] of Object.entries(chainPalette)) {
-            try {
-              const expression = createChainSelectionQuery(MolScriptBuilder, chainId);
-              const chainQuery = StructureSelectionQuery(
-                `Chain ${chainId}`,
-                expression,
-                { category: 'Chain', isHidden: true }
-              );
-
-              await plugin.managers.structure.component.applyTheme({
-                selection: chainQuery,
-                action: { name: 'color' as const, params: { color: Color(colorNum) } },
-                representations: [],
-              });
-            } catch (e) {
-              console.warn(`[MoleculeViewer] Per-chain color failed for ${chainId}:`, e);
-            }
-          }
-        }, { canUndo: 'Update Chain Colors' });
-
-        // Also handle any per-chain components that may exist (non-default preset)
-        for (const structure of hierarchy.structures) {
-          for (const component of structure.components) {
-            const compKey = component.key || '';
-            const compTags: string[] = component.cell?.transform?.tags || [];
-
-            // Skip the standard polymer/ligand/water components (handled by overpaint above)
-            if (compKey === 'structure-component-static-polymer' ||
-                compKey === 'structure-component-static-ligand' ||
-                compKey === 'structure-component-static-water') {
-              continue;
-            }
-
-            if (component.representations.length === 0) continue;
-
-            // For per-chain components, apply uniform color directly
-            const compLabel = component.cell?.obj?.label || '';
-            for (const [entityKey, colorHex] of Object.entries(entityColors)) {
-              const chainId = entityKey.split('.')[1];
-              if (!chainId) continue;
-
-              const hasChainTag = compTags.some(t => t === `chain-${chainId}` || t === `chain-${chainId.toLowerCase()}`);
-              const labelMatches = compLabel === `Chain ${chainId}`;
-              const keyExactMatch = compKey === chainId || compKey === `chain-${chainId}`;
-
-              if (hasChainTag || labelMatches || keyExactMatch) {
-                const colorNum = parseInt(colorHex.replace('#', ''), 16);
-                try {
-                  await plugin.managers.structure.component.updateRepresentationsTheme(
-                    [component],
-                    {
-                      color: 'uniform' as const,
-                      colorParams: { value: Color(colorNum) },
-                    }
-                  );
-                } catch { /* ignore */ }
-              }
-            }
+          } catch (e) {
+            // Suppress per-chain color failures (node not in tree, etc.)
           }
         }
-      } catch (err) {
-        console.warn('[MoleculeViewer] Color application error:', err);
+      } catch (e) {
+        console.warn('[MoleculeViewer] applyEntityColors error:', e);
       }
     })();
+
+    return () => { cancelled = true; };
   }, [entityColors, structureLoaded, perChainComponentsReady]);
 
   // ─── Apply ligand colors ──────────────────────────────────────────────

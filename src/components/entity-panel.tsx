@@ -1917,8 +1917,7 @@ function RamachandranPlot({
           onClick={() => setSelectedRegion('disallowed')}
           style={{ cursor: 'pointer' }}
         />
-
-        {/* Allowed region: full amber rect as base layer */}
+        {/* Amber allowed rect as base */}
         <rect
           x={padding}
           y={padding}
@@ -1926,28 +1925,29 @@ function RamachandranPlot({
           height={plotSize}
           fill={regionFills.allowed}
           rx={4}
-          opacity={0.35}
+          opacity={1}
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
-        {/* Green favored paths drawn ON TOP of amber — green covers amber in favored zones */}
-        <path
-          d={favoredPathAlpha}
-          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
+
+        {/* Green favored ellipses — alpha helix center(-60,-45) and beta-sheet center(-120,120) */}
+        <ellipse
+          cx={toX(-60)}
+          cy={toY(-45)}
+          rx={30 * (plotSize / 360)}
+          ry={30 * (plotSize / 360)}
           fill={regionFills.favored}
-          opacity={0.75}
-          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.5)'}
-          strokeWidth={selectedRegion === 'favored' ? 2 : 0.5}
+          opacity={0.9}
           onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
-        <path
-          d={favoredPathBeta}
-          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
+        <ellipse
+          cx={toX(-120)}
+          cy={toY(120)}
+          rx={35 * (plotSize / 360)}
+          ry={35 * (plotSize / 360)}
           fill={regionFills.favored}
-          opacity={0.75}
-          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.5)'}
-          strokeWidth={selectedRegion === 'favored' ? 2 : 0.5}
+          opacity={0.9}
           onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
@@ -1955,59 +1955,25 @@ function RamachandranPlot({
         {/* Grid lines */}
         {[-180, -90, 0, 90, 180].map((v) => (
           <React.Fragment key={`grid-${v}`}>
-            <line
-              x1={toX(v)}
-              y1={padding}
-              x2={toX(v)}
-              y2={svgSize - padding}
-              stroke="var(--claude-border)"
-              strokeWidth={0.5}
-              strokeDasharray={v === 0 ? '2,2' : '1,3'}
-            />
-            <line
-              x1={padding}
-              y1={toY(v)}
-              x2={svgSize - padding}
-              y2={toY(v)}
-              stroke="var(--claude-border)"
-              strokeWidth={0.5}
-              strokeDasharray={v === 0 ? '2,2' : '1,3'}
-            />
+            <line x1={toX(v)} y1={padding} x2={toX(v)} y2={svgSize - padding} stroke="var(--claude-border)" strokeWidth={0.5} strokeDasharray={v === 0 ? '2,2' : '1,3'} />
+            <line x1={padding} y1={toY(v)} x2={svgSize - padding} y2={toY(v)} stroke="var(--claude-border)" strokeWidth={0.5} strokeDasharray={v === 0 ? '2,2' : '1,3'} />
+          </React.Fragment>
+        ))}
+
+        {/* Axis tick labels */}
+        {[-180, -90, 0, 90, 180].map((v) => (
+          <React.Fragment key={`tick-${v}`}>
+            <text x={toX(v)} y={svgSize - 6} textAnchor="middle" fontSize={7} fill="currentColor" className="fill-claude-text-muted">{v}</text>
+            <text x={13} y={toY(v) + 3} textAnchor="start" fontSize={7} fill="currentColor" className="fill-claude-text-muted">{v}</text>
           </React.Fragment>
         ))}
 
         {/* Axis labels */}
-        <text x={center} y={svgSize - 5} textAnchor="middle" className="fill-current text-claude-text-muted" fontSize={7} fontWeight={600}>
-          Phi (°)
-        </text>
-        <text x={8} y={center} textAnchor="middle" className="fill-current text-claude-text-muted" fontSize={7} fontWeight={600}
-          transform={`rotate(-90, 8, ${center})`}>
-          Psi (°)
-        </text>
-
-        {/* Tick labels */}
-        {[-180, -90, 0, 90, 180].map((v) => (
-          <React.Fragment key={`tick-${v}`}>
-            <text x={toX(v)} y={svgSize - padding + 12} textAnchor="middle" className="fill-current text-claude-text-muted" fontSize={5}>
-              {v}
-            </text>
-            <text x={padding - 4} y={toY(v) + 2} textAnchor="end" className="fill-current text-claude-text-muted" fontSize={5}>
-              {v}
-            </text>
-          </React.Fragment>
-        ))}
+        <text x={center} y={svgSize - 1} textAnchor="middle" fontSize={8} fill="currentColor" className="fill-claude-text-muted font-medium">φ</text>
+        <text x={10} y={center} textAnchor="middle" fontSize={8} transform={`rotate(-90, 10, ${center})`} fill="currentColor" className="fill-claude-text-muted font-medium">ψ</text>
 
         {/* Plot border */}
-        <rect
-          x={padding}
-          y={padding}
-          width={plotSize}
-          height={plotSize}
-          fill="none"
-          stroke="var(--claude-border)"
-          strokeWidth={1}
-          rx={4}
-        />
+        <rect x={padding} y={padding} width={plotSize} height={plotSize} fill="none" stroke="var(--claude-border)" strokeWidth={1} rx={4} />
 
         {/* Scatter points */}
         {points.map((pt, i) => (
