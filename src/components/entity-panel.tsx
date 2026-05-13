@@ -5372,26 +5372,7 @@ export function EntityPanel({
             </span>
           </div>
 
-          {/* Actions row: toolbar + representation selector */}
-          <div className="flex items-center gap-2 mb-2">
-            <QuickActionsToolbar
-              pdbId={pdbId}
-              ligandCodes={ligandCodes}
-              ligandVisibility={ligandVisibility}
-              onLigandVisibilityChange={onLigandVisibilityChange}
-              entityColors={entityColors}
-              ligandColors={ligandColors}
-              onEntityColorChange={onEntityColorChange}
-              onLigandColorChange={onLigandColorChange}
-              expandedEntities={expandedEntities}
-              setExpandedEntities={setExpandedEntities}
-              displayEntities={displayEntities}
-            />
-            <RepresentationSelector
-              value={representation}
-              onChange={onRepresentationChange}
-            />
-          </div>
+          {/* Actions row removed — moved to molstar toolbar in 3D viewer */}
 
           {/* Entity Search/Filter Input */}
           <div className="relative">

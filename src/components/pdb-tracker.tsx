@@ -6336,6 +6336,21 @@ export default function PdbTracker() {
                       onLigandsDetected={(codes) => setLigandCodes(codes)}
                       onEntityColorChange={handleEntityColorChange}
                       onLigandColorChange={handleLigandColorChange}
+                      onResetColors={() => {
+                        entities.forEach((e, ei) => {
+                          e.chains.forEach((c, ci) => {
+                            handleEntityColorChange(`${selectedPdbId}.${c.chain}`, ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'][(ei * e.chains.length + ci) % 10]);
+                          });
+                        });
+                        ligandCodes.forEach((code, i) => {
+                          handleLigandColorChange(code, ['#d69e2e','#e53e3e','#805ad5','#00b5d8','#d53f8c','#38a169','#dd6b20','#3182ce','#718096','#f6e05e'][i % 10]);
+                        });
+                      }}
+                      onToggleAllLigands={() => {
+                        const allVisible = ligandCodes.every(c => ligandVisibility[c] !== false);
+                        ligandCodes.forEach(code => handleEntityVisibilityChange(code, !allVisible));
+                      }}
+                      onRepresentationChange={setRepresentation}
                       representation={representation}
                     />
                   ) : (
