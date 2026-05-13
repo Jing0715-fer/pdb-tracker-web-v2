@@ -1389,8 +1389,7 @@ function LigandRow({
               )}
               {/* Type badge inline (enhanced) */}
               {!loading && data?.type && !isPeptideInhibitor && (
-                <span className={`ligand-type-badge-enhanced whitespace-nowrap ${LIGAND_TYPE_BADGE_COLORS[data.type]?.bg || 'bg-claude-border-light'} ${LIGAND_TYPE_BADGE_COLORS[data.type]?.text || LIGAND_TYPE_COLORS[data.type] || 'text-claude-text-secondary'}`}
-                  style={{ '--badge-color': LIGAND_TYPE_BADGE_COLORS[data.type]?.border || 'var(--claude-border)' } as React.CSSProperties}>
+                <span className={`ligand-type-badge ${LIGAND_TYPE_BADGE_COLORS[data.type]?.bg || 'bg-claude-border-light'} ${LIGAND_TYPE_BADGE_COLORS[data.type]?.text || 'text-claude-text-secondary'}`}>
                   {data.type}
                 </span>
               )}
