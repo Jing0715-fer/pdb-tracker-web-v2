@@ -6303,7 +6303,36 @@ export default function PdbTracker() {
                       onLigandClick={handleLigandClick}
                       onEntityHover={handleEntityHoverFrom3D}
                       onLigandHover={handleLigandHoverFrom3D}
-                      onEntitiesLoaded={(ents) => { setEntities(ents); const ligs: string[] = []; const known = new Set<string>(); const newColors: Record<string, string> = {}; for (const e of ents) { const mt = e.molecule_type.toLowerCase(); const maxLen = Math.max(...(e.chains.map(c => c.length ?? 0) || [0]), 0); const isPoly = (mt === 'polypeptide(l)' || mt === 'polypeptide(d)') && maxLen > 10 || mt === 'polyribonucleotide' || mt === 'polydeoxyribonucleotide'; const isBound = mt.includes('bound') || mt === 'non-polymer'; if (isBound && !mt.includes('water')) { for (const chem of e.chem_comp_ids || []) { if (!known.has(chem) && known.add(chem)) ligs.push(chem); } } for (const chain of e.chains) { const ek = `${selectedPdbId}.${chain.chain}`; if (!entityColors[ek]) { if (mt.includes('polypeptide(l)')) newColors[ek] = '#3b82f6'; else if (mt.includes('polypeptide(d)')) newColors[ek] = '#8b5cf6'; else if (mt.includes('polyribonucleotide')) newColors[ek] = '#22c55e'; else if (mt.includes('polydeoxyribonucleotide')) newColors[ek] = '#06b6d4'; else newColors[ek] = '#718096'; } } } setLigandCodes(ligs); if (Object.keys(newColors).length > 0) { setEntityColors(prev => ({ ...prev, ...newColors })); } }}
+                      onEntitiesLoaded={(ents) => {
+                        setEntities(ents);
+                        const ligs: string[] = [];
+                        const known = new Set<string>();
+                        const newColors: Record<string, string> = {};
+                        for (const e of ents) {
+                          const mt = e.molecule_type.toLowerCase();
+                          const maxLen = Math.max(...(e.chains.map(c => c.length ?? 0) || [0]), 0);
+                          const isPoly = (mt === 'polypeptide(l)' || mt === 'polypeptide(d)') && maxLen > 10 || mt === 'polyribonucleotide' || mt === 'polydeoxyribonucleotide';
+                          const isBound = mt.includes('bound') || mt === 'non-polymer';
+                          if (isBound && !mt.includes('water')) {
+                            for (const chem of e.chem_comp_ids || []) {
+                              if (!known.has(chem) && known.add(chem)) ligs.push(chem);
+                            }
+                          }
+                        }
+                        let chainIdx = 0;
+                        const PALETTE = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
+                        for (const e of ents) {
+                          for (const chain of e.chains) {
+                            const ek = `${selectedPdbId}.${chain.chain}`;
+                            newColors[ek] = PALETTE[chainIdx % PALETTE.length];
+                            chainIdx++;
+                          }
+                        }
+                        setLigandCodes(ligs);
+                        if (Object.keys(newColors).length > 0) {
+                          setEntityColors(prev => ({ ...prev, ...newColors }));
+                        }
+                      }}
                       onLigandsDetected={(codes) => setLigandCodes(codes)}
                       onEntityColorChange={handleEntityColorChange}
                       onLigandColorChange={handleLigandColorChange}
@@ -6318,7 +6347,7 @@ export default function PdbTracker() {
 
                   {/* EntityPanel - takes ~35% width */}
                   {selectedPdbId && entities.length > 0 && (
-                    <div className="w-[280px] flex-shrink-0">
+                    <div className="w-[280px] flex-shrink-0 h-[calc(100vh-120px)] overflow-y-auto">
                       <EntityPanel
                     pdbId={selectedPdbId}
                     entities={entities}

@@ -1354,11 +1354,11 @@ function LigandRow({
 
           {/* 2D Structure thumbnail (enhanced size) */}
           {!isPeptideInhibitor && !loading && data?.imageUrl && (
-            <div className="w-7 h-7 flex-shrink-0 rounded overflow-hidden bg-claude-bg border border-claude-border-light shadow-sm">
+            <div className="w-9 h-9 flex-shrink-0 rounded overflow-hidden bg-claude-bg border border-claude-border-light shadow-sm">
               <img
                 src={data.imageUrl}
                 alt={`${code} 2D`}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain p-0.5"
                 onError={(e) => {
                   (e.target as HTMLImageElement).style.display = 'none';
                 }}
@@ -1918,46 +1918,7 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Favored regions: draw FIRST (green fill) so they're behind allowed amber */}
-        <path
-          d={favoredPathAlpha}
-          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
-          fill={regionFills.favored}
-          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.4)'}
-          strokeWidth={selectedRegion === 'favored' ? 2 : 1}
-          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
-          style={{ cursor: 'pointer' }}
-        />
-        <path
-          d={favoredPathBeta}
-          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
-          fill={regionFills.favored}
-          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.4)'}
-          strokeWidth={selectedRegion === 'favored' ? 2 : 1}
-          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
-          style={{ cursor: 'pointer' }}
-        />
-
-        {/* Allowed region: amber fill — clipPath cuts out favored zones so green shows through */}
-        <defs>
-          <clipPath id="favoredClip">
-            <path d={favoredPathAlpha} transform={`translate(${center}, ${center}) scale(${plotSize / 360})`} />
-            <path d={favoredPathBeta} transform={`translate(${center}, ${center}) scale(${plotSize / 360})`} />
-          </clipPath>
-        </defs>
-        <g clipPath="url(#favoredClip)">
-          <rect
-            x={padding}
-            y={padding}
-            width={plotSize}
-            height={plotSize}
-            fill={regionFills.allowed}
-            rx={4}
-            opacity={0.7}
-            onClick={() => setSelectedRegion('allowed')}
-            style={{ cursor: 'pointer' }}
-          />
-        </g>
+        {/* Allowed region: full amber rect as base layer */}
         <rect
           x={padding}
           y={padding}
@@ -1965,8 +1926,29 @@ function RamachandranPlot({
           height={plotSize}
           fill={regionFills.allowed}
           rx={4}
-          opacity={0.15}
+          opacity={0.35}
           onClick={() => setSelectedRegion('allowed')}
+          style={{ cursor: 'pointer' }}
+        />
+        {/* Green favored paths drawn ON TOP of amber — green covers amber in favored zones */}
+        <path
+          d={favoredPathAlpha}
+          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
+          fill={regionFills.favored}
+          opacity={0.75}
+          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.5)'}
+          strokeWidth={selectedRegion === 'favored' ? 2 : 0.5}
+          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
+          style={{ cursor: 'pointer' }}
+        />
+        <path
+          d={favoredPathBeta}
+          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
+          fill={regionFills.favored}
+          opacity={0.75}
+          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.5)'}
+          strokeWidth={selectedRegion === 'favored' ? 2 : 0.5}
+          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
 
