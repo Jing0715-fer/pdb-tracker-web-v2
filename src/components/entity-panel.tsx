@@ -1919,7 +1919,27 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Allowed region overlay */}
+        {/* Favored regions: draw FIRST (green fill) so they're behind allowed amber */}
+        <path
+          d={favoredPathAlpha}
+          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
+          fill={regionFills.favored}
+          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.4)'}
+          strokeWidth={selectedRegion === 'favored' ? 2 : 1}
+          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
+          style={{ cursor: 'pointer' }}
+        />
+        <path
+          d={favoredPathBeta}
+          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
+          fill={regionFills.favored}
+          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.4)'}
+          strokeWidth={selectedRegion === 'favored' ? 2 : 1}
+          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
+          style={{ cursor: 'pointer' }}
+        />
+
+        {/* Allowed region: amber fill drawn ON TOP, partially obscuring non-favored areas */}
         <rect
           x={padding}
           y={padding}
@@ -1929,26 +1949,6 @@ function RamachandranPlot({
           rx={4}
           opacity={0.6}
           onClick={() => setSelectedRegion('allowed')}
-          style={{ cursor: 'pointer' }}
-        />
-
-        {/* Favored region outlines (clickable) */}
-        <path
-          d={favoredPathAlpha}
-          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
-          fill={regionFills.favored}
-          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.3)'}
-          strokeWidth={selectedRegion === 'favored' ? 2 : 1}
-          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
-          style={{ cursor: 'pointer' }}
-        />
-        <path
-          d={favoredPathBeta}
-          transform={`translate(${center}, ${center}) scale(${plotSize / 360})`}
-          fill={regionFills.favored}
-          stroke={selectedRegion === 'favored' ? regionColors.favored : 'rgba(34, 197, 94, 0.3)'}
-          strokeWidth={selectedRegion === 'favored' ? 2 : 1}
-          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
           style={{ cursor: 'pointer' }}
         />
 
@@ -5410,29 +5410,29 @@ export function EntityPanel({
             </span>
           </div>
 
-          {/* Quick Actions Toolbar */}
-          <QuickActionsToolbar
-            pdbId={pdbId}
-            ligandCodes={ligandCodes}
-            ligandVisibility={ligandVisibility}
-            onLigandVisibilityChange={onLigandVisibilityChange}
-            entityColors={entityColors}
-            ligandColors={ligandColors}
-            onEntityColorChange={onEntityColorChange}
-            onLigandColorChange={onLigandColorChange}
-            expandedEntities={expandedEntities}
-            setExpandedEntities={setExpandedEntities}
-            displayEntities={displayEntities}
-          />
-
-          {/* Representation Selector */}
-          <RepresentationSelector
-            value={representation}
-            onChange={onRepresentationChange}
-          />
+          {/* Actions row: toolbar + representation selector */}
+          <div className="flex items-center gap-2 mb-2">
+            <QuickActionsToolbar
+              pdbId={pdbId}
+              ligandCodes={ligandCodes}
+              ligandVisibility={ligandVisibility}
+              onLigandVisibilityChange={onLigandVisibilityChange}
+              entityColors={entityColors}
+              ligandColors={ligandColors}
+              onEntityColorChange={onEntityColorChange}
+              onLigandColorChange={onLigandColorChange}
+              expandedEntities={expandedEntities}
+              setExpandedEntities={setExpandedEntities}
+              displayEntities={displayEntities}
+            />
+            <RepresentationSelector
+              value={representation}
+              onChange={onRepresentationChange}
+            />
+          </div>
 
           {/* Entity Search/Filter Input */}
-          <div className="relative mt-2">
+          <div className="relative">
             <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-claude-text-muted" />
             <input
               type="text"
