@@ -172,9 +172,6 @@ const MoleculeViewer = dynamic(() => import('./molecule-viewer').catch(() => {
   )
 });
 
-import { EntityPanel } from './entity-panel';
-import type { EntityInfo } from './molecule-viewer';
-
 // ─── useAnimatedValue Hook ─────────────────────────────────────────────────
 
 function useAnimatedValue(target: number, duration: number = 800): { current: number; isAnimating: boolean } {
@@ -2536,74 +2533,6 @@ export default function PdbTracker() {
     setEvalEntityColors(prev => ({ ...prev, [entityId]: color }));
   }, []);
 
-  // ── Entity/Ligand Interaction Handlers ──
-  const handleEntityClick = useCallback((entityKey: string) => {
-    setSelectedEntity(prev => prev === entityKey ? null : entityKey);
-  }, []);
-
-  const handleEntityHoverFromPanel = useCallback((entityKey: string | null) => {
-    setHoveredEntity(entityKey);
-    setHoveredEntityFrom3D(false);
-  }, []);
-
-  const handleEntityHoverFrom3D = useCallback((entityKey: string | null) => {
-    setHoveredEntity(entityKey);
-    setHoveredEntityFrom3D(true);
-  }, []);
-
-  const handleLigandClick = useCallback((code: string) => {
-    setSelectedLigand(prev => prev === code ? null : code);
-  }, []);
-
-  const handleLigandHoverFromPanel = useCallback((code: string | null) => {
-    setHoveredLigand(code);
-    setHoveredLigandFrom3D(false);
-  }, []);
-
-  const handleLigandHoverFrom3D = useCallback((code: string | null) => {
-    setHoveredLigand(code);
-    setHoveredLigandFrom3D(true);
-  }, []);
-
-  const handleLigandColorChange = useCallback((code: string, color: string) => {
-    setLigandColors(prev => ({ ...prev, [code]: color }));
-  }, []);
-
-  const handleEntityVisibilityChange = useCallback((entityKey: string, visible: boolean) => {
-    setLigandVisibility(prev => ({ ...prev, [entityKey]: visible }));
-  }, []);
-
-  const handleEntityFocus = useCallback((entityKey: string) => {
-    setSoloEntity(prev => prev === entityKey ? null : entityKey);
-    setSoloLigand(null);
-  }, []);
-
-  const handleSoloEntity = useCallback((entityKey: string | null) => {
-    setSoloEntity(prev => prev === entityKey ? null : entityKey);
-  }, []);
-
-  const handleLigandFocus = useCallback((code: string) => {
-    setSoloLigand(prev => prev === code ? null : code);
-  }, []);
-
-  const handleSoloLigand = useCallback((code: string | null) => {
-    setSoloLigand(prev => prev === code ? null : code);
-  }, []);
-
-  const handleResetView = useCallback(() => {
-    setSoloEntity(null);
-    setSoloLigand(null);
-    setRepresentation('cartoon');
-  }, []);
-
-  const handleResidueClick = useCallback((chainId: string, residueNumber: number) => {
-    // Could focus 3D viewer on this residue
-  }, []);
-
-  const handleFocusIn3D = useCallback((entityKey: string) => {
-    // Focus 3D on entity or ligand
-  }, []);
-
   // ── Share View: Apply URL Params on Mount ──
   useEffect(() => {
     if (urlParamsApplied.current) return;
@@ -2673,70 +2602,6 @@ export default function PdbTracker() {
   // Eval mode also supports entity interaction
   const [evalEntityColors, setEvalEntityColors] = useState<Record<string, string>>({});
   const [evalHoveredEntity, setEvalHoveredEntity] = useState<string | null>(null);
-
-  // ── Detail Panel 3D & Entity State ──
-  const [selectedPdbId, setSelectedPdbId] = useState<string | null>(null);
-  const [entities, setEntities] = useState<EntityInfo[]>([]);
-  const [ligandCodes, setLigandCodes] = useState<string[]>([]);
-  const [ligandColors, setLigandColors] = useState<Record<string, string>>({});
-  const [ligandVisibility, setLigandVisibility] = useState<Record<string, boolean>>({});
-  const [entityVisibility, setEntityVisibility] = useState<Record<string, boolean>>({});
-  const [selectedEntity, setSelectedEntity] = useState<string | null>(null);
-  const [selectedLigand, setSelectedLigand] = useState<string | null>(null);
-  const [hoveredEntity, setHoveredEntity] = useState<string | null>(null);
-  const [hoveredLigand, setHoveredLigand] = useState<string | null>(null);
-  const [hoveredEntityFrom3D, setHoveredEntityFrom3D] = useState(false);
-  const [hoveredLigandFrom3D, setHoveredLigandFrom3D] = useState(false);
-  const [representation, setRepresentation] = useState<'cartoon' | 'ball-stick' | 'surface'>('cartoon');
-  const [soloLigand, setSoloLigand] = useState<string | null>(null);
-  const [soloEntity, setSoloEntity] = useState<string | null>(null);
-
-  // ── Sync selectedPdbId with selectedEntry & reset entity states ──
-  useEffect(() => {
-    if (selectedEntry) {
-      setSelectedPdbId(selectedEntry.pdbId);
-      setPreviewOpen(true);
-      setDetailPanelOpen(true);
-      setPreviewTab('summary');
-      // Reset entity/ligand selection states
-      setSelectedEntity(null);
-      setSelectedLigand(null);
-      setSoloEntity(null);
-      setSoloLigand(null);
-    }
-  }, [selectedEntry]);
-
-  // ── Fetch entities when selectedPdbId changes ──
-  useEffect(() => {
-    if (!selectedPdbId) return;
-    let cancelled = false;
-
-    fetch(`/api/entities/${selectedPdbId}`)
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        if (cancelled || !data?.entities) return;
-        const loadedEntities: EntityInfo[] = data.entities;
-        setEntities(loadedEntities);
-        // Detect ligand codes
-        const ligCodes: string[] = [];
-        const known = new Set<string>();
-        for (const e of loadedEntities) {
-          const mt = e.molecule_type.toLowerCase();
-          const maxLen = Math.max(...(e.chains.map(c => c.length ?? 0) || [0]), 0);
-          const isPoly = (mt === 'polypeptide(l)' || mt === 'polypeptide(d)') && maxLen > 10 || mt === 'polyribonucleotide' || mt === 'polydeoxyribonucleotide';
-          const isBound = mt.includes('bound') || mt === 'non-polymer';
-          if (isBound && !mt.includes('water')) {
-            for (const chem of e.chem_comp_ids || []) {
-              if (!known.has(chem) && known.add(chem)) ligCodes.push(chem);
-            }
-          }
-        }
-        setLigandCodes(ligCodes);
-      })
-      .catch(() => {});
-
-    return () => { cancelled = true; };
-  }, [selectedPdbId]);
 
   // ── Loading States ──
   const [loadingSnapshots, setLoadingSnapshots] = useState(true);
@@ -6279,100 +6144,17 @@ export default function PdbTracker() {
                 </div>
               )}
 
-              {/* 3D Structure Viewer + Entity Panel Layout */}
-              <div className="space-y-3">
-                {/* Viewer - full width */}
-                <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
-                  {selectedPdbId ? (
-                    <MoleculeViewer
-                      pdbId={selectedPdbId}
-                      highlightEntity={hoveredEntity}
-                      highlightLigand={hoveredLigand}
-                      entityColors={entityColors}
-                      ligandColors={ligandColors}
-                      ligandVisibility={ligandVisibility}
-                      selectedEntities={selectedEntity ? new Set([selectedEntity]) : undefined}
-                      selectedLigands={selectedLigand ? new Set([selectedLigand]) : undefined}
-                      soloLigand={soloLigand}
-                      entityVisibility={entityVisibility}
-                      soloEntity={soloEntity}
-                      onEntityClick={handleEntityClick}
-                      onLigandClick={handleLigandClick}
-                      onEntityHover={handleEntityHoverFrom3D}
-                      onLigandHover={handleLigandHoverFrom3D}
-                      onEntitiesLoaded={(ents) => { setEntities(ents); const ligs: string[] = []; const known = new Set<string>(); for (const e of ents) { const mt = e.molecule_type.toLowerCase(); const maxLen = Math.max(...(e.chains.map(c => c.length ?? 0) || [0]), 0); const isPoly = (mt === 'polypeptide(l)' || mt === 'polypeptide(d)') && maxLen > 10 || mt === 'polyribonucleotide' || mt === 'polydeoxyribonucleotide'; const isBound = mt.includes('bound') || mt === 'non-polymer'; if (isBound && !mt.includes('water')) { for (const chem of e.chem_comp_ids || []) { if (!known.has(chem) && known.add(chem)) ligs.push(chem); } } } setLigandCodes(ligs); }}
-                      onLigandsDetected={(codes) => setLigandCodes(codes)}
-                      onEntityColorChange={handleEntityColorChange}
-                      onLigandColorChange={handleLigandColorChange}
-                      representation={representation}
-                    />
-                  ) : (
-                    <div className="h-[400px] flex items-center justify-center bg-claude-border-light/30">
-                      <span className="text-sm text-claude-text-muted">Loading 3D structure...</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Entity Panel below the viewer */}
-                {selectedPdbId && entities.length > 0 && (
-                  <EntityPanel
-                    pdbId={selectedPdbId}
-                    entities={entities}
-                    ligandCodes={ligandCodes}
-                    entityColors={entityColors}
-                    ligandColors={ligandColors}
-                    ligandVisibility={ligandVisibility}
-                    selectedEntity={selectedEntity}
-                    selectedLigand={selectedLigand}
-                    hoveredEntity={hoveredEntity}
-                    hoveredLigand={hoveredLigand}
-                    onEntityClick={handleEntityClick}
-                    onEntityHover={handleEntityHoverFromPanel}
-                    onEntityColorChange={handleEntityColorChange}
-                    onLigandClick={handleLigandClick}
-                    onLigandHover={handleLigandHoverFromPanel}
-                    onLigandColorChange={handleLigandColorChange}
-                    onLigandVisibilityChange={handleEntityVisibilityChange}
-                    onLigandFocus={handleLigandFocus}
-                    onSoloLigand={handleSoloLigand}
-                    onResetView={handleResetView}
-                    soloLigand={soloLigand}
-                    entityVisibility={entityVisibility}
-                    soloEntity={soloEntity}
-                    onEntityVisibilityChange={handleEntityVisibilityChange}
-                    onEntityFocus={handleEntityFocus}
-                    onSoloEntity={handleSoloEntity}
-                    onResidueClick={handleResidueClick}
-                    representation={representation}
-                    onRepresentationChange={setRepresentation}
-                    hoveredEntityFrom3D={hoveredEntityFrom3D}
-                    hoveredLigandFrom3D={hoveredLigandFrom3D}
-                    onFocusIn3D={handleFocusIn3D}
-                    onExportLigands={async () => {
-                      const ligandDetails: Record<string, { name: string; formula: string; weight: string; type: string }> = {};
-                      await Promise.all(ligandCodes.map(async (code) => {
-                        try {
-                          const res = await fetch(`/api/ligand/${code}`);
-                          if (res.ok) { const data = await res.json(); ligandDetails[code] = { name: data.name || '', formula: data.formula || '', weight: data.weight != null ? String(data.weight) : '', type: data.type || '' }; }
-                        } catch {}
-                      }));
-                      const headers = ['Code', 'Name', 'Formula', 'MW', 'Type', 'Visible', 'Color'];
-                      const escapeField = (value: string) => value.includes(',') || value.includes('"') || value.includes('\n') ? `"${value.replace(/"/g, '""')}"` : value;
-                      const rows = ligandCodes.map((code) => {
-                        const details = ligandDetails[code];
-                        return [escapeField(code), escapeField(details?.name || ''), escapeField(details?.formula || ''), escapeField(details?.weight || ''), escapeField(details?.type || ''), String(true), escapeField(ligandColors[code] || '')].join(',');
-                      });
-                      const csv = [headers.join(','), ...rows].join('\n');
-                      const blob = new Blob([csv], { type: 'text/csv' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a'); a.href = url; a.download = `${selectedPdbId?.toUpperCase()}_ligands.csv`; a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    onExportAll={() => {}}
-                    onLoadStructure={(pdbId: string) => setSelectedPdbId(pdbId)}
-                    collapsed={false}
-                  />
-                )}
+              {/* 3D Structure Viewer */}
+              <div className="rounded-lg overflow-hidden border border-claude-border dark:border-[#3d3832]">
+                <MoleculeViewer
+                  pdbId={selectedEntry.pdbId}
+                  highlightEntity={hoveredEntityInPanel}
+                  onEntityClick={(entityId) => setHoveredEntityInPanel(hoveredEntityInPanel === entityId ? null : entityId)}
+                  entityColors={entityColors}
+                  onEntityColorChange={handleEntityColorChange}
+                  onEntitySelectFrom3D={(entityId) => setHoveredEntityInPanel(hoveredEntityInPanel === entityId ? null : entityId)}
+                  height={320}
+                />
               </div>
 
               {/* Info Grid - 2 column compact layout */}
@@ -6387,15 +6169,15 @@ export default function PdbTracker() {
                         <div className="grid grid-cols-3 gap-2">
                           <div>
                             <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Assembly</div>
-                            <div className="text-[11px] font-medium font-mono text-claude-text truncate">—</div>
+                            <div className="text-[11px] font-medium font-mono text-claude-text truncate">{selectedEntry.assembly || '—'}</div>
                           </div>
                           <div>
                             <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Polymers</div>
-                            <div className="text-[11px] font-medium text-claude-text">{selectedEntry.isCryoem ? 'Cryo-EM' : selectedEntry.isXray ? 'X-Ray' : '—'}</div>
+                            <div className="text-[11px] font-medium text-claude-text">{selectedEntry.polymerEntities || selectedEntry.chainCount || '—'}</div>
                           </div>
                           <div>
                             <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Ligands</div>
-                            <div className="text-[11px] font-medium text-claude-text">{ligands.length || '—'}</div>
+                            <div className="text-[11px] font-medium text-claude-text">{selectedEntry.ligandCount || ligands.length || '—'}</div>
                           </div>
                         </div>
                       );
@@ -6406,19 +6188,24 @@ export default function PdbTracker() {
                         <div className="text-[10px] text-claude-text italic truncate">{selectedEntry.organisms.split('|')[0]?.trim() || '—'}</div>
                       </div>
                     )}
-
+                    {selectedEntry.geneName && (
+                      <div>
+                        <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Gene</div>
+                        <div className="text-[10px] text-claude-text font-medium">{selectedEntry.geneName}</div>
+                      </div>
+                    )}
                     <div>
                       <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Resolution</div>
                       <div className="flex items-center gap-1.5">
                         <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all duration-500"
                             style={{
-                              width: `${Math.max(5, Math.min(100, (1 - ((selectedEntry.resolution ?? 3.5) - 0.5) / 4.5) * 100))}%`,
-                              backgroundColor: (selectedEntry.resolution ?? 4) <= 2.0 ? '#16a34a' : (selectedEntry.resolution ?? 4) <= 3.5 ? '#c9872e' : '#dc2626',
+                              width: `${Math.max(5, Math.min(100, (1 - (selectedEntry.resolution - 0.5) / 4.5) * 100))}%`,
+                              backgroundColor: selectedEntry.resolution <= 2.0 ? '#16a34a' : selectedEntry.resolution <= 3.5 ? '#c9872e' : '#dc2626',
                             }}
                           />
                         </div>
-                        <span className="text-[9px] text-claude-text-muted">{(selectedEntry.resolution ?? 4) <= 1.5 ? 'Excellent' : (selectedEntry.resolution ?? 4) <= 2.0 ? 'High' : (selectedEntry.resolution ?? 4) <= 3.0 ? 'Med' : (selectedEntry.resolution ?? 4) <= 3.5 ? 'Low' : 'VLow'}</span>
+                        <span className="text-[9px] text-claude-text-muted">{selectedEntry.resolution <= 1.5 ? 'Excellent' : selectedEntry.resolution <= 2.0 ? 'High' : selectedEntry.resolution <= 3.0 ? 'Med' : selectedEntry.resolution <= 3.5 ? 'Low' : 'VLow'}</span>
                       </div>
                     </div>
                   </div>

@@ -1,49 +1,107 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+
+interface PdbeMolecule {
+  entity_id: number;
+  molecule_type: string;
+  molecule_name?: string[];
+  synonym?: string;
+  description?: string;
+  source?: Array<{
+    organism_scientific_name?: string;
+    tax_id?: number;
+  }>;
+  gene_name?: string[] | string;
+  in_chains?: string[];
+  chain_to_asymId?: Record<string, string>;
+  length?: number;
+  sequence_length?: number;
+  chem_comp_ids?: string[];
+}
+
+interface PdbeChainDetail {
+  chain: string;
+  asym_id: string;
+  length: number;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ pdbId: string }> }
 ) {
-  const { pdbId } = await params;
-  
   try {
-    // Fetch from PDBe API
-    const url = `https://www.ebi.ac.uk/pdbe/api/pdb/entry/molecules/${pdbId.toLowerCase()}`;
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
-      next: { revalidate: 3600 } // Cache for 1 hour
-    });
-    
-    if (!res.ok) {
-      return NextResponse.json({ entities: [], chains: [] }, { status: 200 });
+    const { pdbId } = await params;
+    const upperPdbId = pdbId.toUpperCase();
+
+    if (!/^[A-Za-z0-9]{4}$/.test(upperPdbId)) {
+      return NextResponse.json(
+        { error: "Invalid PDB ID format. Must be 4 alphanumeric characters." },
+        { status: 400 }
+      );
     }
-    
-    const data = await res.json();
-    const entries = data[pdbId.toLowerCase()] || [];
-    
-    const entities = entries.map((ent: any) => ({
-      entity_id: ent.entity_id,
-      molecule_type: ent.molecule_type || '',
-      description: ent.molecule_name?.[0] || ent.synonym || '',
-      organism: ent.source?.[0]?.organism_scientific_name || '',
-      gene_name: ent.gene_name?.[0] || '',
-      // For non-polypeptide entities, length is undefined (they're small molecules)
-      // Only show length for polypeptide entities
-      chains: (ent.in_chains || []).map((chain: string) => ({
-        chain,
-        asym_id: chain,
-        length: ent.molecule_type && ent.molecule_type.includes('polypeptide') ? (ent.length || 0) : null
-      }))
-    }));
-    
+
+    const lowerPdbId = upperPdbId.toLowerCase();
+
+    const response = await fetch(
+      `https://www.ebi.ac.uk/pdbe/api/pdb/entry/molecules/${lowerPdbId}`,
+      { next: { revalidate: 3600 } }
+    );
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return NextResponse.json(
+          { error: `No entities found for PDB ID: ${upperPdbId}` },
+          { status: 404 }
+        );
+      }
+      return NextResponse.json(
+        { error: "Failed to fetch from PDBe API" },
+        { status: response.status }
+      );
+    }
+
+    const data = await response.json();
+    const molecules: PdbeMolecule[] = data[lowerPdbId] || [];
+
+    const entities = molecules.map((mol) => {
+      const chains: PdbeChainDetail[] = (mol.in_chains || []).map(
+        (chainId: string) => {
+          const asymId = mol.chain_to_asymId?.[chainId] || chainId;
+          return {
+            chain: chainId,
+            asym_id: asymId,
+            length: (mol.molecule_type?.includes('polypeptide') || mol.molecule_type?.includes('nucleotide'))
+              ? (mol.length || mol.sequence_length || 0)
+              : null,
+          };
+        }
+      );
+
+      return {
+        entity_id: mol.entity_id,
+        molecule_type: mol.molecule_type,
+        description: mol.molecule_name?.[0] || mol.synonym || mol.description || null,
+        organism: mol.source?.[0]?.organism_scientific_name || null,
+        gene_name: Array.isArray(mol.gene_name)
+          ? mol.gene_name.join(", ")
+          : mol.gene_name || null,
+        chem_comp_ids: mol.chem_comp_ids || [],
+        chains,
+      };
+    });
+
+    const chainCount = entities.reduce((sum, entity) => sum + entity.chains.length, 0);
+    const polymerEntities = entities.filter((e) =>
+      ["polypeptide(L)", "polyribonucleotide", "polydeoxyribonucleotide", "polydeoxyribonucleotide/polyribonucleotide hybrid"].includes(e.molecule_type)
+    ).length;
+
     return NextResponse.json({
+      pdb_id: upperPdbId,
       entities,
-      pdb_id: pdbId,
-      polymer_entities: entities.filter((e: any) => e.molecule_type === 'polypeptide').length,
-      chain_count: entities.reduce((sum: number, e: any) => sum + e.chains.length, 0)
+      polymer_entities: polymerEntities,
+      chain_count: chainCount,
     });
   } catch (error) {
-    console.error('Error fetching entities:', error);
-    return NextResponse.json({ entities: [], chains: [] }, { status: 200 });
+    console.error("[API /entities] Error:", error);
+    return NextResponse.json({ error: "Failed to fetch entity data" }, { status: 500 });
   }
 }

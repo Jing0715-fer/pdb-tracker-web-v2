@@ -95,7 +95,11 @@ export async function GET(
     if (fallback) {
       return NextResponse.json({
         code: normalizedCode,
-        ...fallback,
+        name: fallback.name,
+        formula: fallback.formula,
+        weight: (() => { const w = parseFloat(fallback.weight); return isNaN(w) ? null : w; })(),
+        type: fallback.type,
+        description: fallback.description,
         imageUrl: `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${normalizedCode}/PNG`,
       });
     }
@@ -105,7 +109,11 @@ export async function GET(
     if (rcsb) {
       return NextResponse.json({
         code: normalizedCode,
-        ...rcsb,
+        name: rcsb.name,
+        formula: rcsb.formula,
+        weight: (() => { const w = parseFloat(rcsb.weight); return isNaN(w) ? null : w; })(),
+        type: rcsb.type,
+        description: rcsb.description,
         imageUrl: `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${normalizedCode}/PNG`,
       });
     }
@@ -115,7 +123,7 @@ export async function GET(
       code: normalizedCode,
       name: normalizedCode,
       formula: 'N/A',
-      weight: 'N/A',
+      weight: null,
       type: 'UNKNOWN',
       description: 'No detailed information available for this ligand.',
       imageUrl: `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/name/${normalizedCode}/PNG`,

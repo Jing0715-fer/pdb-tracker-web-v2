@@ -3981,7 +3981,7 @@ export function MoleculeViewer({
                 <span className="text-claude-text-muted">+</span>
                 <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: overlayColorHex || '#ea580c' }} />
                 <span className="font-mono font-bold" style={{ color: overlayColorHex || '#ea580c' }}>
-                  {overlayPdbId.toUpperCase()}
+                  {(overlayPdbId ?? '').toUpperCase()}
                 </span>
               </span>
             )}
