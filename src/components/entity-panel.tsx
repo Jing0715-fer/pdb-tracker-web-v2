@@ -1884,8 +1884,8 @@ function RamachandranPlot({
   };
 
   const regionFills = {
-    favored: 'rgba(34, 197, 94, 0.12)',
-    allowed: 'rgba(245, 158, 11, 0.08)',
+    favored: 'rgba(34, 197, 94, 0.65)',
+    allowed: 'rgba(245, 158, 11, 0.20)',
     disallowed: 'rgba(239, 68, 68, 0.04)',
   };
 

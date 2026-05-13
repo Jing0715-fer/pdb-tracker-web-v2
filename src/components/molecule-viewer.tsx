@@ -91,10 +91,6 @@ export interface MoleculeViewerProps {
   onLigandsDetected?: (ligandCodes: string[]) => void;
   onEntityColorChange?: (entityKey: string, color: string) => void;
   onLigandColorChange?: (ligandCode: string, color: string) => void;
-  onResetColors?: () => void;
-  onToggleAllLigands?: () => void;
-  onToggleAllExpanded?: () => void;
-  onRepresentationChange?: (rep: 'cartoon' | 'ball-stick' | 'surface') => void;
   representation?: 'cartoon' | 'ball-stick' | 'surface';
   darkMode?: boolean;
   overlayPdbId?: string | null;
@@ -416,10 +412,6 @@ export function MoleculeViewer({
   onLigandsDetected,
   onEntityColorChange,
   onLigandColorChange,
-  onResetColors,
-  onToggleAllLigands,
-  onToggleAllExpanded,
-  onRepresentationChange,
   representation = 'cartoon',
   darkMode = false,
   overlayPdbId,
@@ -462,14 +454,6 @@ export function MoleculeViewer({
   // ED Map state
   const [edMapActive, setEdMapActive] = useState(false);
   const [edMapLevel, setEdMapLevel] = useState(1.0);
-
-  // Toolbar representation state (mirrors representation prop but drives toolbar UI)
-  const [toolbarRep, setToolbarRep] = useState<'cartoon' | 'ball-stick' | 'surface'>(representation || 'cartoon');
-
-  // Sync toolbarRep when representation prop changes
-  useEffect(() => {
-    if (representation) setToolbarRep(representation);
-  }, [representation]);
 
   // Track entity data after loading
   const entityDataRef = useRef<EntityInfo[]>([]);
@@ -3735,82 +3719,8 @@ export function MoleculeViewer({
         </div>
       )}
 
-      {/* ─── PDB Toolbar (Top-Left, above molstar controls) ─────────────── */}
+      {/* ─── Enhanced Overlay Toolbar (Top-Left) ─── */}
       <div className="absolute top-3 left-3 z-10">
-        <div className="flex items-center gap-1 p-1 rounded-lg bg-claude-surface/60 backdrop-blur-md border border-claude-border-light/60 shadow-sm">
-          {/* Reset all colors */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button onClick={onResetColors ?? (() => {})} className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150">
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
-              Reset all colors
-            </TooltipContent>
-          </Tooltip>
-          {/* Show/Hide all ligands */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button onClick={onToggleAllLigands ?? (() => {})} className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150">
-                <Layers className="w-3.5 h-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
-              Show/Hide all ligands
-            </TooltipContent>
-          </Tooltip>
-          {/* Expand/Collapse all */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button onClick={onToggleAllExpanded ?? (() => {})} className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150">
-                <UnfoldVertical className="w-3.5 h-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
-              Expand/Collapse all
-            </TooltipContent>
-          </Tooltip>
-          {/* Separator */}
-          <div className="w-px h-5 bg-claude-border-light mx-0.5" />
-          {/* Representation selector */}
-          <div className="flex rounded-md border border-claude-border overflow-hidden">
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button onClick={() => { setToolbarRep('cartoon'); onRepresentationChange?.('cartoon'); }} className={`flex items-center justify-center px-2 py-1.5 transition-all duration-150 ${toolbarRep === 'cartoon' ? 'bg-claude-accent text-white shadow-sm' : 'bg-claude-surface text-claude-text-secondary hover:bg-claude-accent-light hover:text-claude-accent'}`}>
-                  <Boxes className="w-3.5 h-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
-                Cartoon
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button onClick={() => { setToolbarRep('ball-stick'); onRepresentationChange?.('ball-stick'); }} className={`flex items-center justify-center px-2 py-1.5 transition-all duration-150 ${toolbarRep === 'ball-stick' ? 'bg-claude-accent text-white shadow-sm' : 'bg-claude-surface text-claude-text-secondary hover:bg-claude-accent-light hover:text-claude-accent'}`}>
-                  <FlaskConical className="w-3.5 h-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
-                Ball &amp; Stick
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button onClick={() => { setToolbarRep('surface'); onRepresentationChange?.('surface'); }} className={`flex items-center justify-center px-2 py-1.5 transition-all duration-150 ${toolbarRep === 'surface' ? 'bg-claude-accent text-white shadow-sm' : 'bg-claude-surface text-claude-text-secondary hover:bg-claude-accent-light hover:text-claude-accent'}`}>
-                  <Dna className="w-3.5 h-3.5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
-                Surface
-              </TooltipContent>
-            </Tooltip>
-          </div>
-        </div>
-      </div>
-
-      {/* ─── Enhanced Overlay Toolbar (Top-Left, below PDB toolbar) ─── */}
-      <div className="absolute top-[calc(3rem+40px)] left-3 z-10">
         <div className="flex items-center gap-1 p-1 rounded-lg bg-claude-surface/60 backdrop-blur-md border border-claude-border-light/60 shadow-sm">
           {/* Reset Camera */}
           <ToolbarButton
