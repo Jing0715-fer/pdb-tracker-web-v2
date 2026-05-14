@@ -1869,7 +1869,7 @@ export function MoleculeViewer({
 
         // Auto-focus on the solo ligand
         const { PluginCommands } = await getMolstarModules();
-        PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 600 });
+        PluginCommands.Camera.Focus(plugin, { durationMs: 600 });
       } catch (err) {
         console.warn('[MoleculeViewer] Solo ligand mode error:', err);
       }
@@ -1977,7 +1977,7 @@ export function MoleculeViewer({
 
         // Auto-focus on the solo chain
         const { PluginCommands } = await getMolstarModules();
-        PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 600 });
+        PluginCommands.Camera.Focus(plugin, { durationMs: 600 });
       } catch (err) {
         console.warn('[MoleculeViewer] Solo entity mode error:', err);
       }
@@ -2108,7 +2108,7 @@ export function MoleculeViewer({
             // Auto-focus camera on the highlighted entity/ligand
             if (focusedAny) {
               try {
-                PluginCommands.Camera.FocusSpheres(plugin, {
+                PluginCommands.Camera.Focus(plugin, {
                   durationMs: 400,
                 });
               } catch {
@@ -2773,7 +2773,7 @@ export function MoleculeViewer({
 
     try {
       const { PluginCommands } = await getMolstarModules();
-      PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 400 });
+      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
     } catch {
       // ignore
     }
@@ -2855,7 +2855,7 @@ export function MoleculeViewer({
       }
 
       // Focus camera on target
-      PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 400 });
+      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
     } catch (err) {
       console.warn('[MoleculeViewer] Focus on target error:', err);
     }
@@ -2920,7 +2920,7 @@ export function MoleculeViewer({
       }
 
       // Focus camera on the residue position
-      PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 400 });
+      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
     } catch (err) {
       console.warn('[MoleculeViewer] Focus on residue error:', err);
     }
@@ -3035,10 +3035,12 @@ export function MoleculeViewer({
 
     const plugin = pluginRef.current;
     if (!plugin || !structureLoaded) return;
+
     try {
-      const { PluginStateObject, StateSelection, PluginCommands } = await getMolstarModules();
+      const { PluginStateObject, StateSelection } = await getMolstarModules();
 
       if (!newActive) {
+        // Remove all density volumes
         const volumes = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Volume));
         for (const vol of volumes) {
           plugin.state.data.removeObject(vol.transform.ref);
@@ -3046,6 +3048,7 @@ export function MoleculeViewer({
         return;
       }
 
+      // Find the current structure cell
       const structureCells = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Molecule.Structure));
       if (!structureCells || structureCells.length === 0) {
         console.warn('[MoleculeViewer] No structure cell found for density loading');
@@ -3053,38 +3056,24 @@ export function MoleculeViewer({
         return;
       }
 
-      const structureCell = structureCells[0];
+      // Use molstar's lazy volume loading via plugin.managers.volume.hierarchy
+      // The dscif format loads 2Fo-Fc and Fo-Fc maps from the PDBe density server
+      const pdbUpper = pdbId.toUpperCase();
+      const serverUrl = 'https://www.ebi.ac.uk/pdbe/densities/x-ray/';
 
-      // Use InitVolumeStreaming via PluginCommands.State.ApplyAction with PDBe density server
-      await PluginCommands.State.ApplyAction(plugin, {
-        state: plugin.state.data,
-        action: {
-          transformer: {
-            id: 'molstar-volume-streaming',
-            params: {
-              method: 'x-ray',
-              entries: [{ id: pdbId.toUpperCase() }],
-              defaultView: 'selection-box',
-              options: {
-                serverUrl: 'https://www.ebi.ac.uk/pdbe/densities/x-ray/',
-                emContourProvider: 'pdbe',
-                channelParams: {},
-              },
-            },
-          },
-          params: {
-            method: 'x-ray',
-            entries: [{ id: pdbId.toUpperCase() }],
-            defaultView: 'selection-box',
-            options: {
-              serverUrl: 'https://www.ebi.ac.uk/pdbe/densities/x-ray/',
-              emContourProvider: 'pdbe',
-              channelParams: {},
-            },
-          },
-        },
-        ref: structureCell.transform.ref,
-      });
+      // Create lazy volume entries for 2Fo-Fc map
+      const volumeEntry = {
+        url: `${serverUrl}${pdbUpper.toLowerCase()}/cell?detail=2`, // 2=medium detail for 2Fo-Fc
+        isBinary: false,
+        format: 'dscif' as const,
+        entryId: pdbUpper,
+        isovalues: [
+          { type: 'relative' as const, value: 1.5, alpha: 0.8, color: [180, 180, 255] as [number,number,number] },
+        ],
+      };
+
+      // Add lazy volume through the volume hierarchy manager
+      plugin.managers.volume.hierarchy.add([volumeEntry as any], { ownerId: 'density-toggle' });
     } catch (err) {
       console.warn('[MoleculeViewer] Density load error:', err);
       setEdMapActive(false);
@@ -3283,7 +3272,7 @@ export function MoleculeViewer({
     if (!plugin) return;
     try {
       const { PluginCommands } = await getMolstarModules();
-      PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 400 });
+      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
     } catch {
       // ignore
     }
@@ -3827,7 +3816,7 @@ export function MoleculeViewer({
                 onClick={onResetColors ?? (() => {})}
                 className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
               >
-                <RotateCcw className="w-3.5 h-3.5" />
+                <Palette className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
@@ -3875,7 +3864,7 @@ export function MoleculeViewer({
                 onClick={() => onRepresentationChange?.('cartoon')}
                 className="flex items-center justify-center w-7 h-7 rounded-md backdrop-blur-sm border bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-accent hover:bg-claude-surface hover:border-claude-border shadow-sm transition-all duration-150"
               >
-                <Boxes className="w-3.5 h-3.5" />
+                <Hexagon className="w-3.5 h-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg">
@@ -4289,7 +4278,7 @@ export function MoleculeViewer({
                       if (!plugin) return;
                       try {
                         const { PluginCommands } = await getMolstarModules();
-                        PluginCommands.Camera.FocusSpheres(plugin, { durationMs: 400 });
+                        PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
                       } catch { /* ignore */ }
                     }}
                     className="flex items-center justify-center w-8 h-8 rounded-lg
