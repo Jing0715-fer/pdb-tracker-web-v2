@@ -1,33 +1,48 @@
 import { NextResponse } from 'next/server';
-import { PDBParser } from '@/lib/biopython_server';
+import { createGunzip } from 'zlib';
+import { Readable, PassThrough } from 'stream';
+import https from 'https';
 
 interface RamaPoint {
-  resId: number;
-  resName: string;
-  chain: string;
   phi: number;
   psi: number;
-  region: 'favored' | 'allowed' | 'outlier';
+  region: 'favored' | 'allowed' | 'disallowed';
+  chain: string;
+  resName: string;
+  resSeq: number;
 }
 
-function classifyRama(phi: number, psi: number): 'favored' | 'allowed' | 'outlier' {
-  // Based on Lovell et al., 2003 regions (net of 500 structures, 326531 residues)
-  // Alpha-helix core
-  if (-125 <= phi && phi <= -35 && -70 <= psi && psi <= 50) return 'favored';
-  // Beta-sheet core
-  if (-180 <= phi && phi <= -30 && 40 <= psi && psi <= 180) return 'favored';
-  // Left-handed helix
-  if (30 <= phi && phi <= 90 && -90 <= psi && psi <= 50) return 'favored';
+function classifyPoint(phiDeg: number, psiDeg: number): 'favored' | 'allowed' | 'disallowed' {
+  const inAlpha = phiDeg > -90 && phiDeg < -30 && psiDeg > -75 && psiDeg < -15;
+  const inBeta = phiDeg > -150 && phiDeg < -90 && psiDeg > 90 && psiDeg < 150;
+  const inLHelix = phiDeg > 30 && phiDeg < 90 && psiDeg > 30 && psiDeg < 90;
+  const inAllowed = (
+    (phiDeg > -150 && phiDeg < -60 && psiDeg > -180 && psiDeg < 180) ||
+    (phiDeg > -90 && phiDeg < 90 && psiDeg > -180 && psiDeg < 180)
+  ) && !inAlpha && !inBeta && !inLHelix;
 
-  // Allowed regions
-  // Near alpha-helix
-  if (-150 <= phi && phi <= -20 && -90 <= psi && psi <= 70) return 'allowed';
-  // Near beta-sheet / bridge
-  if (-180 <= phi && phi <= -20 && 20 <= psi && psi <= 180) return 'allowed';
-  // Near left-handed helix
-  if (20 <= phi && phi <= 110 && -120 <= psi && psi <= 70) return 'allowed';
+  if (inAlpha || inBeta || inLHelix) return 'favored';
+  if (inAllowed) return 'allowed';
+  return 'disallowed';
+}
 
-  return 'outlier';
+function fetchGzip(url: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    https.get(url, (res) => {
+      if (res.statusCode !== 200) {
+        reject(new Error(`HTTP ${res.statusCode}`));
+        return;
+      }
+      const gunzip = createGunzip();
+      const pt = new PassThrough();
+      pt.on('data', (c: Buffer) => chunks.push(c));
+      pt.on('end', () => resolve(Buffer.concat(chunks)));
+      pt.on('error', reject);
+      gunzip.on('error', reject);
+      res.pipe(gunzip).pipe(pt);
+    }).on('error', reject);
+  });
 }
 
 export async function GET(
@@ -42,47 +57,71 @@ export async function GET(
   }
 
   try {
-    // Download PDB file
-    const pdbRes = await fetch(`https://files.rcsb.org/download/${upperId}.pdb`, {
-      next: { revalidate: 3600 },
-    });
+    const buffer = await fetchGzip(`https://files.rcsb.org/download/${upperId}.cif.gz`);
+    const text = buffer.toString('utf-8');
+    const lines = text.split('\n');
+    const points: RamaPoint[] = [];
+    let inSection = false;
 
-    if (!pdbRes.ok) {
-      return NextResponse.json({ pdb_id: upperId, error: 'PDB file not found' }, { status: 404 });
+    for (const rawLine of lines) {
+      const line = rawLine.trim();
+
+      if (line.startsWith('_pdbx_validate_torsion.id')) {
+        inSection = true;
+        continue;
+      }
+
+      if (inSection && line.startsWith('#')) {
+        break;
+      }
+
+      if (inSection && line && !line.startsWith('_')) {
+        const parts = line.split(/\s+/);
+        if (parts.length >= 9) {
+          const phi = parseFloat(parts[parts.length - 2]);
+          const psi = parseFloat(parts[parts.length - 1]);
+
+          if (!isNaN(phi) && !isNaN(psi) && isFinite(phi) && isFinite(psi)) {
+            points.push({
+              phi,
+              psi,
+              region: classifyPoint(phi, psi),
+              chain: parts[3] || '',
+              resName: parts[2] || '',
+              resSeq: parseInt(parts[4]) || 0,
+            });
+          }
+        }
+      }
     }
 
-    const pdbText = await pdbRes.text();
-
-    // Parse with Biopython and compute phi/psi
-    const result = await PDBParser.parsePhiPsi(pdbText, upperId);
-
-    if (!result.points || result.points.length === 0) {
+    if (points.length === 0) {
       return NextResponse.json({
         pdb_id: upperId,
-        error: 'No phi/psi data could be computed',
+        error: 'No torsion data found in CIF',
         residue_count: 0,
-        favored: null,
-        allowed: null,
-        outliers: null,
+        favored: 0,
+        allowed: 0,
+        outliers: 0,
         points: [],
       });
     }
 
-    const total = result.points.length;
-    const favored = result.points.filter(p => p.region === 'favored').length;
-    const allowed = result.points.filter(p => p.region === 'allowed').length;
-    const outliers = result.points.filter(p => p.region === 'outlier').length;
+    const total = points.length;
+    const outlierCount = points.filter(p => p.region === 'disallowed').length;
+    const allowedCount = points.filter(p => p.region === 'allowed').length;
+    const favoredCount = points.filter(p => p.region === 'favored').length;
 
     return NextResponse.json({
       pdb_id: upperId,
       residue_count: total,
-      favored: Math.round((favored / total) * 1000) / 10,
-      allowed: Math.round((allowed / total) * 1000) / 10,
-      outliers: Math.round((outliers / total) * 1000) / 10,
-      points: result.points,
+      favored: Math.round((favoredCount / total) * 1000) / 10,
+      allowed: Math.round((allowedCount / total) * 1000) / 10,
+      outliers: Math.round((outlierCount / total) * 1000) / 10,
+      points,
     });
   } catch (err) {
     console.error('[Rama API] Error:', err);
-    return NextResponse.json({ pdb_id: upperId, error: 'Failed to compute Ramachandran data' }, { status: 500 });
+    return NextResponse.json({ pdb_id: upperId, error: 'Failed to fetch rama data' }, { status: 500 });
   }
 }

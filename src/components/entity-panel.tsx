@@ -1165,8 +1165,6 @@ function ChainRow({
                  ${isHovered && !isHoveredFrom3D ? 'ring-1 ring-claude-accent/20' : ''}
                  ${isSelected && hoveredFrom3D ? 'selected-from-3d' : ''}`}
       style={{ '--entity-color': color } as React.CSSProperties}
-      onMouseEnter={() => onEntityHover(entityKey)}
-      onMouseLeave={() => onEntityHover(null)}
       title={isHoveredFrom3D ? '↔ Synced from 3D viewer' : undefined}
     >
       {/* Selection indicator */}
@@ -1368,8 +1366,6 @@ function LigandRow({
                      ${!isVisible ? 'opacity-40' : ''}${isSelected ? ' ligand-focused-ring' : ''}
                      ${isSelected && hoveredFrom3D ? ' selected-from-3d' : ''}`}
           style={{ '--entity-color': color } as React.CSSProperties}
-          onMouseEnter={() => onLigandHover(code)}
-          onMouseLeave={() => onLigandHover(null)}
           title={isHoveredFrom3D ? '↔ Synced from 3D viewer' : undefined}
         >
           {/* Selection indicator */}
