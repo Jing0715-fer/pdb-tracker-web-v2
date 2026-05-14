@@ -352,6 +352,14 @@ function useValidationData(pdbId: string): {
 
 // ─── Ramachandran Real Phi/Psi Data Cache ──────────────────────────────────
 
+interface ChainScore {
+  chain: string;
+  favored: number;
+  allowed: number;
+  outliers: number;
+  total: number;
+}
+
 interface RamaData {
   pdb_id: string;
   residue_count: number;
@@ -359,6 +367,7 @@ interface RamaData {
   allowed: number | null;
   outliers: number | null;
   points: { phi: number; psi: number; region: string }[];
+  chain_scores: ChainScore[] | null;
 }
 
 const ramaCache = new Map<string, RamaData | null>();
@@ -2211,22 +2220,22 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   </CollapsibleContent>
                 </Collapsible>
 
-                {/* Metrics Grid */}
+                {/* Metrics Grid — Ramachandran from PDBe real data */}
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <MetricBar
                     label="Rama. Favored"
-                    value={data.ramachandran_favored}
+                    value={ramaData?.favored ?? data.ramachandran_favored}
                     max={100}
                     suffix="%"
                     percentile={data.ramachandran_percentile}
-                    trend={data.ramachandran_favored != null && data.ramachandran_favored >= 95 ? 'up' : data.ramachandran_favored != null && data.ramachandran_favored < 90 ? 'down' : 'stable'}
+                    trend={ramaData?.favored != null && ramaData.favored >= 95 ? 'up' : ramaData?.favored != null && ramaData.favored < 90 ? 'down' : 'stable'}
                   />
                   <MetricBar
                     label="Rama. Outliers"
-                    value={data.ramachandran_outliers}
+                    value={ramaData?.outliers ?? data.ramachandran_outliers}
                     max={10}
                     suffix="%"
-                    trend={data.ramachandran_outliers != null && data.ramachandran_outliers <= 0.5 ? 'up' : data.ramachandran_outliers != null && data.ramachandran_outliers > 2 ? 'down' : 'stable'}
+                    trend={ramaData?.outliers != null && ramaData.outliers <= 0.5 ? 'up' : ramaData?.outliers != null && ramaData.outliers > 2 ? 'down' : 'stable'}
                   />
                   <MetricBar
                     label="Clash Score"
