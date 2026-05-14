@@ -3028,7 +3028,7 @@ export function MoleculeViewer({
     setBackgroundMode(nextMode);
   }, [backgroundMode]);
 
-  // ─── Toggle ED Map ──────────────────────────────────────────────────
+  // ─── Toggle Density (Volume Streaming) ─────────────────────────
   const handleToggleEDMap = useCallback(async () => {
     const newActive = !edMapActive;
     setEdMapActive(newActive);
@@ -3038,50 +3038,57 @@ export function MoleculeViewer({
 
     try {
       const { PluginStateObject, StateSelection } = await getMolstarModules();
-      const pdbUpper = pdbId.toUpperCase();
 
       if (!newActive) {
-        // Remove all density volumes
+        // Remove all density volumes via hierarchy manager
         const volumes = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Volume));
         for (const vol of volumes) {
           plugin.state.data.removeObject(vol.transform.ref);
         }
+        // Also clear volume streaming behavior tagged cells
+        const cells = plugin.state.data.tree.subtreeCells;
+        for (const cell of cells) {
+          if (cell.type === 'transform' && cell.transform.kind === 'volume') {
+            // leave volumes but remove streaming behavior
+          }
+        }
         return;
       }
 
-      // For X-ray: use PDBe coordinates CCP4 files
-      // CCP4 coordinate file URL: https://www.ebi.ac.uk/pdbe/coordinates/files/{pdbId}.ccp4
-      const ccp4Url = `https://www.ebi.ac.uk/pdbe/coordinates/files/${pdbUpper.toLowerCase()}.ccp4`;
+      // Use molstar's InitVolumeStreaming state action with PDBe density server
+      // The serverUrl points to the density server that serves 2Fo-Fc and Fo-Fc maps
+      const pdbeDensityServer = 'https://www.ebi.ac.uk/pdbe/densities/x-ray/';
+      const { StructureObject } = await getMolstarModules();
 
-      // Use molstar's built-in density loading via StateAction
-      // PluginState.Actions.VolumeStreaming is the correct action for density loading
-      try {
-        const { Asset } = await getMolstarModules();
-        const { PluginStateObject: PSO } = await getMolstarModules();
-        
-        // Try loading the CCP4 file using plugin.builders.data.download + plugin.dataFormats
-        const downloadedData = await plugin.builders.data.download({
-          url: Asset.Url(ccp4Url),
-          isBinary: true,
-          label: `ED Map: ${pdbUpper}`,
-        });
-
-        // Parse the CCP4 data using the ccp4 format provider
-        const ccp4Provider = plugin.dataFormats.get('ccp4');
-        if (ccp4Provider) {
-          const parsed = await ccp4Provider.parse(plugin, downloadedData);
-          if (parsed?.data) {
-            const volumeData = parsed.data;
-            // Create a state object for the volume
-            const volumeObj = new PSO.Volume(volumeData, { label: `2Fo-Fc map: ${pdbUpper}` });
-            plugin.state.data.insertObject(volumeObj);
-          }
-        }
-      } catch (e) {
-        console.warn('[MoleculeViewer] Density load from PDBe coordinates failed:', e);
+      // Find the current structure cell
+      const structureCells = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Molecule.Structure));
+      if (!structureCells || structureCells.length === 0) {
+        console.warn('[MoleculeViewer] No structure cell found for density loading');
+        setEdMapActive(false);
+        return;
       }
+
+      const structureCell = structureCells[0];
+
+      // Apply InitVolumeStreaming action on the structure cell
+      await plugin.state.actions.apply(
+        { action: 'init-volume-streaming', ref: structureCell.transform.ref } as any,
+        {
+          params: {
+            method: 'x-ray' as const,
+            entries: [{ id: pdbId.toUpperCase() }],
+            defaultView: 'selection-box' as const,
+            options: {
+              serverUrl: pdbeDensityServer,
+              emContourProvider: 'pdbe' as const,
+              channelParams: {},
+            },
+          },
+          from: structureCell,
+        } as any
+      );
     } catch (err) {
-      console.warn('[MoleculeViewer] ED Map error:', err);
+      console.warn('[MoleculeViewer] Density load error:', err);
       setEdMapActive(false);
     }
   }, [edMapActive, pdbId, structureLoaded]);
@@ -3763,11 +3770,11 @@ export function MoleculeViewer({
             disabled={!structureLoaded}
           />
 
-          {/* Toggle ED Map */}
+          {/* Toggle Density */}
           <ToolbarButton
             onClick={handleToggleEDMap}
-            icon={<Waves className="w-3.5 h-3.5" />}
-            label={edMapActive ? 'ED Map: ON' : 'ED Map: OFF'}
+            icon={<Boxes className="w-3.5 h-3.5" />}
+            label={edMapActive ? 'Density: ON' : 'Density: OFF'}
             active={edMapActive}
             disabled={!structureLoaded}
           />
