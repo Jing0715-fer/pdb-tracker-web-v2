@@ -1865,14 +1865,18 @@ function RamachandranPlot({
       }));
     }
 
-    // Fallback: generate simulated points with correct distribution
+    // Fallback: generate simulated points with realistic Ramachandran distribution
+    // Use the RCSB outliers % to drive the simulation
     const pts: { phi: number; psi: number; region: 'favored' | 'allowed' | 'disallowed' }[] = [];
     const count = Math.min(Math.max(residueCount, 20), 300);
 
-    // Determine the percentage distribution
-    const favoredPct = favored ?? 95;
+    // Determine the percentage distribution from RCSB outlier %
+    // Typical distribution: favored ~85%, allowed ~12%, outliers vary
     const outliersPct = outliers ?? 1;
-    const allowedPct = Math.max(100 - favoredPct - outliersPct, 0);
+    // For high-quality structures (low outliers), assume ~85% favored, ~14% allowed
+    // Scale favored/allowed down as outliers increase
+    const favoredPct = outliersPct < 5 ? 85 : Math.max(50, 85 - outliersPct * 2);
+    const allowedPct = Math.max(0, 100 - favoredPct - outliersPct);
 
     // Generate favored region points (alpha-helix + beta-sheet clusters)
     const favoredCount = Math.round(count * (favoredPct / 100));
@@ -1930,9 +1934,14 @@ function RamachandranPlot({
   const favoredPathBeta = 'M -180,40 Q -140,30 -90,60 Q -60,150 -100,180 Q -160,180 -180,150 Z';
   const allowedPath = 'M -180,-180 L 180,-180 L 180,180 L -180,180 Z';
 
-  const favoredPct = favored != null ? favored.toFixed(1) : 'N/A';
-  const allowedPct = favored != null && outliers != null ? (100 - favored - outliers).toFixed(1) : 'N/A';
-  const outliersPct = outliers != null ? outliers.toFixed(1) : 'N/A';
+  // Percentages for display - derived from RCSB outliers
+  // Note: favored% here means favored+allowed (as reported by MolProbity)
+  // true favored = favored - allowed, but we don't have that breakdown
+  const displayFavoredPct = favored != null ? favored.toFixed(1) : 'N/A';
+  const displayOutliersPct = outliers != null ? outliers.toFixed(1) : 'N/A';
+  const displayAllowedPct = favored != null && outliers != null
+    ? Math.max(0, 100 - favored - outliers).toFixed(1)
+    : 'N/A';
 
   return (
     <div className="bg-claude-bg/50 rounded-lg border border-claude-border-light p-2">
@@ -1954,26 +1963,40 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Allowed region polygons - lighter amber fills */}
-        {/* Bridge between alpha-helix and beta-sheet */}
+        {/* Allowed region - subtle contour-style fills around favored regions */}
+        {/* Alpha-helix allowed zone */}
         <path
-          d={`M ${toX(-150)},${toY(-80)} L ${toX(-60)},${toY(-80)} L ${toX(-60)},${toY(20)} L ${toX(-150)},${toY(20)} Z`}
-          fill="rgba(245, 158, 11, 0.15)"
+          d={`M ${toX(-100)},${toY(-100)} Q ${toX(-60)},${toY(-115)} ${toX(-20)},${toY(-100)} Q ${toX(10)},${toY(-50)} ${toX(-20)},${toY(10)} Q ${toX(-60)},${toY(30)} ${toX(-100)},${toY(10)} Q ${toX(-125)},${toY(-45)} ${toX(-100)},${toY(-100)} Z`}
+          fill="rgba(245, 158, 11, 0.08)"
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
-        {/* Extended region top */}
+        {/* Beta-sheet allowed zone */}
         <path
-          d={`M ${toX(-180)},${toY(50)} L ${toX(-60)},${toY(50)} L ${toX(-60)},${toY(180)} L ${toX(-180)},${toY(180)} Z`}
-          fill="rgba(245, 158, 11, 0.15)"
+          d={`M ${toX(-180)},${toY(25)} Q ${toX(-140)},${toY(5)} ${toX(-90)},${toY(20)} Q ${toX(-40)},${toY(65)} ${toX(-55)},${toY(180)} Q ${toX(-100)},${toY(180)} ${toX(-180)},${toY(175)} Q ${toX(-180)},${toY(100)} ${toX(-180)},${toY(25)} Z`}
+          fill="rgba(245, 158, 11, 0.08)"
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
-        {/* Left-handed helix region */}
+        {/* Left-handed helix allowed zone */}
         <path
-          d={`M ${toX(20)},${toY(-90)} L ${toX(110)},${toY(-90)} L ${toX(110)},${toY(70)} L ${toX(20)},${toY(70)} Z`}
-          fill="rgba(245, 158, 11, 0.15)"
+          d={`M ${toX(15)},${toY(-115)} Q ${toX(60)},${toY(-115)} ${toX(110)},${toY(-115)} Q ${toX(115)},${toY(-30)} ${toX(110)},${toY(85)} Q ${toX(60)},${toY(85)} ${toX(15)},${toY(85)} Q ${toX(10)},${toY(-30)} ${toX(15)},${toY(-115)} Z`}
+          fill="rgba(245, 158, 11, 0.08)"
           onClick={() => setSelectedRegion('allowed')}
+          style={{ cursor: 'pointer' }}
+        />
+        {/* Disallowed region outline only (no fill - just the border) */}
+        <rect
+          x={padding}
+          y={padding}
+          width={plotSize}
+          height={plotSize}
+          fill="none"
+          stroke="rgba(239, 68, 68, 0.15)"
+          strokeWidth={1.5}
+          strokeDasharray="4,3"
+          rx={4}
+          onClick={() => setSelectedRegion('disallowed')}
           style={{ cursor: 'pointer' }}
         />
 
@@ -2044,15 +2067,15 @@ function RamachandranPlot({
       <div className="flex items-center justify-center gap-3 mt-1.5 text-[8px]">
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regionColors.favored }} />
-          <span className="text-claude-text-secondary">{favoredPct}% favored</span>
+          <span className="text-claude-text-secondary">{displayFavoredPct}% favored</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regionColors.allowed }} />
-          <span className="text-claude-text-secondary">{allowedPct}% allowed</span>
+          <span className="text-claude-text-secondary">{displayAllowedPct}% allowed</span>
         </span>
         <span className="flex items-center gap-1">
           <span className="w-2 h-2 rounded-full" style={{ backgroundColor: regionColors.disallowed }} />
-          <span className="text-claude-text-secondary">{outliersPct}% outliers</span>
+          <span className="text-claude-text-secondary">{displayOutliersPct}% outliers</span>
         </span>
       </div>
 
@@ -2152,8 +2175,8 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   <CollapsibleContent>
                     <div className="mt-2 glass-panel p-2">
                       <RamachandranPlot
-                        favored={ramaData?.favored ?? data.ramachandran_favored}
-                        outliers={ramaData?.outliers ?? data.ramachandran_outliers}
+                        favored={data.ramachandran_outliers != null ? null : (ramaData?.favored ?? null)}
+                        outliers={data.ramachandran_outliers ?? ramaData?.outliers ?? null}
                         residueCount={ramaData?.residue_count ?? 100}
                         realPoints={ramaData?.points}
                       />

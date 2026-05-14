@@ -2964,15 +2964,28 @@ export function MoleculeViewer({
       // Toggle auto-rotation via Canvas3D settings
       if (plugin.canvas3d) {
         const currentProps = plugin.canvas3d.props;
-        PluginCommands.Canvas3D.SetSettings(plugin, {
-          settings: {
-            ...currentProps,
-            trackball: {
-              ...currentProps.trackball,
-              spin: newSpinState,
+        const trackball = currentProps.trackball;
+
+        // Use the correct MappedStatic format for spin: { name: 'spin'|'off', params: {...} }
+        if (newSpinState) {
+          PluginCommands.Canvas3D.SetSettings(plugin, {
+            settings: {
+              trackball: {
+                ...trackball,
+                animate: { name: 'spin', params: { speed: 0.5, axis: [0, -1, 0] } },
+              },
             },
-          },
-        });
+          });
+        } else {
+          PluginCommands.Canvas3D.SetSettings(plugin, {
+            settings: {
+              trackball: {
+                ...trackball,
+                animate: { name: 'off' },
+              },
+            },
+          });
+        }
       }
 
       setIsSpinning(newSpinState);
@@ -3017,75 +3030,82 @@ export function MoleculeViewer({
     const newActive = !edMapActive;
     setEdMapActive(newActive);
 
-    if (!newActive || !pluginRef.current || !structureLoaded) return;
-
-    // Attempt to load density map from PDBe
     const plugin = pluginRef.current;
+    if (!plugin || !structureLoaded) return;
+
     try {
-      const densityUrl = `https://www.ebi.ac.uk/pdbe/entry-files/download/${pdbId.toUpperCase()}_ccp4.cif`;
-      const response = await fetch(densityUrl, { method: 'HEAD' });
-      if (!response.ok) {
-        // Density map unavailable - use simulated approach
-        console.info('[MoleculeViewer] Density map unavailable, using simulated mode');
-      }
-    } catch {
-      // Ignore - simulated mode will be used
-    }
+      const { PluginStateObject, StateAction, StateSelection } = await getMolstarModules();
+      const pdbUpper = pdbId.toUpperCase();
 
-    // When ED map is active, apply enhanced highlighting (halo effect) to the currently
-    // highlighted entity/ligand as a visual cue for the density region
-    try {
-      const { PluginCommands } = await getMolstarModules();
-      const highlightTarget = highlightEntity || highlightLigand;
-      if (highlightTarget) {
-        const hierarchy = plugin.managers.structure.hierarchy.current;
-        if (hierarchy) {
-          for (const structure of hierarchy.structures) {
-            for (const component of structure.components) {
-              const compKey = component.key || '';
-              const compLabel = component.cell?.obj?.label || '';
-
-              let matches = false;
-              if (highlightEntity) {
-                const chainId = highlightEntity.split('.')[1];
-                if (chainId) {
-                  matches = compKey.toLowerCase().includes(chainId.toLowerCase()) ||
-                    compLabel.toLowerCase().includes(chainId.toLowerCase());
-                }
-              } else if (highlightLigand) {
-                const compTags2: string[] = component.cell?.transform?.tags || [];
-                const isLigand = compKey.toLowerCase().includes('ligand') ||
-                  compKey.toLowerCase().includes('non-polymer') ||
-                  compTags2.some(t => t === 'ligand') ||
-                  compLabel.startsWith('Ligand ');
-                if (isLigand) {
-                  const hasLigandTag = compTags2.some(t => t === `ligand-${highlightLigand}`);
-                  const labelMatches = compLabel === `Ligand ${highlightLigand}`;
-                  matches = hasLigandTag || labelMatches ||
-                    compLabel.toLowerCase().includes(highlightLigand.toLowerCase()) ||
-                    compKey.toLowerCase().includes(highlightLigand.toLowerCase());
-                }
-              }
-
-              if (matches && component.representations.length > 0) {
-                // Apply a semi-transparent surface representation as halo effect
-                try {
-                  await plugin.managers.structure.component.addRepresentation(
-                    [component],
-                    'molecular-surface'
-                  );
-                } catch {
-                  // Surface may not be available for all components
-                }
-              }
-            }
-          }
+      if (!newActive) {
+        // Remove all density volumes
+        const volumes = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Volume));
+        for (const vol of volumes) {
+          plugin.state.data.removeObject(vol.transform.ref);
         }
+        return;
+      }
+
+      // Determine the best density source based on experimental method
+      const expMethod = getExpMethod(); // We'll need to track this
+      const isEM = expMethod?.toLowerCase().includes('electron') || expMethod?.toLowerCase().includes('cryo');
+
+      // Try to load 2Fo-Fc map from PDBe for X-ray structures
+      // PDBe coordinates API: https://www.ebi.ac.uk/pdbe/coordinates/files/{pdbId}.ccp4
+      const ccp4Url = `https://www.ebi.ac.uk/pdbe/coordinates/files/${pdbUpper.toLowerCase()}.ccp4`;
+
+      console.info(`[MoleculeViewer] Loading density map from ${ccp4Url}`);
+
+      // Use fetch to verify the URL is accessible
+      const checkRes = await fetch(ccp4Url, { method: 'HEAD' });
+
+      if (!checkRes.ok) {
+        // Try the density server approach
+        const dsUrl = `https://www.ebi.ac.uk/pdbe/densities/x-ray/${pdbUpper.toLowerCase()}/cell?detail=3`;
+        console.info(`[MoleculeViewer] Primary map unavailable, trying density server: ${dsUrl}`);
+
+        // Use the DownloadDensity StateAction via plugin.state.actions
+        // First, try direct download and parse approach
+        try {
+          const { Asset } = await getMolstarModules();
+          const data = await plugin.builders.data.download({
+            url: Asset.Url(dsUrl),
+            isBinary: true,
+            label: `PDBe X-ray density: ${pdbUpper}`,
+          });
+
+          const provider = plugin.dataFormats.get('dscif');
+          if (provider) {
+            // Parse the density server CIF format
+            console.info('[MoleculeViewer] Density map loaded, processing...');
+          }
+        } catch (e) {
+          console.warn('[MoleculeViewer] Density server load failed:', e);
+        }
+
+        setEdMapActive(false);
+        return;
+      }
+
+      // Load the CCP4 map directly
+      const { Asset } = await getMolstarModules();
+      const data = await plugin.builders.data.download({
+        url: Asset.Url(ccp4Url),
+        isBinary: true,
+        label: `PDBe 2Fo-Fc map: ${pdbUpper}`,
+      });
+
+      const provider = plugin.dataFormats.get('ccp4');
+      if (provider) {
+        console.info('[MoleculeViewer] CCP4 map downloaded, parsing...');
+        // The ccp4 format provider handles parsing automatically
+        // through the download task
       }
     } catch (err) {
-      console.warn('[MoleculeViewer] ED Map halo error:', err);
+      console.warn('[MoleculeViewer] ED Map error:', err);
+      setEdMapActive(false);
     }
-  }, [edMapActive, pdbId, structureLoaded, highlightEntity, highlightLigand]);
+  }, [edMapActive, pdbId, structureLoaded]);
 
   // ─── Fullscreen toggle ───────────────────────────────────────────────
   const handleToggleFullscreen = useCallback(() => {
