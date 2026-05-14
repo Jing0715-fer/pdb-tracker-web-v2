@@ -1872,12 +1872,11 @@ function RamachandranPlot({
         chain: p.chain || '',
       }));
     }
-    // Fallback: simulate (only when no real data)
+    // Fallback: simulate — only when no real data available
     const pts: { phi: number; psi: number; region: 'favored' | 'allowed' | 'disallowed'; chain: string }[] = [];
     const count = Math.min(Math.max(residueCount, 20), 300);
-    const outliersPct = outliers ?? 1;
-    const favoredPct = (favored != null && favored > 0) ? favored
-      : (outliersPct < 5 ? 85 : Math.max(50, 85 - outliersPct * 2));
+    const outliersPct = outliers ?? 0;
+    const favoredPct = favored ?? 97;
     const allowedPct = Math.max(0, 100 - favoredPct - outliersPct);
     const favoredCount = Math.round(count * (favoredPct / 100));
     for (let i = 0; i < favoredCount; i++) {
@@ -2324,7 +2323,7 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
 
                 {/* RCSB Validation Report Link */}
                 <a
-                  href={`https://www.rcsb.org/structure/${pdbId.toUpperCase()}/validation`}
+                  href={`https://files.rcsb.org/validation/view/${pdbId.toUpperCase()}_full_validation.pdf`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-[10px] font-medium
