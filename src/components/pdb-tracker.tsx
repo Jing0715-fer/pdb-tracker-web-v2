@@ -8141,11 +8141,13 @@ export default function PdbTracker() {
                   const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
                   const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
                   if (struct) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
                   } else if (blast?.pdbId) {
                     // BLAST results with a pdbId also use the shared detail panel
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
@@ -8164,10 +8166,12 @@ export default function PdbTracker() {
                   const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
                   const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
                   if (struct) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
                   } else if (blast?.pdbId) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
@@ -8200,10 +8204,12 @@ export default function PdbTracker() {
                   const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
                   const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
                   if (struct) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
                   } else if (blast?.pdbId) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
@@ -8222,10 +8228,12 @@ export default function PdbTracker() {
                   const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
                   const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
                   if (struct) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
                   } else if (blast?.pdbId) {
+                    setSelectedEvalStructure(null);
                     setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
