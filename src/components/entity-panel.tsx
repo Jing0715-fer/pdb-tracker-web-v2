@@ -1928,9 +1928,16 @@ function RamachandranPlot({
   };
 
   const regionFills = {
-    allowed: 'rgba(230, 200, 160, 0.35)',
-    favored: 'rgba(220, 120, 120, 0.5)',
+    // Allowed: pale peach/salmon fill with contour outline
+    allowed: 'rgba(255, 210, 170, 0.45)',
+    // Favored: lavender/purple core, layered on top of allowed
+    favored: 'rgba(185, 145, 210, 0.70)',
     disallowed: 'rgba(255, 255, 255, 0)',
+  };
+  const regionStrokes = {
+    allowed: 'rgba(180, 145, 110, 0.50)',
+    favored: 'rgba(150, 110, 170, 0.40)',
+    disallowed: 'rgba(180, 180, 180, 0.30)',
   };
 
   // Full-shaped allowed/favored regions (reference image style)
@@ -1972,15 +1979,15 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Allowed regions: large light-beige blobs */}
-        <path d={alphaAllowedPath} fill={regionFills.allowed} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
-        <path d={betaAllowedPath} fill={regionFills.allowed} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
-        <path d={leftAllowedPath} fill={regionFills.allowed} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
+        {/* Allowed regions: pale peach blobs with contour lines */}
+        <path d={alphaAllowedPath} fill={regionFills.allowed} stroke={regionStrokes.allowed} strokeWidth={1} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
+        <path d={betaAllowedPath} fill={regionFills.allowed} stroke={regionStrokes.allowed} strokeWidth={1} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
+        <path d={leftAllowedPath} fill={regionFills.allowed} stroke={regionStrokes.allowed} strokeWidth={1} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
 
-        {/* Favored regions: smaller pink/red cores */}
-        <path d={alphaFavoredPath} fill={regionFills.favored} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
-        <path d={betaFavoredPath} fill={regionFills.favored} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
-        <path d={leftFavoredPath} fill={regionFills.favored} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
+        {/* Favored regions: lavender/purple cores with contour lines */}
+        <path d={alphaFavoredPath} fill={regionFills.favored} stroke={regionStrokes.favored} strokeWidth={0.8} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
+        <path d={betaFavoredPath} fill={regionFills.favored} stroke={regionStrokes.favored} strokeWidth={0.8} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
+        <path d={leftFavoredPath} fill={regionFills.favored} stroke={regionStrokes.favored} strokeWidth={0.8} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
 
         {/* Grid lines */}
         {[-180, -90, 0, 90, 180].map((v) => (
@@ -2026,14 +2033,6 @@ function RamachandranPlot({
             onMouseLeave={() => setTooltip(null)}
           />
         ))}
-
-        {/* Region labels inside plot */}
-        <text x={toX(-60)} y={toY(-70)} textAnchor="middle" className="fill-current text-green-600 dark:text-green-400" fontSize={6} fontWeight={700} opacity={0.5}>
-          α-helix
-        </text>
-        <text x={toX(-120)} y={toY(140)} textAnchor="middle" className="fill-current text-green-600 dark:text-green-400" fontSize={6} fontWeight={700} opacity={0.5}>
-          β-sheet
-        </text>
 
         {/* Tooltip for hover */}
         {tooltip && (
