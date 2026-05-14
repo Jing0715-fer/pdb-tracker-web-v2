@@ -8167,6 +8167,10 @@ export default function PdbTracker() {
                     setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
+                  } else if (blast?.pdbId) {
+                    setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
+                    setDetailPanelOpen(true);
+                    setPreviewTab('summary');
                   } else if (blast) {
                     setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
                     setDetailPanelOpen(true);
