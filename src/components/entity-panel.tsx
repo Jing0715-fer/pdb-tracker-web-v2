@@ -1843,24 +1843,36 @@ function RamachandranPlot({
   const plotSize = svgSize - padding * 2;
   const center = svgSize / 2;
   const [selectedRegion, setSelectedRegion] = useState<'favored' | 'allowed' | 'disallowed' | null>(null);
+  const [showOutliersOnly, setShowOutliersOnly] = useState(false);
+
+  // Extract unique chains from real data
+  const chains = useMemo(() => {
+    if (!realPoints || realPoints.length === 0) return [];
+    const chainSet = new Set<string>();
+    for (const p of realPoints) {
+      if (p.chain) chainSet.add(p.chain);
+    }
+    return Array.from(chainSet).sort();
+  }, [realPoints]);
+
+  const [selectedChain, setSelectedChain] = useState<string>('all');
 
   // Convert phi/psi to SVG coordinates
   const toX = (angle: number) => center + (angle / 180) * (plotSize / 2);
   const toY = (angle: number) => center - (angle / 180) * (plotSize / 2);
 
-  // Use real phi/psi data from PDBe API if available, otherwise simulate.
-  // PDBe provides all-residue phi/psi data from wwPDB validation pipeline (real data).
-  const points = useMemo(() => {
+  // Compute filtered and classified points for display
+  const allClassifiedPoints = useMemo(() => {
     if (realPoints && realPoints.length > 0) {
       return realPoints.map((p) => ({
         phi: p.phi,
         psi: p.psi,
         region: p.region as 'favored' | 'allowed' | 'disallowed',
+        chain: p.chain || '',
       }));
     }
-
-    // Fallback: simulate
-    const pts: { phi: number; psi: number; region: 'favored' | 'allowed' | 'disallowed' }[] = [];
+    // Fallback: simulate (only when no real data)
+    const pts: { phi: number; psi: number; region: 'favored' | 'allowed' | 'disallowed'; chain: string }[] = [];
     const count = Math.min(Math.max(residueCount, 20), 300);
     const outliersPct = outliers ?? 1;
     const favoredPct = (favored != null && favored > 0) ? favored
@@ -1870,25 +1882,25 @@ function RamachandranPlot({
     for (let i = 0; i < favoredCount; i++) {
       const isHelix = Math.random() < 0.55;
       if (isHelix) {
-        pts.push({ phi: -60 + (Math.random() - 0.5) * 40, psi: -45 + (Math.random() - 0.5) * 40, region: 'favored' });
+        pts.push({ phi: -60 + (Math.random() - 0.5) * 40, psi: -45 + (Math.random() - 0.5) * 40, region: 'favored', chain: '' });
       } else {
-        pts.push({ phi: -120 + (Math.random() - 0.5) * 40, psi: 120 + (Math.random() - 0.5) * 50, region: 'favored' });
+        pts.push({ phi: -120 + (Math.random() - 0.5) * 40, psi: 120 + (Math.random() - 0.5) * 50, region: 'favored', chain: '' });
       }
     }
     const allowedCount = Math.round(count * (allowedPct / 100));
     for (let i = 0; i < allowedCount; i++) {
       const regionType = Math.random();
       if (regionType < 0.4) {
-        pts.push({ phi: 60 + (Math.random() - 0.5) * 50, psi: 40 + (Math.random() - 0.5) * 50, region: 'allowed' });
+        pts.push({ phi: 60 + (Math.random() - 0.5) * 50, psi: 40 + (Math.random() - 0.5) * 50, region: 'allowed', chain: '' });
       } else if (regionType < 0.7) {
-        pts.push({ phi: -80 + (Math.random() - 0.5) * 60, psi: 0 + (Math.random() - 0.5) * 80, region: 'allowed' });
+        pts.push({ phi: -80 + (Math.random() - 0.5) * 60, psi: 0 + (Math.random() - 0.5) * 80, region: 'allowed', chain: '' });
       } else {
-        pts.push({ phi: -100 + (Math.random() - 0.5) * 60, psi: 80 + (Math.random() - 0.5) * 80, region: 'allowed' });
+        pts.push({ phi: -100 + (Math.random() - 0.5) * 60, psi: 80 + (Math.random() - 0.5) * 80, region: 'allowed', chain: '' });
       }
     }
     const outlierCount = Math.round(count * (outliersPct / 100));
     for (let i = 0; i < outlierCount; i++) {
-      pts.push({ phi: (Math.random() - 0.5) * 300, psi: (Math.random() - 0.5) * 300, region: 'disallowed' });
+      pts.push({ phi: (Math.random() - 0.5) * 300, psi: (Math.random() - 0.5) * 300, region: 'disallowed', chain: '' });
     }
     return pts.map((p) => ({
       ...p,
@@ -1896,6 +1908,16 @@ function RamachandranPlot({
       psi: Math.max(-180, Math.min(180, p.psi)),
     }));
   }, [favored, outliers, residueCount, realPoints]);
+
+
+  // Apply chain and outlier filters
+  const points = useMemo(() => {
+    return allClassifiedPoints.filter((p) => {
+      if (showOutliersOnly && p.region !== 'disallowed') return false;
+      if (selectedChain !== 'all' && p.chain !== selectedChain) return false;
+      return true;
+    });
+  }, [allClassifiedPoints, selectedChain, showOutliersOnly]);
 
   // Region colors
   const regionColors = {
@@ -2059,6 +2081,35 @@ function RamachandranPlot({
           <span className="text-claude-text-secondary">{displayOutliersPct}% outliers</span>
         </span>
       </div>
+
+      {/* Filter controls */}
+      {chains.length > 0 && (
+        <div className="flex items-center gap-2 mt-1.5 text-[8px]">
+          <span className="text-claude-text-muted">Chain:</span>
+          <select
+            value={selectedChain}
+            onChange={(e) => setSelectedChain(e.target.value)}
+            className="px-1 py-0.5 rounded border border-claude-border bg-claude-surface text-claude-text text-[8px] cursor-pointer"
+          >
+            <option value="all">All ({chains.length})</option>
+            {chains.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          {(outliers ?? 0) > 0 && (
+            <button
+              onClick={() => setShowOutliersOnly(!showOutliersOnly)}
+              className={`px-1.5 py-0.5 rounded border text-[8px] transition-colors ${
+                showOutliersOnly
+                  ? 'bg-red-100 dark:bg-red-900/30 border-red-300 dark:border-red-700 text-red-600 dark:text-red-400'
+                  : 'border-claude-border bg-claude-surface text-claude-text-muted hover:text-red-500'
+              }`}
+            >
+              Outliers only
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Selected region info */}
       {selectedRegion && (
