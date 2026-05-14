@@ -6865,7 +6865,7 @@ export default function PdbTracker() {
 
       {/* ═══════════ EVALUATION DETAIL PANEL ═══════════ */}
       <AnimatePresence>
-        {detailPanelOpen && selectedEvalStructure && mode === 'evaluation' && (() => {
+        {detailPanelOpen && selectedEvalStructure && mode === 'evaluation' && !selectedEntry && (() => {
           const evalStruct = selectedEvalStructure;
           const isBlast = 'isBlast' in evalStruct && evalStruct.isBlast;
           const method = evalStruct.method || '';
