@@ -3034,7 +3034,7 @@ export function MoleculeViewer({
     if (!plugin || !structureLoaded) return;
 
     try {
-      const { PluginStateObject, StateAction, StateSelection } = await getMolstarModules();
+      const { PluginStateObject, StateSelection } = await getMolstarModules();
       const pdbUpper = pdbId.toUpperCase();
 
       if (!newActive) {
@@ -3046,60 +3046,36 @@ export function MoleculeViewer({
         return;
       }
 
-      // Determine the best density source based on experimental method
-      const expMethod = getExpMethod(); // We'll need to track this
-      const isEM = expMethod?.toLowerCase().includes('electron') || expMethod?.toLowerCase().includes('cryo');
-
-      // Try to load 2Fo-Fc map from PDBe for X-ray structures
-      // PDBe coordinates API: https://www.ebi.ac.uk/pdbe/coordinates/files/{pdbId}.ccp4
+      // For X-ray: use PDBe coordinates CCP4 files
+      // CCP4 coordinate file URL: https://www.ebi.ac.uk/pdbe/coordinates/files/{pdbId}.ccp4
       const ccp4Url = `https://www.ebi.ac.uk/pdbe/coordinates/files/${pdbUpper.toLowerCase()}.ccp4`;
 
-      console.info(`[MoleculeViewer] Loading density map from ${ccp4Url}`);
+      // Use molstar's built-in density loading via StateAction
+      // PluginState.Actions.VolumeStreaming is the correct action for density loading
+      try {
+        const { Asset } = await getMolstarModules();
+        const { PluginStateObject: PSO } = await getMolstarModules();
+        
+        // Try loading the CCP4 file using plugin.builders.data.download + plugin.dataFormats
+        const downloadedData = await plugin.builders.data.download({
+          url: Asset.Url(ccp4Url),
+          isBinary: true,
+          label: `ED Map: ${pdbUpper}`,
+        });
 
-      // Use fetch to verify the URL is accessible
-      const checkRes = await fetch(ccp4Url, { method: 'HEAD' });
-
-      if (!checkRes.ok) {
-        // Try the density server approach
-        const dsUrl = `https://www.ebi.ac.uk/pdbe/densities/x-ray/${pdbUpper.toLowerCase()}/cell?detail=3`;
-        console.info(`[MoleculeViewer] Primary map unavailable, trying density server: ${dsUrl}`);
-
-        // Use the DownloadDensity StateAction via plugin.state.actions
-        // First, try direct download and parse approach
-        try {
-          const { Asset } = await getMolstarModules();
-          const data = await plugin.builders.data.download({
-            url: Asset.Url(dsUrl),
-            isBinary: true,
-            label: `PDBe X-ray density: ${pdbUpper}`,
-          });
-
-          const provider = plugin.dataFormats.get('dscif');
-          if (provider) {
-            // Parse the density server CIF format
-            console.info('[MoleculeViewer] Density map loaded, processing...');
+        // Parse the CCP4 data using the ccp4 format provider
+        const ccp4Provider = plugin.dataFormats.get('ccp4');
+        if (ccp4Provider) {
+          const parsed = await ccp4Provider.parse(plugin, downloadedData);
+          if (parsed?.data) {
+            const volumeData = parsed.data;
+            // Create a state object for the volume
+            const volumeObj = new PSO.Volume(volumeData, { label: `2Fo-Fc map: ${pdbUpper}` });
+            plugin.state.data.insertObject(volumeObj);
           }
-        } catch (e) {
-          console.warn('[MoleculeViewer] Density server load failed:', e);
         }
-
-        setEdMapActive(false);
-        return;
-      }
-
-      // Load the CCP4 map directly
-      const { Asset } = await getMolstarModules();
-      const data = await plugin.builders.data.download({
-        url: Asset.Url(ccp4Url),
-        isBinary: true,
-        label: `PDBe 2Fo-Fc map: ${pdbUpper}`,
-      });
-
-      const provider = plugin.dataFormats.get('ccp4');
-      if (provider) {
-        console.info('[MoleculeViewer] CCP4 map downloaded, parsing...');
-        // The ccp4 format provider handles parsing automatically
-        // through the download task
+      } catch (e) {
+        console.warn('[MoleculeViewer] Density load from PDBe coordinates failed:', e);
       }
     } catch (err) {
       console.warn('[MoleculeViewer] ED Map error:', err);

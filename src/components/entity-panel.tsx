@@ -1165,10 +1165,9 @@ function ChainRow({
                  ${isHovered && !isHoveredFrom3D ? 'ring-1 ring-claude-accent/20' : ''}
                  ${isSelected && hoveredFrom3D ? 'selected-from-3d' : ''}`}
       style={{ '--entity-color': color } as React.CSSProperties}
-      onClick={() => onEntityClick(entityKey)}
       onMouseEnter={() => onEntityHover(entityKey)}
       onMouseLeave={() => onEntityHover(null)}
-      title={isHoveredFrom3D ? '↔ Synced from 3D viewer' : isHovered ? 'Click to focus in 3D' : undefined}
+      title={isHoveredFrom3D ? '↔ Synced from 3D viewer' : undefined}
     >
       {/* Selection indicator */}
       {isSelected && <SelectedIndicator color={color} />}
@@ -1369,10 +1368,9 @@ function LigandRow({
                      ${!isVisible ? 'opacity-40' : ''}${isSelected ? ' ligand-focused-ring' : ''}
                      ${isSelected && hoveredFrom3D ? ' selected-from-3d' : ''}`}
           style={{ '--entity-color': color } as React.CSSProperties}
-          onClick={() => onLigandClick(code)}
           onMouseEnter={() => onLigandHover(code)}
           onMouseLeave={() => onLigandHover(null)}
-          title={isHoveredFrom3D ? '↔ Synced from 3D viewer' : isHovered ? 'Click to focus in 3D' : undefined}
+          title={isHoveredFrom3D ? '↔ Synced from 3D viewer' : undefined}
         >
           {/* Selection indicator */}
           {isSelected && <SelectedIndicator color={color} />}
@@ -1914,7 +1912,7 @@ function RamachandranPlot({
       phi: Math.max(-180, Math.min(180, p.phi)),
       psi: Math.max(-180, Math.min(180, p.psi)),
     }));
-  }, [favored, outliers, residueCount]);
+  }, [favored, outliers, residueCount, realPoints]);
 
   // Region colors
   const regionColors = {
@@ -2175,8 +2173,8 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   <CollapsibleContent>
                     <div className="mt-2 glass-panel p-2">
                       <RamachandranPlot
-                        favored={data.ramachandran_outliers != null ? null : (ramaData?.favored ?? null)}
-                        outliers={data.ramachandran_outliers ?? ramaData?.outliers ?? null}
+                        favored={ramaData?.favored ?? null}
+                        outliers={ramaData?.outliers ?? null}
                         residueCount={ramaData?.residue_count ?? 100}
                         realPoints={ramaData?.points}
                       />
