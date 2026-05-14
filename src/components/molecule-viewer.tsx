@@ -199,6 +199,8 @@ interface MolstarModules {
   StructureSelectionQueries: any;
   MolScriptBuilder: any;
   compile: any;
+  StateSelection: any;
+  PluginStateObject: any;
 }
 
 let molstarModulesCache: MolstarModules | null = null;
@@ -218,7 +220,7 @@ async function getMolstarModules(): Promise<MolstarModules> {
   // Invalidate stale cache that doesn't have the new modules
   molstarModulesCache = null;
 
-  const [sp, se, pc, color, script, ssq, msb, comp] = await Promise.all([
+  const [sp, se, pc, color, script, ssq, msb, comp, ss, pso] = await Promise.all([
     importWithRetry(() =>
       import('molstar/lib/mol-model/structure/structure/properties.js')
     ),
@@ -233,6 +235,8 @@ async function getMolstarModules(): Promise<MolstarModules> {
     ),
     importWithRetry(() => import('molstar/lib/mol-script/language/builder.js')),
     importWithRetry(() => import('molstar/lib/mol-script/runtime/query/compiler.js')),
+    importWithRetry(() => import('molstar/lib/mol-state/state/selection.js')),
+    importWithRetry(() => import('molstar/lib/mol-plugin-state/objects.js')),
   ]);
 
   const modules: MolstarModules = {
@@ -245,6 +249,8 @@ async function getMolstarModules(): Promise<MolstarModules> {
     StructureSelectionQueries: ssq.StructureSelectionQueries,
     MolScriptBuilder: msb.MolScriptBuilder,
     compile: comp.compile,
+    StateSelection: ss.StateSelection,
+    PluginStateObject: pso.PluginStateObject,
   };
 
   molstarModulesCache = modules;
@@ -3037,7 +3043,8 @@ export function MoleculeViewer({
     if (!plugin || !structureLoaded) return;
 
     try {
-      const { PluginStateObject, StateSelection } = await getMolstarModules();
+      const { PluginStateObject, StateSelection, PluginCommands } = await getMolstarModules();
+      const { InitVolumeStreaming } = await import('molstar/lib/mol-plugin/behavior/dynamic/volume-streaming/transformers.js');
 
       if (!newActive) {
         // Remove all density volumes
@@ -3056,24 +3063,23 @@ export function MoleculeViewer({
         return;
       }
 
-      // Use molstar's lazy volume loading via plugin.managers.volume.hierarchy
-      // The dscif format loads 2Fo-Fc and Fo-Fc maps from the PDBe density server
-      const pdbUpper = pdbId.toUpperCase();
-      const serverUrl = 'https://www.ebi.ac.uk/pdbe/densities/x-ray/';
+      const structureCell = structureCells[0];
 
-      // Create lazy volume entries for 2Fo-Fc map
-      const volumeEntry = {
-        url: `${serverUrl}${pdbUpper.toLowerCase()}/cell?detail=2`, // 2=medium detail for 2Fo-Fc
-        isBinary: false,
-        format: 'dscif' as const,
-        entryId: pdbUpper,
-        isovalues: [
-          { type: 'relative' as const, value: 1.5, alpha: 0.8, color: [180, 180, 255] as [number,number,number] },
-        ],
-      };
-
-      // Add lazy volume through the volume hierarchy manager
-      plugin.managers.volume.hierarchy.add([volumeEntry as any], { ownerId: 'density-toggle' });
+      // Use InitVolumeStreaming via PluginCommands.State.ApplyAction
+      await PluginCommands.State.ApplyAction(plugin, {
+        state: plugin.state.data,
+        action: InitVolumeStreaming.create({
+          method: 'x-ray',
+          entries: [{ id: pdbId.toUpperCase() }],
+          defaultView: 'selection-box',
+          options: {
+            serverUrl: 'https://www.ebi.ac.uk/pdbe/densities/x-ray/',
+            emContourProvider: 'pdbe',
+            channelParams: {},
+          },
+        }),
+        ref: structureCell.transform.ref,
+      });
     } catch (err) {
       console.warn('[MoleculeViewer] Density load error:', err);
       setEdMapActive(false);
