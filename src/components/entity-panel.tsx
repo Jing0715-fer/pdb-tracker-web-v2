@@ -350,6 +350,59 @@ function useValidationData(pdbId: string): {
   return { data, loading };
 }
 
+// ─── Ramachandran Real Phi/Psi Data Cache ──────────────────────────────────
+
+interface RamaData {
+  pdb_id: string;
+  residue_count: number;
+  favored: number | null;
+  allowed: number | null;
+  outliers: number | null;
+  points: { phi: number; psi: number; region: string }[];
+}
+
+const ramaCache = new Map<string, RamaData | null>();
+
+function useRamaData(pdbId: string): {
+  data: RamaData | null;
+  loading: boolean;
+} {
+  const cached = ramaCache.get(pdbId) ?? null;
+  const isCached = ramaCache.has(pdbId);
+  const [data, setData] = useState<RamaData | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/rama/${pdbId}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        ramaCache.set(pdbId, json || null);
+        setData(json || null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        ramaCache.set(pdbId, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdbId, isCached]);
+
+  return { data, loading };
+}
+
 // ─── Annotations Data Cache ─────────────────────────────────────────────
 
 const annotationsCache = new Map<string, AnnotationsData | null>();
@@ -1784,10 +1837,12 @@ function RamachandranPlot({
   favored,
   outliers,
   residueCount,
+  realPoints,
 }: {
   favored: number | null;
   outliers: number | null;
   residueCount: number;
+  realPoints?: { phi: number; psi: number; region: string }[];
 }) {
   const svgSize = 200;
   const padding = 25;
@@ -1799,73 +1854,54 @@ function RamachandranPlot({
   const toX = (angle: number) => center + (angle / 180) * (plotSize / 2);
   const toY = (angle: number) => center - (angle / 180) * (plotSize / 2);
 
-  // Generate simulated scatter points clustered in favorable/allowed regions
+  // Use real data if available, otherwise generate simulated
   const points = useMemo(() => {
+    // If we have real phi/psi data from the API, use it
+    if (realPoints && realPoints.length > 0) {
+      return realPoints.map((p) => ({
+        phi: p.phi,
+        psi: p.psi,
+        region: p.region as 'favored' | 'allowed' | 'disallowed',
+      }));
+    }
+
+    // Fallback: generate simulated points with correct distribution
     const pts: { phi: number; psi: number; region: 'favored' | 'allowed' | 'disallowed' }[] = [];
     const count = Math.min(Math.max(residueCount, 20), 300);
 
     // Determine the percentage distribution
     const favoredPct = favored ?? 95;
     const outliersPct = outliers ?? 1;
-    const allowedPct = 100 - favoredPct - outliersPct;
+    const allowedPct = Math.max(100 - favoredPct - outliersPct, 0);
 
     // Generate favored region points (alpha-helix + beta-sheet clusters)
     const favoredCount = Math.round(count * (favoredPct / 100));
     for (let i = 0; i < favoredCount; i++) {
       const isHelix = Math.random() < 0.55;
       if (isHelix) {
-        // Alpha-helix cluster: phi ≈ -60, psi ≈ -45
-        pts.push({
-          phi: -60 + (Math.random() - 0.5) * 40,
-          psi: -45 + (Math.random() - 0.5) * 40,
-          region: 'favored',
-        });
+        pts.push({ phi: -60 + (Math.random() - 0.5) * 40, psi: -45 + (Math.random() - 0.5) * 40, region: 'favored' });
       } else {
-        // Beta-sheet cluster: phi ≈ -120, psi ≈ 120
-        pts.push({
-          phi: -120 + (Math.random() - 0.5) * 40,
-          psi: 120 + (Math.random() - 0.5) * 50,
-          region: 'favored',
-        });
+        pts.push({ phi: -120 + (Math.random() - 0.5) * 40, psi: 120 + (Math.random() - 0.5) * 50, region: 'favored' });
       }
     }
 
-    // Generate allowed region points (left-handed helix, etc.)
-    const allowedCount = Math.round(count * (Math.max(allowedPct, 0) / 100));
+    // Generate allowed region points
+    const allowedCount = Math.round(count * (allowedPct / 100));
     for (let i = 0; i < allowedCount; i++) {
       const regionType = Math.random();
       if (regionType < 0.4) {
-        // Left-handed helix: phi ≈ 60, psi ≈ 40
-        pts.push({
-          phi: 60 + (Math.random() - 0.5) * 50,
-          psi: 40 + (Math.random() - 0.5) * 50,
-          region: 'allowed',
-        });
+        pts.push({ phi: 60 + (Math.random() - 0.5) * 50, psi: 40 + (Math.random() - 0.5) * 50, region: 'allowed' });
       } else if (regionType < 0.7) {
-        // Near alpha-helix boundary
-        pts.push({
-          phi: -80 + (Math.random() - 0.5) * 60,
-          psi: 0 + (Math.random() - 0.5) * 80,
-          region: 'allowed',
-        });
+        pts.push({ phi: -80 + (Math.random() - 0.5) * 60, psi: 0 + (Math.random() - 0.5) * 80, region: 'allowed' });
       } else {
-        // Near beta-sheet boundary
-        pts.push({
-          phi: -100 + (Math.random() - 0.5) * 60,
-          psi: 80 + (Math.random() - 0.5) * 80,
-          region: 'allowed',
-        });
+        pts.push({ phi: -100 + (Math.random() - 0.5) * 60, psi: 80 + (Math.random() - 0.5) * 80, region: 'allowed' });
       }
     }
 
     // Generate disallowed/outlier points
-    const outlierCount = Math.round(count * (Math.max(outliersPct, 0) / 100));
+    const outlierCount = Math.round(count * (outliersPct / 100));
     for (let i = 0; i < outlierCount; i++) {
-      pts.push({
-        phi: (Math.random() - 0.5) * 300,
-        psi: (Math.random() - 0.5) * 300,
-        region: 'disallowed',
-      });
+      pts.push({ phi: (Math.random() - 0.5) * 300, psi: (Math.random() - 0.5) * 300, region: 'disallowed' });
     }
 
     // Clamp all to -180..180
@@ -1906,26 +1942,37 @@ function RamachandranPlot({
         className="mx-auto"
         style={{ maxHeight: '200px' }}
       >
-        {/* Background: disallowed region (entire plot) */}
+        {/* Background: disallowed region (entire plot - white) */}
         <rect
           x={padding}
           y={padding}
           width={plotSize}
           height={plotSize}
-          fill={regionFills.disallowed}
+          fill="#ffffff"
           rx={4}
           onClick={() => setSelectedRegion('disallowed')}
           style={{ cursor: 'pointer' }}
         />
-        {/* Amber allowed rect as base */}
-        <rect
-          x={padding}
-          y={padding}
-          width={plotSize}
-          height={plotSize}
-          fill="rgba(245, 158, 11, 0.25)"
-          rx={4}
-          opacity={1}
+
+        {/* Allowed region polygons - lighter amber fills */}
+        {/* Bridge between alpha-helix and beta-sheet */}
+        <path
+          d={`M ${toX(-150)},${toY(-80)} L ${toX(-60)},${toY(-80)} L ${toX(-60)},${toY(20)} L ${toX(-150)},${toY(20)} Z`}
+          fill="rgba(245, 158, 11, 0.15)"
+          onClick={() => setSelectedRegion('allowed')}
+          style={{ cursor: 'pointer' }}
+        />
+        {/* Extended region top */}
+        <path
+          d={`M ${toX(-180)},${toY(50)} L ${toX(-60)},${toY(50)} L ${toX(-60)},${toY(180)} L ${toX(-180)},${toY(180)} Z`}
+          fill="rgba(245, 158, 11, 0.15)"
+          onClick={() => setSelectedRegion('allowed')}
+          style={{ cursor: 'pointer' }}
+        />
+        {/* Left-handed helix region */}
+        <path
+          d={`M ${toX(20)},${toY(-90)} L ${toX(110)},${toY(-90)} L ${toX(110)},${toY(70)} L ${toX(20)},${toY(70)} Z`}
+          fill="rgba(245, 158, 11, 0.15)"
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
@@ -2032,6 +2079,7 @@ function RamachandranPlot({
 
 export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
   const { data, loading } = useValidationData(pdbId);
+  const { data: ramaData } = useRamaData(pdbId);
   const [expanded, setExpanded] = useState(true);
   const [ramaExpanded, setRamaExpanded] = useState(true);
 
@@ -2104,9 +2152,10 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   <CollapsibleContent>
                     <div className="mt-2 glass-panel p-2">
                       <RamachandranPlot
-                        favored={data.ramachandran_favored}
-                        outliers={data.ramachandran_outliers}
-                        residueCount={100}
+                        favored={ramaData?.favored ?? data.ramachandran_favored}
+                        outliers={ramaData?.outliers ?? data.ramachandran_outliers}
+                        residueCount={ramaData?.residue_count ?? 100}
+                        realPoints={ramaData?.points}
                       />
                     </div>
                   </CollapsibleContent>
