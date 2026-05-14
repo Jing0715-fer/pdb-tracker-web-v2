@@ -1848,25 +1848,24 @@ function RamachandranPlot({
   const toX = (angle: number) => center + (angle / 180) * (plotSize / 2);
   const toY = (angle: number) => center - (angle / 180) * (plotSize / 2);
 
-  // Use RCSB validation data to generate realistic Ramachandran points.
-  // IMPORTANT: The /api/rama/ phi/psi computation from deposited coordinates
-  // is unreliable for EM structures (gives wrong outlier %) - trust RCSB validation
-  // data (ramachandran_favored / ramachandran_outliers) instead.
+  // Use real phi/psi data from PDBe API if available, otherwise simulate.
+  // PDBe provides all-residue phi/psi data from wwPDB validation pipeline (real data).
   const points = useMemo(() => {
-    // Generate simulated points with realistic Ramachandran distribution
-    // Use RCSB validation percentages to drive the simulation
+    if (realPoints && realPoints.length > 0) {
+      return realPoints.map((p) => ({
+        phi: p.phi,
+        psi: p.psi,
+        region: p.region as 'favored' | 'allowed' | 'disallowed',
+      }));
+    }
+
+    // Fallback: simulate
     const pts: { phi: number; psi: number; region: 'favored' | 'allowed' | 'disallowed' }[] = [];
     const count = Math.min(Math.max(residueCount, 20), 300);
-
-    // Use RCSB favored and outlier percentages directly
-    // If favored=100 and outliers=0 (high quality), show 100% favored, 0% outlier
-    // Otherwise derive from outliers with reasonable defaults
     const outliersPct = outliers ?? 1;
     const favoredPct = (favored != null && favored > 0) ? favored
       : (outliersPct < 5 ? 85 : Math.max(50, 85 - outliersPct * 2));
     const allowedPct = Math.max(0, 100 - favoredPct - outliersPct);
-
-    // Generate favored region points (alpha-helix + beta-sheet clusters)
     const favoredCount = Math.round(count * (favoredPct / 100));
     for (let i = 0; i < favoredCount; i++) {
       const isHelix = Math.random() < 0.55;
@@ -1876,8 +1875,6 @@ function RamachandranPlot({
         pts.push({ phi: -120 + (Math.random() - 0.5) * 40, psi: 120 + (Math.random() - 0.5) * 50, region: 'favored' });
       }
     }
-
-    // Generate allowed region points
     const allowedCount = Math.round(count * (allowedPct / 100));
     for (let i = 0; i < allowedCount; i++) {
       const regionType = Math.random();
@@ -1889,20 +1886,16 @@ function RamachandranPlot({
         pts.push({ phi: -100 + (Math.random() - 0.5) * 60, psi: 80 + (Math.random() - 0.5) * 80, region: 'allowed' });
       }
     }
-
-    // Generate disallowed/outlier points (only when outliers > 0)
     const outlierCount = Math.round(count * (outliersPct / 100));
     for (let i = 0; i < outlierCount; i++) {
       pts.push({ phi: (Math.random() - 0.5) * 300, psi: (Math.random() - 0.5) * 300, region: 'disallowed' });
     }
-
-    // Clamp all to -180..180
     return pts.map((p) => ({
       ...p,
       phi: Math.max(-180, Math.min(180, p.phi)),
       psi: Math.max(-180, Math.min(180, p.psi)),
     }));
-  }, [favored, outliers, residueCount]);
+  }, [favored, outliers, residueCount, realPoints]);
 
   // Region colors
   const regionColors = {
@@ -2163,9 +2156,10 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   <CollapsibleContent>
                     <div className="mt-2 glass-panel p-2">
                       <RamachandranPlot
-                        favored={data.ramachandran_favored}
-                        outliers={data.ramachandran_outliers}
-                        residueCount={100}
+                        favored={ramaData?.favored ?? data.ramachandran_favored}
+                        outliers={ramaData?.outliers ?? data.ramachandran_outliers}
+                        residueCount={ramaData?.residue_count ?? 100}
+                        realPoints={ramaData?.points}
                       />
                     </div>
                   </CollapsibleContent>

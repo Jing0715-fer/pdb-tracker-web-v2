@@ -1,6 +1,4 @@
 import { NextResponse } from 'next/server';
-import { createGunzip } from 'zlib';
-import { Readable, PassThrough } from 'stream';
 import https from 'https';
 
 interface RamaPoint {
@@ -12,35 +10,15 @@ interface RamaPoint {
   resSeq: number;
 }
 
-function classifyPoint(phiDeg: number, psiDeg: number): 'favored' | 'allowed' | 'disallowed' {
-  const inAlpha = phiDeg > -90 && phiDeg < -30 && psiDeg > -75 && psiDeg < -15;
-  const inBeta = phiDeg > -150 && phiDeg < -90 && psiDeg > 90 && psiDeg < 150;
-  const inLHelix = phiDeg > 30 && phiDeg < 90 && psiDeg > 30 && psiDeg < 90;
-  const inAllowed = (
-    (phiDeg > -150 && phiDeg < -60 && psiDeg > -180 && psiDeg < 180) ||
-    (phiDeg > -90 && phiDeg < 90 && psiDeg > -180 && psiDeg < 180)
-  ) && !inAlpha && !inBeta && !inLHelix;
-
-  if (inAlpha || inBeta || inLHelix) return 'favored';
-  if (inAllowed) return 'allowed';
-  return 'disallowed';
-}
-
-function fetchGzip(url: string): Promise<Buffer> {
+function fetchJson(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    https.get(url, (res) => {
-      if (res.statusCode !== 200) {
-        reject(new Error(`HTTP ${res.statusCode}`));
-        return;
-      }
-      const gunzip = createGunzip();
-      const pt = new PassThrough();
-      pt.on('data', (c: Buffer) => chunks.push(c));
-      pt.on('end', () => resolve(Buffer.concat(chunks)));
-      pt.on('error', reject);
-      gunzip.on('error', reject);
-      res.pipe(gunzip).pipe(pt);
+    https.get(url, { headers: { Accept: 'application/json' } }, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try { resolve(JSON.parse(data)); }
+        catch (e) { reject(new Error(`JSON parse error: ${data.slice(0, 200)}`)); }
+      });
     }).on('error', reject);
   });
 }
@@ -57,38 +35,53 @@ export async function GET(
   }
 
   try {
-    const buffer = await fetchGzip(`https://files.rcsb.org/download/${upperId}.cif.gz`);
-    const text = buffer.toString('utf-8');
-    const lines = text.split('\n');
+    // Fetch ALL residues with phi/psi from PDBe's rama_sidechain_listing API
+    const data = await fetchJson(
+      `https://www.ebi.ac.uk/pdbe/api/v2/validation/rama_sidechain_listing/entry/${upperId}`
+    );
+
+    const entry = data[upperId.toLowerCase()];
+    if (!entry) {
+      return NextResponse.json({ pdb_id: upperId, error: 'PDB entry not found' }, { status: 404 });
+    }
+
     const points: RamaPoint[] = [];
-    let inSection = false;
+    let totalFavored = 0;
+    let totalAllowed = 0;
+    let totalOutlier = 0;
 
-    for (const rawLine of lines) {
-      const line = rawLine.trim();
+    for (const molecule of entry.molecules || []) {
+      for (const chain of molecule.chains || []) {
+        for (const model of chain.models || []) {
+          for (const res of model.residues || []) {
+            const phi = res.phi;
+            const psi = res.psi;
+            const rama = res.rama;
 
-      if (line.startsWith('_pdbx_validate_torsion.id')) {
-        inSection = true;
-        continue;
-      }
+            // Skip if no phi/psi data
+            if (phi == null || psi == null) continue;
 
-      if (inSection && line.startsWith('#')) {
-        break;
-      }
+            // Classify: Favored / Allowed / Disallowed (Outlier)
+            let region: 'favored' | 'allowed' | 'disallowed';
+            if (rama === 'Favored') {
+              region = 'favored';
+              totalFavored++;
+            } else if (rama === 'Allowed') {
+              region = 'allowed';
+              totalAllowed++;
+            } else {
+              // Ramachandran_outlier, or null/unknown
+              region = 'disallowed';
+              totalOutlier++;
+            }
 
-      if (inSection && line && !line.startsWith('_')) {
-        const parts = line.split(/\s+/);
-        if (parts.length >= 9) {
-          const phi = parseFloat(parts[parts.length - 2]);
-          const psi = parseFloat(parts[parts.length - 1]);
-
-          if (!isNaN(phi) && !isNaN(psi) && isFinite(phi) && isFinite(psi)) {
             points.push({
-              phi,
-              psi,
-              region: classifyPoint(phi, psi),
-              chain: parts[3] || '',
-              resName: parts[2] || '',
-              resSeq: parseInt(parts[4]) || 0,
+              phi: Number(phi),
+              psi: Number(psi),
+              region,
+              chain: chain.struct_asym_id || '',
+              resName: res.residue_name || '',
+              resSeq: res.residue_number || 0,
             });
           }
         }
@@ -98,7 +91,7 @@ export async function GET(
     if (points.length === 0) {
       return NextResponse.json({
         pdb_id: upperId,
-        error: 'No torsion data found in CIF',
+        error: 'No torsion data found',
         residue_count: 0,
         favored: 0,
         allowed: 0,
@@ -108,16 +101,12 @@ export async function GET(
     }
 
     const total = points.length;
-    const outlierCount = points.filter(p => p.region === 'disallowed').length;
-    const allowedCount = points.filter(p => p.region === 'allowed').length;
-    const favoredCount = points.filter(p => p.region === 'favored').length;
-
     return NextResponse.json({
       pdb_id: upperId,
       residue_count: total,
-      favored: Math.round((favoredCount / total) * 1000) / 10,
-      allowed: Math.round((allowedCount / total) * 1000) / 10,
-      outliers: Math.round((outlierCount / total) * 1000) / 10,
+      favored: Math.round((totalFavored / total) * 1000) / 10,
+      allowed: Math.round((totalAllowed / total) * 1000) / 10,
+      outliers: Math.round((totalOutlier / total) * 1000) / 10,
       points,
     });
   } catch (err) {
