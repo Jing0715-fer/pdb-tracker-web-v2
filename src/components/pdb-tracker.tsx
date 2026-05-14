@@ -2603,7 +2603,8 @@ export default function PdbTracker() {
   }, []);
 
   const handleFocusIn3D = useCallback((entityKey: string) => {
-    // Focus 3D on entity or ligand
+    // Delegate focus to the viewer via viewerActionsRef
+    viewerActionsRef.current?.focusOnTarget(entityKey, 'entity');
   }, []);
 
   // ── Share View: Apply URL Params on Mount ──
@@ -2692,6 +2693,7 @@ export default function PdbTracker() {
   const [representation, setRepresentation] = useState<'cartoon' | 'ball-stick' | 'surface'>('cartoon');
   const [soloLigand, setSoloLigand] = useState<string | null>(null);
   const [soloEntity, setSoloEntity] = useState<string | null>(null);
+  const viewerActionsRef = useRef<{ focusOnTarget: (target: string, type: 'entity' | 'ligand') => void } | null>(null);
 
   // ── Sync selectedPdbId with selectedEntry & reset entity states ──
   useEffect(() => {
@@ -6353,6 +6355,7 @@ export default function PdbTracker() {
                       }}
                       onRepresentationChange={setRepresentation}
                       representation={representation}
+                      viewerActionsRef={viewerActionsRef}
                     />
                   ) : (
                     <div className="h-[400px] flex items-center justify-center bg-claude-border-light/30">
