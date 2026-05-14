@@ -8141,11 +8141,11 @@ export default function PdbTracker() {
                   const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
                   const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
                   if (struct) {
-                    setSelectedEntry({ ...struct, _type: 'weekly' } as unknown as PdbEntry);
+                    // Reuse weekly detail panel — set selectedEntry (with _type to identify source)
+                    setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
                   } else if (blast) {
-                    // For BLAST results, set a temporary selected eval structure
                     setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
@@ -8160,7 +8160,7 @@ export default function PdbTracker() {
                   const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
                   const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
                   if (struct) {
-                    setSelectedEntry({ ...struct, _type: 'weekly' } as unknown as PdbEntry);
+                    setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                     setDetailPanelOpen(true);
                     setPreviewTab('summary');
                   } else if (blast) {
