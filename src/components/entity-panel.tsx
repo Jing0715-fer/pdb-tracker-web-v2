@@ -1844,6 +1844,7 @@ function RamachandranPlot({
   const center = svgSize / 2;
   const [selectedRegion, setSelectedRegion] = useState<'favored' | 'allowed' | 'disallowed' | null>(null);
   const [showOutliersOnly, setShowOutliersOnly] = useState(false);
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; point: { phi: number; psi: number; chain: string; resName: string; resSeq: number } } | null>(null);
 
   // Extract unique chains from real data
   const chains = useMemo(() => {
@@ -1921,21 +1922,26 @@ function RamachandranPlot({
 
   // Region colors
   const regionColors = {
-    favored: '#22c55e',
-    allowed: '#f59e0b',
-    disallowed: '#ef4444',
+    favored: '#60a5fa',
+    allowed: '#93c5fd',
+    disallowed: '#f87171',
   };
 
   const regionFills = {
-    favored: 'rgba(34, 197, 94, 0.65)',
-    allowed: 'rgba(245, 158, 11, 0.20)',
-    disallowed: 'rgba(239, 68, 68, 0.04)',
+    allowed: 'rgba(230, 200, 160, 0.35)',
+    favored: 'rgba(220, 120, 120, 0.5)',
+    disallowed: 'rgba(255, 255, 255, 0)',
   };
 
-  // Approximate Ramachandran region outlines as SVG paths
-  const favoredPathAlpha = 'M -100,-80 Q -30,-90 -20,-20 Q -20,30 -90,20 Q -110,0 -100,-80 Z';
-  const favoredPathBeta = 'M -180,40 Q -140,30 -90,60 Q -60,150 -100,180 Q -160,180 -180,150 Z';
-  const allowedPath = 'M -180,-180 L 180,-180 L 180,180 L -180,180 Z';
+  // Full-shaped allowed/favored regions (reference image style)
+  // Allowed = large light-beige blobs; Favored = smaller pinker cores inside
+  const alphaAllowedPath = `${toX(-120)},${toY(-100)} Q ${toX(-70)},${toY(-115)} ${toX(-20)},${toY(-100)} Q ${toX(20)},${toY(-60)} ${toX(20)},${toY(-10)} Q ${toX(20)},${toY(40)} ${toX(-20)},${toY(70)} Q ${toX(-70)},${toY(80)} ${toX(-120)},${toY(60)} Q ${toX(-140)},${toY(20)} ${toX(-120)},${toY(-100)} Z`;
+  const betaAllowedPath = `${toX(-180)},${toY(10)} Q ${toX(-160)},${toY(-60)} ${toX(-80)},${toY(-40)} Q ${toX(-20)},${toY(-20)} ${toX(20)},${toY(30)} Q ${toX(30)},${toY(100)} ${toX(0)},${toY(160)} Q ${toX(-50)},${toY(180)} ${toX(-120)},${toY(180)} Q ${toX(-180)},${toY(170)} ${toX(-180)},${toY(100)} Q ${toX(-180)},${toY(55)} ${toX(-180)},${toY(10)} Z`;
+  const leftAllowedPath = `${toX(30)},${toY(-125)} Q ${toX(70)},${toY(-115)} ${toX(110)},${toY(-100)} Q ${toX(140)},${toY(-60)} ${toX(145)},${toY(-10)} Q ${toX(140)},${toY(40)} ${toX(120)},${toY(80)} Q ${toX(80)},${toY(95)} ${toX(40)},${toY(90)} Q ${toX(10)},${toY(80)} ${toX(5)},${toY(30)} Q ${toX(5)},${toY(-20)} ${toX(10)},${toY(-70)} Q ${toX(15)},${toY(-110)} ${toX(30)},${toY(-125)} Z`;
+
+  const alphaFavoredPath = `${toX(-95)},${toY(-70)} Q ${toX(-60)},${toY(-82)} ${toX(-30)},${toY(-70)} Q ${toX(-15)},${toY(-40)} ${toX(-30)},${toY(-10)} Q ${toX(-55)},${toY(0)} ${toX(-80)},${toY(-5)} Q ${toX(-100)},${toY(-40)} ${toX(-95)},${toY(-70)} Z`;
+  const betaFavoredPath = `${toX(-160)},${toY(55)} Q ${toX(-125)},${toY(35)} ${toX(-85)},${toY(50)} Q ${toX(-55)},${toY(85)} ${toX(-70)},${toY(140)} Q ${toX(-105)},${toY(165)} ${toX(-145)},${toY(155)} Q ${toX(-165)},${toY(120)} ${toX(-165)},${toY(80)} Q ${toX(-170)},${toY(65)} ${toX(-160)},${toY(55)} Z`;
+  const leftFavoredPath = `${toX(50)},${toY(-95)} Q ${toX(75)},${toY(-90)} ${toX(95)},${toY(-80)} Q ${toX(110)},${toY(-50)} ${toX(110)},${toY(-15)} Q ${toX(108)},${toY(20)} ${toX(90)},${toY(45)} Q ${toX(70)},${toY(60)} ${toX(48)},${toY(55)} Q ${toX(35)},${toY(45)} ${toX(35)},${toY(10)} Q ${toX(35)},${toY(-30)} ${toX(40)},${toY(-65)} Q ${toX(42)},${toY(-85)} ${toX(50)},${toY(-95)} Z`;
 
   // Percentages for display - derived from RCSB outliers
   // Note: favored% here means favored+allowed (as reported by MolProbity)
@@ -1966,59 +1972,15 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Allowed region - tighter contour around favored regions */}
-        {/* Alpha-helix allowed zone - small ring around helix favored */}
-        <path
-          d={`M ${toX(-95)},${toY(-80)} Q ${toX(-65)},${toY(-95)} ${toX(-30)},${toY(-80)} Q ${toX(-15)},${toY(-45)} ${toX(-30)},${toY(-10)} Q ${toX(-65)},${toY(5)} ${toX(-95)},${toY(-10)} Q ${toX(-120)},${toY(-45)} ${toX(-95)},${toY(-80)} Z`}
-          fill="rgba(245, 158, 11, 0.12)"
-          onClick={() => setSelectedRegion('allowed')}
-          style={{ cursor: 'pointer' }}
-        />
-        {/* Beta-sheet allowed zone - small ring around beta favored */}
-        <path
-          d={`M ${toX(-150)},${toY(50)} Q ${toX(-120)},${toY(35)} ${toX(-90)},${toY(65)} Q ${toX(-55)},${toY(155)} ${toX(-105)},${toY(175)} Q ${toX(-160)},${toY(175)} ${toX(-165)},${toY(140)} Q ${toX(-175)},${toY(95)} ${toX(-150)},${toY(50)} Z`}
-          fill="rgba(245, 158, 11, 0.12)"
-          onClick={() => setSelectedRegion('allowed')}
-          style={{ cursor: 'pointer' }}
-        />
-        {/* Left-handed helix allowed zone */}
-        <path
-          d={`M ${toX(25)},${toY(-110)} Q ${toX(55)},${toY(-115)} ${toX(85)},${toY(-110)} Q ${toX(95)},${toY(-55)} ${toX(85)},${toY(-15)} Q ${toX(55)},${toY(-10)} ${toX(25)},${toY(-15)} Q ${toX(15)},${toY(-55)} ${toX(25)},${toY(-110)} Z`}
-          fill="rgba(245, 158, 11, 0.12)"
-          onClick={() => setSelectedRegion('allowed')}
-          style={{ cursor: 'pointer' }}
-        />
-        {/* Disallowed region outline only (no fill - just the border) */}
-        <rect
-          x={padding}
-          y={padding}
-          width={plotSize}
-          height={plotSize}
-          fill="none"
-          stroke="rgba(239, 68, 68, 0.15)"
-          strokeWidth={1.5}
-          strokeDasharray="4,3"
-          rx={4}
-          onClick={() => setSelectedRegion('disallowed')}
-          style={{ cursor: 'pointer' }}
-        />
+        {/* Allowed regions: large light-beige blobs */}
+        <path d={alphaAllowedPath} fill={regionFills.allowed} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
+        <path d={betaAllowedPath} fill={regionFills.allowed} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
+        <path d={leftAllowedPath} fill={regionFills.allowed} onClick={() => setSelectedRegion('allowed')} style={{ cursor: 'pointer' }} />
 
-        {/* Alpha-helix favored region */}
-        <path
-          d={`M ${toX(-90)},${toY(-75)} Q ${toX(-60)},${toY(-90)} ${toX(-30)},${toY(-75)} Q ${toX(-20)},${toY(-45)} ${toX(-30)},${toY(-15)} Q ${toX(-60)},${toY(0)} ${toX(-90)},${toY(-15)} Q ${toX(-110)},${toY(-45)} ${toX(-90)},${toY(-75)} Z`}
-          fill={regionFills.favored}
-          opacity={1}
-          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
-          style={{ cursor: 'pointer' }}
-        />
-        {/* Beta-sheet favored region */}
-        <path
-          d={`M ${toX(-180)},${toY(100)} Q ${toX(-140)},${toY(70)} ${toX(-90)},${toY(80)} Q ${toX(-60)},${toY(140)} ${toX(-90)},${toY(180)} Q ${toX(-140)},${toY(180)} ${toX(-180)},${toY(160)} Q ${toX(-180)},${toY(130)} ${toX(-180)},${toY(100)} Z`}
-          fill={regionFills.favored}
-          opacity={1}
-          onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }}
-          style={{ cursor: 'pointer' }}
-        />
+        {/* Favored regions: smaller pink/red cores */}
+        <path d={alphaFavoredPath} fill={regionFills.favored} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
+        <path d={betaFavoredPath} fill={regionFills.favored} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
+        <path d={leftFavoredPath} fill={regionFills.favored} onClick={(e) => { e.stopPropagation(); setSelectedRegion(selectedRegion === 'favored' ? null : 'favored'); }} style={{ cursor: 'pointer' }} />
 
         {/* Grid lines */}
         {[-180, -90, 0, 90, 180].map((v) => (
@@ -2043,17 +2005,25 @@ function RamachandranPlot({
         {/* Plot border */}
         <rect x={padding} y={padding} width={plotSize} height={plotSize} fill="none" stroke="var(--claude-border)" strokeWidth={1} rx={4} />
 
-        {/* Scatter points */}
+        {/* Scatter points with hover tooltips */}
         {points.map((pt, i) => (
           <circle
             key={i}
             cx={toX(pt.phi)}
             cy={toY(pt.psi)}
-            r={pt.region === 'favored' ? 2.5 : 2}
-            fill={regionColors[pt.region]}
-            opacity={pt.region === 'favored' ? 1 : pt.region === 'allowed' ? 0.85 : 1}
+            r={pt.region === 'disallowed' ? 2.5 : 2}
+            fill={pt.region === 'favored' ? '#60a5fa' : pt.region === 'allowed' ? '#93c5fd' : '#f87171'}
+            opacity={0.85}
             className="rama-plot-dot"
-            style={{ animationDelay: `${i * 5}ms` }}
+            style={{ animationDelay: `${i * 2}ms` }}
+            onMouseEnter={(e) => {
+              const svgRect = (e.currentTarget.ownerSVGElement as unknown as SVGSVGElement)?.getBoundingClientRect();
+              if (!svgRect) return;
+              const cx = e.currentTarget.cx.baseVal.value;
+              const cy = e.currentTarget.cy.baseVal.value;
+              setTooltip({ x: cx, y: cy, point: { phi: pt.phi, psi: pt.psi, chain: pt.chain, resName: (pt as any).resName || '', resSeq: (pt as any).resSeq || 0 } });
+            }}
+            onMouseLeave={() => setTooltip(null)}
           />
         ))}
 
@@ -2064,6 +2034,33 @@ function RamachandranPlot({
         <text x={toX(-120)} y={toY(140)} textAnchor="middle" className="fill-current text-green-600 dark:text-green-400" fontSize={6} fontWeight={700} opacity={0.5}>
           β-sheet
         </text>
+
+        {/* Tooltip for hover */}
+        {tooltip && (
+          <g>
+            <rect
+              x={tooltip.x + 6}
+              y={tooltip.y - 14}
+              width={55}
+              height={22}
+              fill="rgba(15,23,42,0.95)"
+              rx={4}
+              stroke="rgba(96,165,250,0.4)"
+              strokeWidth={1}
+            />
+            <text
+              x={tooltip.x + 9}
+              y={tooltip.y - 4}
+              fontSize={7}
+              fontFamily="monospace"
+              fill="#60a5fa"
+              fontWeight={600}
+            >
+              {tooltip.point.resSeq > 0 ? `${tooltip.point.resSeq}` : `${tooltip.point.phi.toFixed(0)},${tooltip.point.psi.toFixed(0)}`}
+              {tooltip.point.resName && ` ${tooltip.point.resName}`}
+            </text>
+          </g>
+        )}
       </svg>
 
       {/* Stats below the plot */}
