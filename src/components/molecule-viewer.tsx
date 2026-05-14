@@ -1134,8 +1134,9 @@ export function MoleculeViewer({
 
         // Fetch assembly descriptions from RCSB Data API for richer info
         try {
+          // Note: fetch the first assembly explicitly; /assembly/{pdbId} alone returns 404 if no default
           const asmRes = await fetch(
-            `https://data.rcsb.org/rest/v1/core/assembly/${pdbId.toUpperCase()}`,
+            `https://data.rcsb.org/rest/v1/core/assembly/${pdbId.toUpperCase()}/1`,
             { headers: { 'Accept': 'application/json' } }
           );
           if (asmRes.ok) {
