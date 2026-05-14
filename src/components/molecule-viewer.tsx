@@ -3035,32 +3035,17 @@ export function MoleculeViewer({
 
     const plugin = pluginRef.current;
     if (!plugin || !structureLoaded) return;
-
     try {
-      const { PluginStateObject, StateSelection } = await getMolstarModules();
+      const { PluginStateObject, StateSelection, PluginCommands } = await getMolstarModules();
 
       if (!newActive) {
-        // Remove all density volumes via hierarchy manager
         const volumes = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Volume));
         for (const vol of volumes) {
           plugin.state.data.removeObject(vol.transform.ref);
         }
-        // Also clear volume streaming behavior tagged cells
-        const cells = plugin.state.data.tree.subtreeCells;
-        for (const cell of cells) {
-          if (cell.type === 'transform' && cell.transform.kind === 'volume') {
-            // leave volumes but remove streaming behavior
-          }
-        }
         return;
       }
 
-      // Use molstar's InitVolumeStreaming state action with PDBe density server
-      // The serverUrl points to the density server that serves 2Fo-Fc and Fo-Fc maps
-      const pdbeDensityServer = 'https://www.ebi.ac.uk/pdbe/densities/x-ray/';
-      const { StructureObject } = await getMolstarModules();
-
-      // Find the current structure cell
       const structureCells = plugin.state.data.select(StateSelection.ofType(PluginStateObject.Molecule.Structure));
       if (!structureCells || structureCells.length === 0) {
         console.warn('[MoleculeViewer] No structure cell found for density loading');
@@ -3070,23 +3055,36 @@ export function MoleculeViewer({
 
       const structureCell = structureCells[0];
 
-      // Apply InitVolumeStreaming action on the structure cell
-      await plugin.state.actions.apply(
-        { action: 'init-volume-streaming', ref: structureCell.transform.ref } as any,
-        {
+      // Use InitVolumeStreaming via PluginCommands.State.ApplyAction with PDBe density server
+      await PluginCommands.State.ApplyAction(plugin, {
+        state: plugin.state.data,
+        action: {
+          transformer: {
+            id: 'molstar-volume-streaming',
+            params: {
+              method: 'x-ray',
+              entries: [{ id: pdbId.toUpperCase() }],
+              defaultView: 'selection-box',
+              options: {
+                serverUrl: 'https://www.ebi.ac.uk/pdbe/densities/x-ray/',
+                emContourProvider: 'pdbe',
+                channelParams: {},
+              },
+            },
+          },
           params: {
-            method: 'x-ray' as const,
+            method: 'x-ray',
             entries: [{ id: pdbId.toUpperCase() }],
-            defaultView: 'selection-box' as const,
+            defaultView: 'selection-box',
             options: {
-              serverUrl: pdbeDensityServer,
-              emContourProvider: 'pdbe' as const,
+              serverUrl: 'https://www.ebi.ac.uk/pdbe/densities/x-ray/',
+              emContourProvider: 'pdbe',
               channelParams: {},
             },
           },
-          from: structureCell,
-        } as any
-      );
+        },
+        ref: structureCell.transform.ref,
+      });
     } catch (err) {
       console.warn('[MoleculeViewer] Density load error:', err);
       setEdMapActive(false);
