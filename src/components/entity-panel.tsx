@@ -1966,25 +1966,25 @@ function RamachandranPlot({
           style={{ cursor: 'pointer' }}
         />
 
-        {/* Allowed region - subtle contour-style fills around favored regions */}
-        {/* Alpha-helix allowed zone */}
+        {/* Allowed region - tighter contour around favored regions */}
+        {/* Alpha-helix allowed zone - small ring around helix favored */}
         <path
-          d={`M ${toX(-100)},${toY(-100)} Q ${toX(-60)},${toY(-115)} ${toX(-20)},${toY(-100)} Q ${toX(10)},${toY(-50)} ${toX(-20)},${toY(10)} Q ${toX(-60)},${toY(30)} ${toX(-100)},${toY(10)} Q ${toX(-125)},${toY(-45)} ${toX(-100)},${toY(-100)} Z`}
-          fill="rgba(245, 158, 11, 0.08)"
+          d={`M ${toX(-95)},${toY(-80)} Q ${toX(-65)},${toY(-95)} ${toX(-30)},${toY(-80)} Q ${toX(-15)},${toY(-45)} ${toX(-30)},${toY(-10)} Q ${toX(-65)},${toY(5)} ${toX(-95)},${toY(-10)} Q ${toX(-120)},${toY(-45)} ${toX(-95)},${toY(-80)} Z`}
+          fill="rgba(245, 158, 11, 0.12)"
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
-        {/* Beta-sheet allowed zone */}
+        {/* Beta-sheet allowed zone - small ring around beta favored */}
         <path
-          d={`M ${toX(-180)},${toY(25)} Q ${toX(-140)},${toY(5)} ${toX(-90)},${toY(20)} Q ${toX(-40)},${toY(65)} ${toX(-55)},${toY(180)} Q ${toX(-100)},${toY(180)} ${toX(-180)},${toY(175)} Q ${toX(-180)},${toY(100)} ${toX(-180)},${toY(25)} Z`}
-          fill="rgba(245, 158, 11, 0.08)"
+          d={`M ${toX(-150)},${toY(50)} Q ${toX(-120)},${toY(35)} ${toX(-90)},${toY(65)} Q ${toX(-55)},${toY(155)} ${toX(-105)},${toY(175)} Q ${toX(-160)},${toY(175)} ${toX(-165)},${toY(140)} Q ${toX(-175)},${toY(95)} ${toX(-150)},${toY(50)} Z`}
+          fill="rgba(245, 158, 11, 0.12)"
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
         {/* Left-handed helix allowed zone */}
         <path
-          d={`M ${toX(15)},${toY(-115)} Q ${toX(60)},${toY(-115)} ${toX(110)},${toY(-115)} Q ${toX(115)},${toY(-30)} ${toX(110)},${toY(85)} Q ${toX(60)},${toY(85)} ${toX(15)},${toY(85)} Q ${toX(10)},${toY(-30)} ${toX(15)},${toY(-115)} Z`}
-          fill="rgba(245, 158, 11, 0.08)"
+          d={`M ${toX(25)},${toY(-110)} Q ${toX(55)},${toY(-115)} ${toX(85)},${toY(-110)} Q ${toX(95)},${toY(-55)} ${toX(85)},${toY(-15)} Q ${toX(55)},${toY(-10)} ${toX(25)},${toY(-15)} Q ${toX(15)},${toY(-55)} ${toX(25)},${toY(-110)} Z`}
+          fill="rgba(245, 158, 11, 0.12)"
           onClick={() => setSelectedRegion('allowed')}
           style={{ cursor: 'pointer' }}
         />
