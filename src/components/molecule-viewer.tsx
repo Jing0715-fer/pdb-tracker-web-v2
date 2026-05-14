@@ -101,6 +101,7 @@ export interface MoleculeViewerProps {
   overlayColorHex?: string;
   showStatsPdbId?: string | null;
   viewerActionsRef?: React.MutableRefObject<ViewerActions | null>;
+  onFocusIn3D?: (target: string) => void;
 }
 
 // ─── Dynamic import with retry ───────────────────────────────────────────
@@ -429,12 +430,14 @@ export function MoleculeViewer({
   entityVisibility,
   soloEntity,
   viewerActionsRef,
+  onFocusIn3D,
 }: MoleculeViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pluginRef = useRef<any>(null);
   const loadedPdbRef = useRef<string | null>(null);
   const loadedOverlayRef = useRef<string | null>(null);
+  const disposedRef = useRef(false); // Track disposed state for async operations
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -677,7 +680,7 @@ export function MoleculeViewer({
       return;
     }
 
-    let disposed = false;
+    disposedRef.current = false;
 
     async function initPlugin() {
       try {
@@ -695,12 +698,12 @@ export function MoleculeViewer({
           ]
         );
 
-        if (disposed || !containerRef.current) return;
+        if (disposedRef.current || !containerRef.current) return;
 
         // Pre-load Molstar modules for later use
         await getMolstarModules();
 
-        if (disposed || !containerRef.current) return;
+        if (disposedRef.current || !containerRef.current) return;
 
         const plugin = await createPluginUI({
           target: containerRef.current,
@@ -731,7 +734,7 @@ export function MoleculeViewer({
           } as any,
         });
 
-        if (disposed) {
+        if (disposedRef.current) {
           plugin.dispose();
           return;
         }
@@ -740,7 +743,7 @@ export function MoleculeViewer({
         const canvasEl = containerRef.current.querySelector('canvas');
         if (!canvasEl) {
           plugin.dispose();
-          if (!disposed) {
+          if (!disposedRef.current) {
             setWebglNotAvailable(true);
             setError('WebGL is not available in your browser. Please try a different browser or enable hardware acceleration.');
             setLoading(false);
@@ -767,7 +770,7 @@ export function MoleculeViewer({
           // ignore background color setting errors during init
         }
       } catch (err) {
-        if (!disposed) {
+        if (!disposedRef.current) {
           console.error('[MoleculeViewer] Failed to initialize Molstar:', err);
           // Check if the error is WebGL-related
           const errMsg = err instanceof Error ? err.message : String(err);
@@ -785,7 +788,7 @@ export function MoleculeViewer({
     initPlugin();
 
     return () => {
-      disposed = true;
+      disposedRef.current = true;
       if (pluginRef.current) {
         try {
           pluginRef.current.dispose();

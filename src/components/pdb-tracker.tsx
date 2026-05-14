@@ -2575,8 +2575,8 @@ export default function PdbTracker() {
   }, []);
 
   const handleEntityFocus = useCallback((entityKey: string) => {
-    setSoloEntity(prev => prev === entityKey ? null : entityKey);
-    setSoloLigand(null);
+    // Focus: center on entity in 3D viewer without changing solo mode
+    handleFocusIn3D(entityKey);
   }, []);
 
   const handleSoloEntity = useCallback((entityKey: string | null) => {
@@ -2584,7 +2584,8 @@ export default function PdbTracker() {
   }, []);
 
   const handleLigandFocus = useCallback((code: string) => {
-    setSoloLigand(prev => prev === code ? null : code);
+    // Focus: center on ligand in 3D viewer without changing solo mode
+    handleFocusIn3D(code);
   }, []);
 
   const handleSoloLigand = useCallback((code: string | null) => {
