@@ -5658,9 +5658,6 @@ export function EntityPanel({
                                 {entity.organism}
                               </span>
                             )}
-                            {entity.gene_name && (
-                              <GeneBadge geneName={entity.gene_name} />
-                            )}
                           </div>
                         </div>
                         {/* Show Sequence toggle */}
