@@ -45,7 +45,7 @@ export function StructureAnalysisSection({
   return (
     <div className="flex flex-col rounded-lg border border-claude-border bg-claude-surface overflow-hidden">
       {/* Tab bar */}
-      <div className="flex items-center gap-0.5 px-2 pt-2 bg-claude-bg border-b border-claude-border overflow-x-auto">
+      <div className="flex items-center gap-0.5 px-2 pt-2 bg-claude-bg border-b border-claude-border overflow-x-auto scrollbar-hide">
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;

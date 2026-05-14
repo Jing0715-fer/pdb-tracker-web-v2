@@ -682,6 +682,15 @@
   background: #6b6560;
 }
 
+/* ─── Scrollbar Hide Utility ──────────────────────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* ─── Focus Ring Utility ────────────────────────────────────────────────── */
 
 .claude-focus-ring:focus-visible {
