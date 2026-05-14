@@ -2287,8 +2287,8 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   </div>
                 )}
 
-                {/* Per-chain scores */}
-                {data.chain_scores && data.chain_scores.length > 0 && (
+                {/* Per-chain scores from PDBe Ramachandran data */}
+                {ramaData?.chain_scores && ramaData.chain_scores.length > 0 && (
                   <div className="mt-2">
                     <p className="text-[9px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1">
                       Per-chain Scores
@@ -2303,7 +2303,7 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {data.chain_scores.map((cs, i) => (
+                          {ramaData.chain_scores.map((cs: { chain: string; favored: number; outliers: number }, i: number) => (
                             <tr key={i} className="border-b border-claude-border-light/50 last:border-0">
                               <td className="px-2 py-0.5 font-mono font-bold text-claude-text">{cs.chain}</td>
                               <td className="px-2 py-0.5 text-right font-mono text-green-600 dark:text-green-400">

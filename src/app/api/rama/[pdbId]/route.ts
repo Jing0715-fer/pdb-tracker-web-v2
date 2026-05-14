@@ -10,6 +10,14 @@ interface RamaPoint {
   resSeq: number;
 }
 
+interface ChainScore {
+  chain: string;
+  favored: number;
+  allowed: number;
+  outliers: number;
+  total: number;
+}
+
 function fetchJson(url: string): Promise<any> {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { Accept: 'application/json' } }, (res) => {
@@ -35,7 +43,6 @@ export async function GET(
   }
 
   try {
-    // Fetch ALL residues with phi/psi from PDBe's rama_sidechain_listing API
     const data = await fetchJson(
       `https://www.ebi.ac.uk/pdbe/api/v2/validation/rama_sidechain_listing/entry/${upperId}`
     );
@@ -50,38 +57,49 @@ export async function GET(
     let totalAllowed = 0;
     let totalOutlier = 0;
 
+    // Per-chain stats (keyed by chain_id)
+    const chainStats: Record<string, { favored: number; allowed: number; disallowed: number }> = {};
+
     for (const molecule of entry.molecules || []) {
       for (const chain of molecule.chains || []) {
+        // Use chain_id (e.g. "A", "B") as the real chain identifier
+        const chainId: string = chain.chain_id || chain.struct_asym_id || '';
+        if (!chainId) continue;
+
+        if (!chainStats[chainId]) {
+          chainStats[chainId] = { favored: 0, allowed: 0, disallowed: 0 };
+        }
+
         for (const model of chain.models || []) {
           for (const res of model.residues || []) {
             const phi = res.phi;
             const psi = res.psi;
             const rama = res.rama;
 
-            // Skip if no phi/psi data
             if (phi == null || psi == null) continue;
 
-            // Classify: Favored / Allowed / Disallowed (Outlier)
             let region: 'favored' | 'allowed' | 'disallowed';
             if (rama === 'Favored') {
               region = 'favored';
               totalFavored++;
+              chainStats[chainId].favored++;
             } else if (rama === 'Allowed') {
               region = 'allowed';
               totalAllowed++;
+              chainStats[chainId].allowed++;
             } else {
-              // Ramachandran_outlier, or null/unknown
               region = 'disallowed';
               totalOutlier++;
+              chainStats[chainId].disallowed++;
             }
 
             points.push({
               phi: Number(phi),
               psi: Number(psi),
               region,
-              chain: chain.struct_asym_id || '',
+              chain: chainId,
               resName: res.residue_name || '',
-              resSeq: res.residue_number || 0,
+              resSeq: res.author_residue_number || res.residue_number || 0,
             });
           }
         }
@@ -90,17 +108,27 @@ export async function GET(
 
     if (points.length === 0) {
       return NextResponse.json({
-        pdb_id: upperId,
-        error: 'No torsion data found',
-        residue_count: 0,
-        favored: 0,
-        allowed: 0,
-        outliers: 0,
-        points: [],
+        pdb_id: upperId, error: 'No torsion data found',
+        residue_count: 0, favored: 0, allowed: 0, outliers: 0, points: [], chain_scores: [],
       });
     }
 
     const total = points.length;
+
+    // Build per-chain scores sorted by chain_id
+    const chainScores: ChainScore[] = Object.entries(chainStats)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([chain, stats]) => {
+        const chainTotal = stats.favored + stats.allowed + stats.disallowed;
+        return {
+          chain,
+          favored: chainTotal > 0 ? Math.round((stats.favored / chainTotal) * 1000) / 10 : 0,
+          allowed: chainTotal > 0 ? Math.round((stats.allowed / chainTotal) * 1000) / 10 : 0,
+          outliers: chainTotal > 0 ? Math.round((stats.disallowed / chainTotal) * 1000) / 10 : 0,
+          total: chainTotal,
+        };
+      });
+
     return NextResponse.json({
       pdb_id: upperId,
       residue_count: total,
@@ -108,6 +136,7 @@ export async function GET(
       allowed: Math.round((totalAllowed / total) * 1000) / 10,
       outliers: Math.round((totalOutlier / total) * 1000) / 10,
       points,
+      chain_scores: chainScores,
     });
   } catch (err) {
     console.error('[Rama API] Error:', err);
