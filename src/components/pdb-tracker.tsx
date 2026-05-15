@@ -2310,7 +2310,7 @@ export default function PdbTracker() {
       const saved = localStorage.getItem('pdb-preview-width');
       if (saved) return Math.min(560, Math.max(300, Number(saved)));
     } catch { /* ignore */ }
-    return 360;
+    return 420;
   });
   const [resizingSidebar, setResizingSidebar] = useState(false);
   const [resizingPreview, setResizingPreview] = useState(false);
