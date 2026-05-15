@@ -264,6 +264,13 @@ function isNucleotideType(moleculeType: string): boolean {
 
 // ─── Sequence Data Cache ─────────────────────────────────────────────────
 
+const MAX_CACHE_SIZE = 50;
+
+function evictOldestEntry(cache: Map<string, any>): void {
+  const firstKey = cache.keys().next().value;
+  if (firstKey !== undefined) cache.delete(firstKey);
+}
+
 const sequenceCache = new Map<string, Record<string, string> | null>();
 
 function useSequenceData(pdbId: string): {
@@ -288,12 +295,14 @@ function useSequenceData(pdbId: string): {
       .then((json) => {
         if (cancelled) return;
         const seqs = json?.sequences || null;
+        if (sequenceCache.size >= MAX_CACHE_SIZE) evictOldestEntry(sequenceCache);
         sequenceCache.set(pdbId, seqs);
         setData(seqs);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
+        if (sequenceCache.size >= MAX_CACHE_SIZE) evictOldestEntry(sequenceCache);
         sequenceCache.set(pdbId, null);
         setData(null);
         setLoading(false);
@@ -332,12 +341,14 @@ function useValidationData(pdbId: string): {
       })
       .then((json) => {
         if (cancelled) return;
+        if (validationCache.size >= MAX_CACHE_SIZE) evictOldestEntry(validationCache);
         validationCache.set(pdbId, json || null);
         setData(json || null);
         setLoading(false);
       })
       .catch(() => {
         if (cancelled) return;
+        if (validationCache.size >= MAX_CACHE_SIZE) evictOldestEntry(validationCache);
         validationCache.set(pdbId, null);
         setData(null);
         setLoading(false);
