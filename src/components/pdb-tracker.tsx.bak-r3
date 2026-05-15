@@ -3277,35 +3277,23 @@ export default function PdbTracker() {
     if (selectedBatchId && !selectedEval && !selectedComplexId) {
       const subs = evalBatchSubTargets[selectedBatchId] || [];
       const batchEvals = subs.map((sub: any) => evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId]).filter(Boolean) as Evaluation[];
+      const allStructures: (EvalPdbStructure & { _type: 'structure'; _sourceUniport: string })[] = [];
       const allBlasts: (EvalBlastResult & { _type: 'blast'; _sourceUniport: string })[] = [];
       batchEvals.forEach(ev => {
+        (ev.pdbStructures || []).forEach(s => allStructures.push({ ...s, _type: 'structure', _sourceUniport: ev.uniprotId }));
         (ev.blastResults || []).forEach(b => allBlasts.push({ ...b, _type: 'blast', _sourceUniport: ev.uniprotId }));
       });
+      // Deduplicate: remove BLAST entries whose pdbId already exists in structures
+      const structurePdbIds = new Set<string>();
       const firstOccurrenceMap = new Map<string, string>(); // pdbId → first uniprotId
-      const duplicatePdbIds = new Set<string>(); // pdbIds that appear in multiple sub-targets
-      batchEvals.forEach(ev => {
-        const pdbIds = (ev.pdbStructures || []).map((s: EvalPdbStructure) => s.pdbId);
-        const seen = new Set<string>();
-        pdbIds.forEach(pdbId => {
-          if (seen.has(pdbId)) return; // skip duplicate within same eval
-          seen.add(pdbId);
-          if (firstOccurrenceMap.has(pdbId)) {
-            duplicatePdbIds.add(pdbId); // appears in multiple sub-targets
-          } else {
-            firstOccurrenceMap.set(pdbId, ev.uniprotId);
-          }
-        });
+      allStructures.forEach(s => {
+        if (!firstOccurrenceMap.has(s.pdbId)) {
+          firstOccurrenceMap.set(s.pdbId, s._sourceUniport);
+        }
+        structurePdbIds.add(s.pdbId);
       });
-      // Build allStructures: only first occurrence per pdbId (deduplicated across sub-targets)
-      const allStructures: (EvalPdbStructure & { _type: 'structure'; _sourceUniport: string })[] = [];
-      const seenPdbIds = new Set<string>();
-      batchEvals.forEach(ev => {
-        (ev.pdbStructures || []).forEach((s: EvalPdbStructure) => {
-          if (seenPdbIds.has(s.pdbId)) return; // skip duplicate
-          seenPdbIds.add(s.pdbId);
-          allStructures.push({ ...s, _type: 'structure' as const, _sourceUniport: ev.uniprotId });
-        });
-      });
+      const filteredBlasts = allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
+      const all = [...allStructures, ...filteredBlasts];
       // Build shared structure map: PDB ID → count of sub-targets it appears in
       const batchSharedStructureMap = new Map<string, number>();
       batchEvals.forEach(ev => {
@@ -3314,10 +3302,6 @@ export default function PdbTracker() {
           batchSharedStructureMap.set(pdbId, (batchSharedStructureMap.get(pdbId) || 0) + 1);
         });
       });
-      // Deduplicate: remove BLAST entries whose pdbId already exists in structures
-      const structurePdbIds = new Set(allStructures.map(s => s.pdbId));
-      const filteredBlasts = allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
-      const all = [...allStructures, ...filteredBlasts];
       // Attach shared count and first occurrence uniprot to each row
       all.forEach(row => {
         (row as any)._sharedCount = batchSharedStructureMap.get(row.pdbId) || 0;
