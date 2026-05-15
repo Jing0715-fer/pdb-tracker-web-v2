@@ -3423,6 +3423,18 @@ export default function PdbTracker() {
     } catch { /* ignore */ }
   }, []);
 
+  const openBatchReport = useCallback(async (batchId: string, title: string) => {
+    try {
+      const res = await fetch(`/api/batch-report/${batchId}`);
+      if (!res.ok) throw new Error('not found');
+      const data = await res.json();
+      const stripped = (data.content || '')
+        .replace(/^---[\s\S]*?---\s*/, '')
+        .replace(/^#\s+.+\n/, '');
+      setReportModal({ isOpen: true, title: title || 'Batch Report', content: stripped });
+    } catch { /* ignore */ }
+  }, []);
+
   const openEvalReport = useCallback(async (uniprotId: string, title: string) => {
     try {
       // Try all three sources and pick the longest content:
@@ -7914,7 +7926,7 @@ export default function PdbTracker() {
                 <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} entries={entries} />
               )
             ) : mode === 'evaluation' && selectedBatchId && !selectedEval ? (
-              <BatchPreviewContent batchId={selectedBatchId} onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }} selectedSubTargetId={selectedEvalId} allEvals={evaluations} batchFetchedEvals={batchFetchedEvals} evalBatches={evalBatches} evalBatchSubTargets={evalBatchSubTargets} />
+              <BatchPreviewContent batchId={selectedBatchId} onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }} selectedSubTargetId={selectedEvalId} allEvals={evaluations} batchFetchedEvals={batchFetchedEvals} evalBatches={evalBatches} evalBatchSubTargets={evalBatchSubTargets} onOpenBatchReport={openBatchReport} />
             ) : mode === 'evaluation' && selectedEval && selectedBatchId ? (
               <div>
                 <button
@@ -9920,7 +9932,7 @@ function WeekComparisonView({
 
 // ─── Batch Preview Content Sub-Component ────────────────────────────────────────
 
-function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, allEvals, batchFetchedEvals, evalBatches, evalBatchSubTargets }: { batchId: string; onSelectSubTarget: (uniprotId: string) => void; selectedSubTargetId: string | null; allEvals: Evaluation[]; batchFetchedEvals: Record<string, Evaluation>; evalBatches: any[]; evalBatchSubTargets: Record<string, any[]> }) {
+function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, allEvals, batchFetchedEvals, evalBatches, evalBatchSubTargets, onOpenBatchReport }: { batchId: string; onSelectSubTarget: (uniprotId: string) => void; selectedSubTargetId: string | null; allEvals: Evaluation[]; batchFetchedEvals: Record<string, Evaluation>; evalBatches: any[]; evalBatchSubTargets: Record<string, any[]>; onOpenBatchReport?: (batchId: string, title: string) => void }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const batch = evalBatches.find(b => b.batchId === batchId);
@@ -9982,18 +9994,19 @@ function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, 
         </div>
       </div>
 
-      {/* ── Combined Report ── */}
-      {batch.combinedReport && (
-        <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
-          <div className="flex items-center gap-1.5">
-            <FileText className="h-3.5 w-3.5 text-claude-accent" />
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Combined Report</span>
-          </div>
-          <div className="text-[11px] text-claude-text-secondary leading-relaxed whitespace-pre-wrap pl-4 border-l-2 border-claude-border/50 dark:border-[#3d3832]/50">
-            {batch.combinedReport}
-          </div>
+      {/* ── Full Batch Report Button ── */}
+      <button
+        onClick={() => onOpenBatchReport?.(batch.batchId, batch.title || 'Batch Report')}
+        className="w-full rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2 hover:border-claude-accent/40 hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30 transition-all duration-150"
+      >
+        <div className="flex items-center gap-1.5">
+          <FileText className="h-3.5 w-3.5 text-claude-accent" />
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">View Full Batch Report</span>
         </div>
-      )}
+        <div className="text-[11px] text-claude-text-secondary leading-relaxed pl-4 border-l-2 border-claude-border/50 dark:border-[#3d3832]/50">
+          {batch.combinedReport}
+        </div>
+      </button>
 
       {/* ── Sub-targets ── */}
       <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
