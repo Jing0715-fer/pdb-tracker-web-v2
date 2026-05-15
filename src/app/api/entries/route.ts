@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     const week = searchParams.get('week');
     const method = searchParams.get('method');
     const q = searchParams.get('q');
-    const limit = parseInt(searchParams.get('limit') || '200');
+    const limit = parseInt(searchParams.get('limit') || '500');
 
     const conditions: any[] = [];
 

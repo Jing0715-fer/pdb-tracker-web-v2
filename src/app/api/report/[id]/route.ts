@@ -7,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const report = await db.weeklyReport.findUnique({
+    const report = await db.weekly_reports.findUnique({
       where: { id: parseInt(id) },
     });
 

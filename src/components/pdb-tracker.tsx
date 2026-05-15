@@ -3024,9 +3024,16 @@ export default function PdbTracker() {
       try {
         const res = await fetch('/api/reports');
         const data: WeeklyReport[] = await res.json();
-        // Match reports by comparing report weekId (date) with snapshot weekStart
+        // Match reports by filename containing weekId (e.g., "W18" in "冷冻电镜结构周报-W18-2026-04-29.md")
+        // Also match by weekId (date format, e.g., "2026-05-13") for older reports
         const snap = snapshots.find(s => s.weekId === selectedWeekId);
-        setWeeklyReports(snap ? data.filter(r => r.weekId === snap.weekEnd) : []);
+        setWeeklyReports(snap ? data.filter(r => {
+          // Match by filename containing week ID (W18, W19, etc.)
+          if (r.filename && selectedWeekId && r.filename.includes(selectedWeekId)) return true;
+          // Also match by weekId date string
+          if (r.weekId === snap.weekEnd) return true;
+          return false;
+        }) : []);
       } catch (e) { console.error('Failed to fetch reports:', e); }
     }
     load();
@@ -3416,9 +3423,9 @@ export default function PdbTracker() {
     } catch { /* ignore */ }
   }, []);
 
-  const openEvalReport = useCallback(async (reportId: number, title: string) => {
+  const openEvalReport = useCallback(async (uniprotId: string, title: string) => {
     try {
-      const res = await fetch(`/api/evaluation-report/${reportId}`);
+      const res = await fetch(`/api/evaluation-report/${uniprotId}`);
       const data = await res.json();
       setReportModal({ isOpen: true, title: title || 'Evaluation Report', content: data.content || '' });
     } catch { /* ignore */ }
@@ -8071,7 +8078,7 @@ export default function PdbTracker() {
                     {filteredReports.length > 0 ? filteredReports.map(report => (
                       <button
                         key={report.id}
-                        onClick={() => openEvalReport(report.id, report.title || 'Evaluation Report')}
+                        onClick={() => openEvalReport(report.uniprotId, report.title || 'Evaluation Report')}
                         className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
                       >
                         <div className="flex items-center gap-2 mb-1">
@@ -10097,7 +10104,7 @@ function ComplexEvalSummary({
 }: {
   subEvals: Evaluation[];
   group: { id: string; name: string; uniprotIds: string[]; createdAt: number };
-  openReport: (id: number, title: string) => void;
+  openReport: (uniprotId: string, title: string) => void;
   onSelectEval: (uniprotId: string) => void;
 }) {
   const { theme } = useTheme();
@@ -10644,7 +10651,7 @@ function ComplexEvalSummary({
 
 // ─── Evaluation Summary Sub-Component ────────────────────────────────────────
 
-function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openReport: (id: number, title: string) => void }) {
+function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openReport: (uniprotId: string, title: string) => void }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -10967,7 +10974,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
       {/* ── View Report Button ── */}
       {evalReport && (
         <Button
-          onClick={() => openReport(evalReport.id, evalReport.title || 'Evaluation Report')}
+          onClick={() => openEvalReport(evalData.uniprotId, evalReport.title || 'Evaluation Report')}
           className="w-full text-xs h-8 bg-claude-accent hover:bg-claude-accent-hover text-white"
         >
           <FileText className="h-3.5 w-3.5 mr-1.5" />

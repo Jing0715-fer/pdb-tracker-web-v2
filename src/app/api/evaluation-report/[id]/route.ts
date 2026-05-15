@@ -7,8 +7,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const report = await db.evaluationReport.findUnique({
-      where: { id: parseInt(id) },
+    const report = await db.evaluation_reports.findUnique({
+      where: { uniprot_id: id },
     });
 
     if (!report) {

@@ -73,7 +73,7 @@ export async function GET(request: NextRequest) {
         `
       : await db.$queryRaw<any[]>`
           SELECT e.* FROM evaluations e
-          WHERE e.batch_id IS NULL
+          WHERE (e.batch_id IS NULL OR e.batch_id = '')
           ORDER BY e.updated_at DESC
           LIMIT 100
         `;
