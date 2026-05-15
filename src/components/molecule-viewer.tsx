@@ -1354,7 +1354,6 @@ export function MoleculeViewer({
 
         if (polymerChains.length === 0) return;
 
-        console.log(`[MoleculeViewer] Creating per-chain components for ${polymerChains.length} chains:`, polymerChains.map(c => c.chainId));
 
         // Create per-chain components using StructureSelectionQuery (same pattern as per-ligand)
         for (const { chainId } of polymerChains) {
@@ -1381,7 +1380,6 @@ export function MoleculeViewer({
               },
               hierarchy.structures
             );
-            console.log(`[MoleculeViewer] Per-chain component added for chain ${chainId}`);
           } catch (e) {
             console.warn(`[MoleculeViewer] Failed to create per-chain component for ${chainId}:`, e);
           }
@@ -1412,7 +1410,6 @@ export function MoleculeViewer({
             }
           }
 
-          console.log(`[MoleculeViewer] Found ${chainComponentsFound} per-chain components out of ${polymerChains.length} expected`);
 
           // Only hide the default polymer component if we successfully created per-chain components
           if (chainComponentsFound >= polymerChains.length) {
