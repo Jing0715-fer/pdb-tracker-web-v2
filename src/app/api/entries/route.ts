@@ -66,6 +66,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json((entries as any[]).map(toCamelCase));
   } catch (error) {
     console.error('Error fetching entries:', error);
-    return NextResponse.json([], { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch entries' }, { status: 500 });
   }
 }

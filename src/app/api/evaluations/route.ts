@@ -175,6 +175,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[api/evaluations] Error:', error);
-    return NextResponse.json({ batches: [], batchSubTargets: {}, individualEvals: [] }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to fetch evaluations', batches: [], batchSubTargets: {}, individualEvals: [] }, { status: 500 });
   }
 }
