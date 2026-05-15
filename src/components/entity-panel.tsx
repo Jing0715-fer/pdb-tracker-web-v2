@@ -1244,11 +1244,11 @@ function ChainRow({
       <button
         ref={colorDotRef}
         onClick={(e) => handleColorDotClick(e, 'entity', entityKey)}
-        className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/30
+        className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/30 dark:border-gray-500/50
                    shadow-sm hover:scale-125 transition-transform focus:outline-none
                    focus:ring-2 focus:ring-claude-accent/40"
         style={{ backgroundColor: color }}
-        title="Change color"
+        aria-label="Change color" title="Change color"
       >
         <Palette className="w-2 h-2 text-white/70 mx-auto opacity-0 hover:opacity-100 transition-opacity" />
       </button>
@@ -1443,11 +1443,11 @@ function LigandRow({
           <button
             ref={colorDotRef}
             onClick={(e) => handleColorDotClick(e, 'ligand', code)}
-            className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/30
+            className="w-3.5 h-3.5 rounded-full flex-shrink-0 border border-white/30 dark:border-gray-500/50
                        shadow-sm hover:scale-125 transition-transform focus:outline-none
                        focus:ring-2 focus:ring-claude-accent/40"
             style={{ backgroundColor: color }}
-            title="Change color"
+            aria-label="Change color" title="Change color"
           />
 
           {/* Peptide inhibitor icon for PEP_ ligands */}
@@ -5625,7 +5625,7 @@ export function EntityPanel({
                 }}
                 className="p-1 rounded text-claude-text-muted hover:text-claude-accent
                            hover:bg-claude-accent-light transition-colors"
-                title="Change color"
+                aria-label="Change color" title="Change color"
               >
                 <Palette className="w-3 h-3" />
               </button>
