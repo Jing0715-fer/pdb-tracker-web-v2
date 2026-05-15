@@ -3425,17 +3425,28 @@ export default function PdbTracker() {
 
   const openEvalReport = useCallback(async (uniprotId: string, title: string) => {
     try {
-      // evaluation_reports.content has full detailed reports;
-      // evaluations.report has shorter summaries (P00533 is an example where the full report is missing from evaluation_reports)
-      const [fullRes, shortRes] = await Promise.all([
+      // Try all three sources and pick the longest content:
+      // 1. /api/eval-report-file/[uniprotId] — reads .md file from wiki/evaluations/ (full content)
+      // 2. /api/evaluation-report/[uniprotId] — evaluation_reports table (may be stub)
+      // 3. /api/evaluations/[uniprotId] — evaluations.report field (summary)
+      const [fileRes, fullRes, shortRes] = await Promise.all([
+        fetch(`/api/eval-report-file/${uniprotId}`),
         fetch(`/api/evaluation-report/${uniprotId}`),
         fetch(`/api/evaluations/${uniprotId}`),
       ]);
-      const [fullData, shortData] = await Promise.all([fullRes.json(), shortRes.json()]);
-      // Use full report if available and substantially longer than short summary, otherwise use short summary
-      const fullContent = fullData.content || '';
-      const shortContent = shortData.report || '';
-      const rawContent = fullContent.length > shortContent.length * 1.5 ? fullContent : shortContent;
+      const [fileData, fullData, shortData] = await Promise.all([
+        fileRes.ok ? fileRes.json() : Promise.resolve({}),
+        fullRes.ok ? fullRes.json() : Promise.resolve({}),
+        shortRes.ok ? shortRes.json() : Promise.resolve({}),
+      ]);
+      const candidates = [
+        { src: 'file', content: fileData.content || '' },
+        { src: 'evaluation_reports', content: fullData.content || '' },
+        { src: 'evaluations.report', content: shortData.report || '' },
+      ];
+      // Pick the longest content that has actual content
+      const best = candidates.reduce((a, b) => (b.content.length > a.content.length ? b : a), { src: '', content: '' });
+      const rawContent = best.content;
       const stripped = rawContent
         .replace(/^---[\s\S]*?---\s*/, '')
         .replace(/^#\s+.+\n/, '');
