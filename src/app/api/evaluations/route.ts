@@ -78,9 +78,34 @@ export async function GET(request: NextRequest) {
           LIMIT 100
         `;
 
-    const individualEvals = await Promise.all(evalRows.map(async (e: any) => {
-      const pdbRows = await db.$queryRaw<any[]>`SELECT * FROM evaluation_pdb_structures WHERE uniprot_id = ${e.uniprot_id} ORDER BY pdb_id`;
-      const blastRows = await db.$queryRaw<any[]>`SELECT * FROM evaluation_blast_results WHERE uniprot_id = ${e.uniprot_id} ORDER BY id`;
+    // Batch fetch all pdb structures and blast results for individual evals
+    const uniprotIds = evalRows.map((e: any) => e.uniprot_id);
+    const [pdbRows, blastRows] = await Promise.all([
+      uniprotIds.length > 0
+        ? db.$queryRaw<any[]>`SELECT * FROM evaluation_pdb_structures WHERE uniprot_id IN (${Prisma.join(uniprotIds)}) ORDER BY uniprot_id, pdb_id`
+        : Promise.resolve([]),
+      uniprotIds.length > 0
+        ? db.$queryRaw<any[]>`SELECT * FROM evaluation_blast_results WHERE uniprot_id IN (${Prisma.join(uniprotIds)}) ORDER BY uniprot_id, id`
+        : Promise.resolve([]),
+    ]);
+
+    const pdbByUniprot = new Map<string, any[]>();
+    for (const row of pdbRows) {
+      const list = pdbByUniprot.get(row.uniprot_id as string) ?? [];
+      list.push(row);
+      pdbByUniprot.set(row.uniprot_id as string, list);
+    }
+
+    const blastByUniprot = new Map<string, any[]>();
+    for (const row of blastRows) {
+      const list = blastByUniprot.get(row.uniprot_id as string) ?? [];
+      list.push(row);
+      blastByUniprot.set(row.uniprot_id as string, list);
+    }
+
+    const individualEvals = evalRows.map((e: any) => {
+      const pdbRows = pdbByUniprot.get(e.uniprot_id) ?? [];
+      const blastRows = blastByUniprot.get(e.uniprot_id) ?? [];
       return {
         uniprotId: e.uniprot_id,
         entryName: e.entry_name,
@@ -137,7 +162,7 @@ export async function GET(request: NextRequest) {
           title: b.title,
         })),
       };
-    }));
+    });
 
     return NextResponse.json({
       batches: formattedBatches,
