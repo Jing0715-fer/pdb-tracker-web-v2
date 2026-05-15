@@ -9987,28 +9987,17 @@ function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, 
   return (
     <div className="p-3 space-y-3">
       {/* ── Batch Hero Card ── */}
-      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-2.5 space-y-2">
-        <div className="flex items-start gap-2">
-          {/* Batch Icon - smaller */}
-          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex flex-col items-center justify-center border-2 border-purple-200 dark:border-purple-800">
-            <Layers className="h-5 w-5 text-purple-500" />
-            <span className="text-[10px] font-bold font-mono text-purple-600 dark:text-purple-300">{subTargets.length}</span>
-          </div>
-          {/* Title + info - stacked vertically, takes remaining width */}
-          <div className="flex-1 min-w-0 flex flex-col gap-1">
-            {/* Title row */}
-            <h2 className="text-xs font-semibold text-claude-text leading-tight break-words">{batch.title || 'Batch'}</h2>
-            {/* Badge on its own line */}
-            <div>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                <Layers className="h-2.5 w-2.5 mr-0.5" />Batch
-              </span>
-            </div>
-            <p className="text-[10px] text-claude-text-muted">Complex Evaluation Group</p>
-          </div>
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-2.5 space-y-1.5">
+        {/* Title row with badge */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-xs font-semibold text-claude-text leading-tight break-words flex-1 min-w-0">{batch.title || 'Batch'}</h2>
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800 flex-shrink-0">
+            <Layers className="h-2.5 w-2.5 mr-0.5" />{subTargets.length} targets
+          </span>
         </div>
-        {/* Stats row - below the main content */}
-        <div className="flex items-center gap-2 pl-14">
+        <p className="text-[10px] text-claude-text-muted">Complex Evaluation Group</p>
+        {/* Stats row */}
+        <div className="flex items-center gap-2">
           <div className="flex items-center gap-0.5">
             <Database className="h-2.5 w-2.5 text-claude-text-muted" />
             <span className="text-[10px] font-mono font-semibold text-claude-text">{totalPdb}</span>
