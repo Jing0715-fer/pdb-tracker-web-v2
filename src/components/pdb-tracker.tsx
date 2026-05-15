@@ -1162,9 +1162,11 @@ function ReportModal({ isOpen, onClose, title, content }: { isOpen: boolean; onC
             className="bg-claude-surface dark:bg-[#242220] rounded-[10px] shadow-xl max-w-[66rem] w-full mx-4 max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between p-4 border-b border-claude-border dark:border-[#3d3832]">
-              <h2 className="text-base font-semibold text-claude-text">{title}</h2>
-              <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-claude-border dark:border-[#3d3832] bg-gradient-to-r from-[#faf7f4] to-[#f5f0ea] dark:from-[#242220] dark:to-[#2b2926]">
+              <h2 className="text-base font-bold text-claude-text pl-2 border-l-4 border-claude-accent">
+                {title}
+              </h2>
+              <Button variant="ghost" size="sm" onClick={onClose} className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832]/50">
                 <X className="h-4 w-4" />
               </Button>
             </div>
@@ -8104,6 +8106,36 @@ export default function PdbTracker() {
                     <div className="text-[10px] text-claude-text-muted">{formatDate(report.createdAt)}</div>
                   </button>
                 ))}
+              </div>
+            ) : mode === 'evaluation' && selectedBatchId ? (
+              <div className="p-4 space-y-2">
+                <button
+                  onClick={() => openBatchReport(selectedBatchId, evalBatches.find(b => b.batchId === selectedBatchId)?.title || 'Batch Report')}
+                  className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:border-claude-accent/40 hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30 transition-all duration-150"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <FileText className="h-3.5 w-3.5 text-claude-accent" />
+                    <span className="text-xs font-semibold text-claude-text">SDG2-CDKC Complex Structure Feasibility Report</span>
+                  </div>
+                  <div className="text-[10px] text-claude-text-muted">Full batch evaluation report</div>
+                </button>
+                {subTargets.length > 0 && subTargets.map(sub => {
+                  const subEval = allEvals.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
+                  return subEval?.report ? (
+                    <button
+                      key={sub.uniprotId}
+                      onClick={() => openEvalReport(sub.uniprotId, subEval.proteinName || subEval.uniprotId + ' Report')}
+                      className="w-full text-left p-3 rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-all duration-150 claude-hover"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <FileText className="h-3.5 w-3.5 text-claude-accent" />
+                        <span className="text-xs font-medium text-claude-text">{subEval.proteinName || subEval.uniprotId}</span>
+                        <span className="text-[9px] text-claude-text-muted font-mono ml-auto">{sub.uniprotId}</span>
+                      </div>
+                      <div className="text-[10px] text-claude-text-muted">Sub-target evaluation report</div>
+                    </button>
+                  ) : null;
+                })}
               </div>
             ) : mode === 'evaluation' && selectedEval ? (
               (() => {
