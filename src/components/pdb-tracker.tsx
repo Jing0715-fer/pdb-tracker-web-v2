@@ -5417,11 +5417,16 @@ export default function PdbTracker() {
                                     {entryNotes[entry.pdbId] && (
                                       <StickyNote className="h-2.5 w-2.5 text-amber-500 dark:text-amber-400 ml-0.5 flex-shrink-0" />
                                     )}
-                                    <span
-                                      className="inline-flex h-2 w-2 rounded-full ml-1 flex-shrink-0"
-                                      style={{ backgroundColor: computeQualityScore(entry).color }}
-                                      title={`${computeQualityScore(entry).label} (${computeQualityScore(entry).total})`}
-                                    />
+                                    {(() => {
+                                      const qs = computeQualityScore(entry);
+                                      return (
+                                      <span
+                                        className="inline-flex h-2 w-2 rounded-full ml-1 flex-shrink-0"
+                                        style={{ backgroundColor: qs.color }}
+                                        title={`${qs.label} (${qs.total})`}
+                                      />
+                                      );
+                                    })()}
                                     <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
                                   </a>
                                 </TooltipTrigger>
