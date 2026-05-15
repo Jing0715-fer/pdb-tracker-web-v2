@@ -1,0 +1,34 @@
+// Shared types for PDB Tracker components
+// These types are used across multiple component files
+
+export interface PdbEntry {
+  pdbId: string;
+  title: string;
+  method: string;
+  resolution: number | null;
+  releaseDate: string | null;
+  journal: string | null;
+  journalIf: number | null;
+  organisms: string | null;
+  ligands: string | null;
+  bookmarked?: boolean;
+  notes?: string;
+  addedAt?: string;
+}
+
+export interface WeeklySnapshot {
+  weekId: string;
+  totalStructures: number;
+  methods: Record<string, number>;
+  date: string;
+}
+
+export type SortField = string;
+export type SortDir = 'asc' | 'desc';
+
+export interface SearchSuggestionItem {
+  text: string;
+  type: 'pdbId' | 'title' | 'organism' | 'journal';
+}
+
+export type Mode = 'weekly' | 'evaluation';
