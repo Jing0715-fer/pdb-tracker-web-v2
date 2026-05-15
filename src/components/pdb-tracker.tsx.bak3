@@ -3283,28 +3283,20 @@ export default function PdbTracker() {
         (ev.blastResults || []).forEach(b => allBlasts.push({ ...b, _type: 'blast', _sourceUniport: ev.uniprotId }));
       });
       // Deduplicate: remove BLAST entries whose pdbId already exists in structures
-      const structurePdbIds = new Set<string>();
-      const firstOccurrenceMap = new Map<string, string>(); // pdbId → first uniprotId
-      allStructures.forEach(s => {
-        if (!firstOccurrenceMap.has(s.pdbId)) {
-          firstOccurrenceMap.set(s.pdbId, s._sourceUniport);
-        }
-        structurePdbIds.add(s.pdbId);
-      });
+      const structurePdbIds = new Set(allStructures.map(s => s.pdbId));
       const filteredBlasts = allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
       const all = [...allStructures, ...filteredBlasts];
       // Build shared structure map: PDB ID → count of sub-targets it appears in
       const batchSharedStructureMap = new Map<string, number>();
       batchEvals.forEach(ev => {
-        const pdbIds = new Set((ev.pdbStructures || []).map((s: EvalPdbStructure) => s.pdbId));
+        const pdbIds = new Set((ev.pdbStructures || []).map(s => s.pdbId));
         pdbIds.forEach(pdbId => {
           batchSharedStructureMap.set(pdbId, (batchSharedStructureMap.get(pdbId) || 0) + 1);
         });
       });
-      // Attach shared count and first occurrence uniprot to each row
+      // Attach shared count to each row (mutate in place, safe since sortedEvalRows is fresh each render)
       all.forEach(row => {
         (row as any)._sharedCount = batchSharedStructureMap.get(row.pdbId) || 0;
-        (row as any)._firstUniport = firstOccurrenceMap.get(row.pdbId) || row._sourceUniport;
       });
       return all.sort((a, b) => {
         let aVal: any, bVal: any;
@@ -8015,30 +8007,6 @@ export default function PdbTracker() {
                   }
                 }}
               />
-            ) : mode === 'evaluation' && selectedBatchId && !selectedEval && sortedEvalRows.length > 0 ? (
-              <EvaluationTimeline
-                pdbStructures={sortedEvalRows.filter(r => r._type === 'structure') as any}
-                blastResults={sortedEvalRows.filter(r => r._type === 'blast') as any}
-                onSelectPdb={(pdbId) => {
-                  const struct = sortedEvalRows.find(r => r._type === 'structure' && r.pdbId === pdbId);
-                  const blast = sortedEvalRows.find(r => r._type === 'blast' && r.pdbId === pdbId);
-                  if (struct) {
-                    setSelectedEvalStructure(null);
-                    setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
-                    setDetailPanelOpen(true);
-                    setPreviewTab('summary');
-                  } else if (blast?.pdbId) {
-                    setSelectedEvalStructure(null);
-                    setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
-                    setDetailPanelOpen(true);
-                    setPreviewTab('summary');
-                  } else if (blast) {
-                    setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                    setDetailPanelOpen(true);
-                    setPreviewTab('summary');
-                  }
-                }}
-              />
             ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval && ((complexEvalData.allStructures?.length || 0) + (complexEvalData.allBlasts?.length || 0)) > 0 ? (
               <EvaluationTimeline
                 pdbStructures={complexEvalData.allStructures as any}
@@ -8108,30 +8076,6 @@ export default function PdbTracker() {
                 onSelectPdb={(pdbId) => {
                   const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
                   const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
-                  if (struct) {
-                    setSelectedEvalStructure(null);
-                    setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
-                    setDetailPanelOpen(true);
-                    setPreviewTab('summary');
-                  } else if (blast?.pdbId) {
-                    setSelectedEvalStructure(null);
-                    setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
-                    setDetailPanelOpen(true);
-                    setPreviewTab('summary');
-                  } else if (blast) {
-                    setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                    setDetailPanelOpen(true);
-                    setPreviewTab('summary');
-                  }
-                }}
-              />
-            ) : mode === 'evaluation' && selectedBatchId && !selectedEval && sortedEvalRows.length > 0 ? (
-              <EvaluationHeatmap
-                pdbStructures={sortedEvalRows.filter(r => r._type === 'structure') as any}
-                blastResults={sortedEvalRows.filter(r => r._type === 'blast') as any}
-                onSelectPdb={(pdbId) => {
-                  const struct = sortedEvalRows.find(r => r._type === 'structure' && r.pdbId === pdbId);
-                  const blast = sortedEvalRows.find(r => r._type === 'blast' && r.pdbId === pdbId);
                   if (struct) {
                     setSelectedEvalStructure(null);
                     setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
