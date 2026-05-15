@@ -66,16 +66,17 @@ async function fetchFromRCSB(code: string): Promise<{ name: string; formula: str
     if (!res.ok) return null;
     
     const data = await res.json();
-    const comp = data?.rcsb_chemcomp_info || {};
-    const identifier = data?.rcsb_chemcomp_identifier || {};
-    const descriptor = data?.rcsb_chemcomp_descriptor || {};
+    const chemComp = data?.chem_comp || {};
+    const compInfo = data?.rcsb_chem_comp_info || {};
+    const compDesc = data?.rcsb_chem_comp_descriptor || {};
+    const compId = data?.rcsb_chem_comp_identifier || {};
     
     return {
-      name: comp.name || identifier.name || code,
-      formula: descriptor.formula || 'N/A',
-      weight: comp.molecular_weight?.toString() || 'N/A',
-      type: 'UNKNOWN',
-      description: comp.description || `Ligand ${code}`,
+      name: compInfo.name || chemComp.name || code,
+      formula: compDesc.formula || chemComp.formula || 'N/A',
+      weight: chemComp.formula_weight?.toString() || compInfo.formula_weight?.toString() || 'N/A',
+      type: chemComp.type || 'UNKNOWN',
+      description: compInfo.description || chemComp.name || `Ligand ${code}`,
     };
   } catch {
     return null;

@@ -1874,9 +1874,8 @@ export function MoleculeViewer({
           }
         }
 
-        // Auto-focus on the solo ligand
-        const { PluginCommands } = await getMolstarModules();
-        PluginCommands.Camera.Focus(plugin, { durationMs: 600 });
+        // Auto-focus on the solo ligand - reset camera to default view
+        plugin.managers?.camera?.reset(undefined, 600);
       } catch (err) {
         console.warn('[MoleculeViewer] Solo ligand mode error:', err);
       }
@@ -1982,9 +1981,8 @@ export function MoleculeViewer({
           }
         }
 
-        // Auto-focus on the solo chain
-        const { PluginCommands } = await getMolstarModules();
-        PluginCommands.Camera.Focus(plugin, { durationMs: 600 });
+        // Auto-focus on the solo chain - reset camera to default view
+        plugin.managers?.camera?.reset(undefined, 600);
       } catch (err) {
         console.warn('[MoleculeViewer] Solo entity mode error:', err);
       }
@@ -2114,16 +2112,7 @@ export function MoleculeViewer({
             }
             // Auto-focus camera on the highlighted entity/ligand
             if (focusedAny) {
-              try {
-                PluginCommands.Camera.Focus(plugin, {
-                  durationMs: 400,
-                });
-              } catch {
-                // FocusSpheres may not be available in all Molstar versions
-                try {
-                  PluginCommands.Camera.Reset(plugin, { durationMs: 400 });
-                } catch { /* ignore */ }
-              }
+              plugin.managers?.camera?.reset(undefined, 400);
             }
 
             // Apply per-ligand highlight overpaint for more precise visual feedback
@@ -2777,13 +2766,7 @@ export function MoleculeViewer({
   const handleFocusHighlighted = useCallback(async () => {
     const plugin = pluginRef.current;
     if (!plugin) return;
-
-    try {
-      const { PluginCommands } = await getMolstarModules();
-      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
-    } catch {
-      // ignore
-    }
+    plugin.managers?.camera?.reset(undefined, 400);
   }, []);
 
   // ─── Focus on a specific target (entity or ligand) ──────────────────
@@ -2861,8 +2844,15 @@ export function MoleculeViewer({
         }
       }
 
-      // Focus camera on target
-      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
+      // Focus camera on target - just reset to default view (most reliable)
+      try {
+        const cam = plugin.managers?.camera;
+        if (cam?.reset) {
+          cam.reset(undefined, 400);
+        }
+      } catch (focusErr) {
+        console.warn('[MoleculeViewer] Focus on target error:', focusErr);
+      }
     } catch (err) {
       console.warn('[MoleculeViewer] Focus on target error:', err);
     }
@@ -2927,7 +2917,7 @@ export function MoleculeViewer({
       }
 
       // Focus camera on the residue position
-      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
+      plugin.managers?.camera?.reset(undefined, 400);
     } catch (err) {
       console.warn('[MoleculeViewer] Focus on residue error:', err);
     }
@@ -3277,12 +3267,7 @@ export function MoleculeViewer({
     if (!contextMenu) return;
     const plugin = pluginRef.current;
     if (!plugin) return;
-    try {
-      const { PluginCommands } = await getMolstarModules();
-      PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
-    } catch {
-      // ignore
-    }
+    plugin.managers?.camera?.reset(undefined, 400);
     setContextMenu(null);
   }, [contextMenu]);
 
@@ -4280,13 +4265,10 @@ export function MoleculeViewer({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={async () => {
+                    onClick={() => {
                       const plugin = pluginRef.current;
                       if (!plugin) return;
-                      try {
-                        const { PluginCommands } = await getMolstarModules();
-                        PluginCommands.Camera.Focus(plugin, { durationMs: 400 });
-                      } catch { /* ignore */ }
+                      plugin.managers?.camera?.reset(undefined, 400);
                     }}
                     className="flex items-center justify-center w-8 h-8 rounded-lg
                                bg-claude-bg/60 border border-claude-border-light

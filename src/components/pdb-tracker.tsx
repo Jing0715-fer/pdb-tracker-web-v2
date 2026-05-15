@@ -2571,7 +2571,7 @@ export default function PdbTracker() {
   }, []);
 
   const handleEntityVisibilityChange = useCallback((entityKey: string, visible: boolean) => {
-    setLigandVisibility(prev => ({ ...prev, [entityKey]: visible }));
+    setEntityVisibility(prev => ({ ...prev, [entityKey]: visible }));
   }, []);
 
   const handleEntityFocus = useCallback((entityKey: string) => {
@@ -5270,7 +5270,17 @@ export default function PdbTracker() {
                         const isSelected = selectedRows.has(entry.pdbId);
 
                         return (
-                          <ContextMenu key={entry.pdbId}><ContextMenuTrigger asChild>
+                          <ContextMenu key={entry.pdbId}><ContextMenuTrigger asChild onClick={() => {
+                            setSelectedEntry(entry);
+                            setDetailPanelOpen(true);
+                            setPreviewOpen(true);
+                            setPreviewTab('summary');
+                            if (isMobile) setBottomSheetSnap(0.5);
+                            setFocusedRowIndex(idx);
+                            if (pulseTimeoutRef.current) clearTimeout(pulseTimeoutRef.current);
+                            setPulsingRowId(entry.pdbId);
+                            pulseTimeoutRef.current = setTimeout(() => setPulsingRowId(null), 400);
+                          }}>
                               <motion.tr
                                 initial={{ opacity: 0, y: 4 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -5639,15 +5649,27 @@ export default function PdbTracker() {
                         const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
 
                         return (
-                          <ContextMenu key={`${row._type}-${row.pdbId || 'noid'}-${idx}`}><ContextMenuTrigger asChild>
+                          <ContextMenu key={`${row._type}-${row.pdbId || 'noid'}-${idx}`}><ContextMenuTrigger asChild onClick={() => {
+                            if (structResult) {
+                              setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
+                              setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
+                              setDetailPanelOpen(true);
+                            } else if (blastResult) {
+                              setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                              setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.date || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
+                              setDetailPanelOpen(true);
+                            }
+                          }}>
                               <tr
                                 className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''} cursor-pointer`}
                                 onClick={() => {
                                   if (structResult) {
                                     setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
+                                    setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
                                     setDetailPanelOpen(true);
                                   } else if (blastResult) {
                                     setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.date || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
                                     setDetailPanelOpen(true);
                                   }
                                 }}
@@ -5839,11 +5861,13 @@ export default function PdbTracker() {
                                 className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
                                 onClick={() => {
                                   if (structResult) {
+                                    setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
                                     setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
                                     setDetailPanelOpen(true);
                                     setPreviewTab('summary');
                                   } else if (blastResult) {
                                     setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.date || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
                                     setDetailPanelOpen(true);
                                     setPreviewTab('summary');
                                   }

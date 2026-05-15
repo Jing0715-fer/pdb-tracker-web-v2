@@ -47,6 +47,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   ArrowRight,
+  Copy,
 } from 'lucide-react';
 import type { EntityInfo } from './molecule-viewer';
 import {
@@ -247,10 +248,10 @@ const NUCLEOTIDE_COLORS: Record<string, { color: string; label: string }> = {
 
 function getMoleculeBadge(moleculeType: string): MoleculeBadge {
   const mt = moleculeType.toLowerCase();
-  if (mt.includes('polypeptide') || mt.includes('polymer')) return 'POL';
-  if (mt.includes('polydeoxyribonucleotide') && mt.includes('polyribonucleotide')) return 'DNA';
   if (mt.includes('polydeoxyribonucleotide')) return 'DNA';
   if (mt.includes('polyribonucleotide')) return 'RNA';
+  if (mt.includes('carbohydrate')) return 'POL';
+  if (mt.includes('polypeptide')) return 'POL';
   if (mt.includes('water')) return 'WAT';
   if (mt.includes('bound') || mt.includes('non-polymer') || mt.includes('ligand')) return 'LIG';
   return 'OTHER';
@@ -723,22 +724,26 @@ function LigandHoverCard({
         className="w-72 p-0 overflow-hidden border border-claude-border bg-claude-surface shadow-xl"
       >
         {/* 2D Structure Image */}
-        <div className="h-28 bg-claude-bg flex items-center justify-center border-b border-claude-border-light overflow-hidden">
+        <div className="h-28 bg-claude-bg flex items-center justify-center border-b border-claude-border-light overflow-hidden relative">
           {loading ? (
             <Loader2 className="w-5 h-5 text-claude-accent animate-spin" />
           ) : data?.imageUrl ? (
             <img
               src={data.imageUrl}
               alt={`${code} 2D structure`}
-              className="max-h-full max-w-full object-contain p-1"
+              className={`${/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(code) ? 'w-[150%] h-[150%]' : 'w-full h-full'} object-cover object-center`}
+              style={/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(code) ? { margin: '0 -25%' } : undefined}
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                (e.target as HTMLImageElement).parentElement!.innerHTML =
-                  `<div class="flex items-center justify-center w-full h-full"><span class="font-mono text-2xl font-bold text-claude-text-muted">${code}</span></div>`;
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const container = target.parentElement;
+                if (container) {
+                  container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;"><span style="font-family:monospace;font-size:${/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(code) ? '120' : '48'}px;font-weight:bold;color:#9b9590;">${code}</span></div>`;
+                }
               }}
             />
           ) : (
-            <span className="font-mono text-2xl font-bold text-claude-text-muted">
+            <span className="font-mono text-5xl font-bold text-claude-text-muted">
               {code}
             </span>
           )}
@@ -872,12 +877,14 @@ function SequenceView({
   chainId,
   onResidueRangeSelect,
   onResidueClick,
+  className = '',
 }: {
   sequence: string;
   moleculeType: string;
   chainId?: string;
   onResidueRangeSelect?: (chainId: string, start: number, end: number) => void;
   onResidueClick?: (chainId: string, residueNumber: number) => void;
+  className?: string;
 }) {
   const isNucleotide = isNucleotideType(moleculeType);
   const colorMap = isNucleotide ? NUCLEOTIDE_COLORS : AMINO_ACID_COLORS;
@@ -1038,9 +1045,42 @@ function SequenceView({
         </div>
       )}
 
+      {/* Copy + Controls row */}
+      <div className="flex items-center gap-1 mb-1.5 px-1">
+        {/* Copy sequence button */}
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(sequence).then(() => {
+              alert('序列已复制到剪贴板');
+            }).catch(() => {});
+          }}
+          className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent-light transition-colors text-[8px] flex items-center gap-0.5"
+          title="Copy sequence"
+        >
+          <Copy className="w-2.5 h-2.5" />
+          <span>Copy</span>
+        </button>
+        {/* Color mode toggle */}
+        <div className="flex items-center gap-0.5 ml-auto">
+          <span className="text-[8px] text-claude-text-muted">Color:</span>
+          <button
+            onClick={() => setColorMode('type')}
+            className={`text-[8px] px-1 py-0.5 rounded transition-colors ${colorMode === 'type' ? 'bg-claude-accent text-white' : 'text-claude-text-muted hover:bg-claude-border-light'}`}
+          >
+            Type
+          </button>
+          <button
+            onClick={() => setColorMode('bfactor')}
+            className={`text-[8px] px-1 py-0.5 rounded transition-colors ${colorMode === 'bfactor' ? 'bg-claude-accent text-white' : 'text-claude-text-muted hover:bg-claude-border-light'}`}
+          >
+            Bfac
+          </button>
+        </div>
+      </div>
+
       {/* Sequence blocks */}
       <div
-        className="font-mono leading-none overflow-x-auto custom-scrollbar"
+        className={`font-mono leading-none overflow-x-auto custom-scrollbar ${className}`}
         onMouseUp={handleResidueMouseUp}
         onMouseLeave={() => { if (selecting) setSelecting(false); }}
       >
@@ -1065,14 +1105,13 @@ function SequenceView({
                   <Tooltip key={resIdx}>
                     <TooltipTrigger asChild>
                       <span
-                        className="text-[10px] leading-tight select-none hover:font-bold transition-all"
+                        className="text-[10px] leading-tight select-none hover:font-bold transition-all w-3.5 h-3.5 flex items-center justify-center"
                         style={{
                           color: residueColor,
-                          padding: '0 0.5px',
                           backgroundColor: inRange
                             ? `${residueColor}30`
                             : undefined,
-                          borderRadius: inRange ? '1px' : undefined,
+                          borderRadius: inRange ? '2px' : undefined,
                           cursor: (onResidueRangeSelect || onResidueClick) ? 'pointer' : 'default',
                           fontWeight: inRange ? 700 : undefined,
                         }}
@@ -1158,16 +1197,15 @@ function ChainRow({
   return (
     <div
       data-entity-key={entityKey}
-      className={`relative flex items-center gap-1.5 px-2 py-1.5 rounded-md
+      className={`relative flex items-center gap-1.5 px-2 py-1 rounded-md w-full max-w-full
                  cursor-pointer transition-all duration-150 slide-in-right entity-row-hover entity-color-border
-                 ${
-                   isSelected
-                     ? 'bg-claude-accent-light shadow-sm entity-row-selected pulsing-border-selected'
-                     : isHoveredFrom3D
-                     ? 'bg-claude-accent-light/70 shadow-sm viewer-synced-glow viewer-sync-pulse'
-                     : isHovered
-                     ? 'bg-claude-accent-light/60 shadow-sm viewer-hover-indicator'
-                     : 'hover:bg-claude-border-light'
+                 ${isSelected
+                   ? 'bg-claude-accent-light shadow-sm entity-row-selected pulsing-border-selected'
+                   : isHoveredFrom3D
+                   ? 'bg-claude-accent-light/70 shadow-sm viewer-synced-glow viewer-sync-pulse'
+                   : isHovered
+                   ? 'bg-claude-accent-light/60 shadow-sm viewer-hover-indicator'
+                   : 'hover:bg-claude-border-light'
                  }
                  ${isEntitySoloMode ? 'ring-2 ring-amber-400/60 bg-amber-50 dark:bg-amber-900/20' : ''}
                  ${!isEntityVisible ? 'opacity-40' : ''}
@@ -1212,7 +1250,7 @@ function ChainRow({
 
       {/* Length */}
       {chain.length != null && (
-        <span className="text-[9px] text-claude-text-muted ml-auto">
+        <span className="text-[9px] text-claude-text-muted">
           {chain.length} residues
         </span>
       )}
@@ -1228,7 +1266,6 @@ function ChainRow({
               }}
               className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent
                          hover:bg-claude-accent-light transition-colors flex-shrink-0 btn-click-ripple"
-              title="Focus in viewer"
             >
               <Crosshair className="w-3 h-3" />
             </button>
@@ -1360,16 +1397,15 @@ function LigandRow({
         <div
           id={`ligand-row-${code}`}
           data-ligand-code={code}
-          className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md w-full max-w-full
                      cursor-pointer transition-all duration-150 slide-in-right entity-row-hover entity-color-border
-                     ${
-                       isSelected
-                         ? 'bg-claude-accent-light shadow-sm entity-row-selected pulsing-border-selected'
-                         : isHoveredFrom3D
-                         ? 'bg-claude-accent-light/70 shadow-sm viewer-synced-glow viewer-sync-pulse'
-                         : isHovered
-                         ? 'bg-claude-accent-light/60 shadow-sm ring-1 ring-claude-accent/20 viewer-hover-indicator'
-                         : 'hover:bg-claude-border-light'
+                     ${isSelected
+                       ? 'bg-claude-accent-light shadow-sm entity-row-selected pulsing-border-selected'
+                       : isHoveredFrom3D
+                       ? 'bg-claude-accent-light/70 shadow-sm viewer-synced-glow viewer-sync-pulse'
+                       : isHovered
+                       ? 'bg-claude-accent-light/60 shadow-sm ring-1 ring-claude-accent/20 viewer-hover-indicator'
+                       : 'hover:bg-claude-border-light'
                      }
                      ${isSoloMode ? 'ring-2 ring-amber-400/60 bg-amber-50 dark:bg-amber-900/20' : ''}
                      ${!isVisible ? 'opacity-40' : ''}${isSelected ? ' ligand-focused-ring' : ''}
@@ -5811,6 +5847,7 @@ export function EntityPanel({
                                         chainId={seqData.chain}
                                         onResidueRangeSelect={onResidueRangeSelect}
                                         onResidueClick={onResidueClick}
+                                        className="w-full"
                                       />
                                     </div>
                                   );
