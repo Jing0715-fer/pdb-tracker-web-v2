@@ -3425,9 +3425,21 @@ export default function PdbTracker() {
 
   const openEvalReport = useCallback(async (uniprotId: string, title: string) => {
     try {
-      const res = await fetch(`/api/evaluation-report/${uniprotId}`);
-      const data = await res.json();
-      setReportModal({ isOpen: true, title: title || 'Evaluation Report', content: data.content || '' });
+      // evaluation_reports.content has full detailed reports;
+      // evaluations.report has shorter summaries (P00533 is an example where the full report is missing from evaluation_reports)
+      const [fullRes, shortRes] = await Promise.all([
+        fetch(`/api/evaluation-report/${uniprotId}`),
+        fetch(`/api/evaluations/${uniprotId}`),
+      ]);
+      const [fullData, shortData] = await Promise.all([fullRes.json(), shortRes.json()]);
+      // Use full report if available and substantially longer than short summary, otherwise use short summary
+      const fullContent = fullData.content || '';
+      const shortContent = shortData.report || '';
+      const rawContent = fullContent.length > shortContent.length * 1.5 ? fullContent : shortContent;
+      const stripped = rawContent
+        .replace(/^---[\s\S]*?---\s*/, '')
+        .replace(/^#\s+.+\n/, '');
+      setReportModal({ isOpen: true, title: title || 'Evaluation Report', content: stripped });
     } catch { /* ignore */ }
   }, []);
 
