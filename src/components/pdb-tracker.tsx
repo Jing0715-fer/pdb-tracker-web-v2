@@ -3150,7 +3150,7 @@ export default function PdbTracker() {
     try {
       const res = await fetch(`/api/ligand/${code}`);
       const data = await res.json();
-      setLigandCache(prev => ({ ...prev, [code]: data }));
+      if (data && data.code) { setLigandCache(prev => ({ ...prev, [code]: data })); }
     } catch { /* ignore */ }
   }, [ligandCache]);
 
@@ -3465,7 +3465,9 @@ export default function PdbTracker() {
         .replace(/^---[\s\S]*?---\s*/, '')
         .replace(/^#\s+.+\n/, '');
       setReportModal({ isOpen: true, title: title || 'Evaluation Report', content: stripped });
-    } catch { /* ignore */ }
+    } catch { 
+      toast('Failed to load evaluation report'); 
+    }
   }, []);
 
   // ── Sorted eval list ──
@@ -10747,7 +10749,7 @@ function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openRepor
       const res = await fetch(`/api/ligand/${code}`);
       if (res.ok) {
         const data = await res.json();
-        setLigandCache(prev => ({ ...prev, [code]: data }));
+        if (data && data.code) { setLigandCache(prev => ({ ...prev, [code]: data })); }
       }
     } catch { /* ignore */ }
   }, [ligandCache]);
