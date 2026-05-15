@@ -8119,7 +8119,7 @@ export default function PdbTracker() {
                   </div>
                   <div className="text-[10px] text-claude-text-muted">Full batch evaluation report</div>
                 </button>
-                {subTargets.length > 0 && subTargets.map(sub => {
+                {(evalBatchSubTargets[selectedBatchId] || []).length > 0 && (evalBatchSubTargets[selectedBatchId] || []).map(sub => {
                   const subEval = allEvals.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
                   return subEval?.report ? (
                     <button
