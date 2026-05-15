@@ -2310,7 +2310,7 @@ export default function PdbTracker() {
       const saved = localStorage.getItem('pdb-preview-width');
       if (saved) return Math.min(560, Math.max(300, Number(saved)));
     } catch { /* ignore */ }
-    return 420;
+    return 360;
   });
   const [resizingSidebar, setResizingSidebar] = useState(false);
   const [resizingPreview, setResizingPreview] = useState(false);
@@ -9987,41 +9987,41 @@ function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, 
   return (
     <div className="p-3 space-y-3">
       {/* ── Batch Hero Card ── */}
-      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-3">
-        <div className="flex items-start gap-3">
-          {/* Batch Icon */}
-          <div className="flex-shrink-0 w-[88px] h-[88px] rounded-full bg-purple-100 dark:bg-purple-900/20 flex flex-col items-center justify-center border-2 border-purple-200 dark:border-purple-800">
-            <Layers className="h-8 w-8 text-purple-500" />
-            <span className="text-[11px] font-bold font-mono text-purple-600 dark:text-purple-300 mt-1">{subTargets.length}</span>
+      <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-2.5 space-y-2">
+        <div className="flex items-start gap-2">
+          {/* Batch Icon - smaller */}
+          <div className="flex-shrink-0 w-12 h-12 rounded-full bg-purple-100 dark:bg-purple-900/20 flex flex-col items-center justify-center border-2 border-purple-200 dark:border-purple-800">
+            <Layers className="h-5 w-5 text-purple-500" />
+            <span className="text-[10px] font-bold font-mono text-purple-600 dark:text-purple-300">{subTargets.length}</span>
           </div>
-          <div className="flex-1 min-w-0">
-            <h2 className="text-sm font-semibold text-claude-text leading-tight">{batch.title || 'Batch'}</h2>
-            <p className="text-[11px] text-claude-text-muted mt-0.5">Complex Evaluation Group</p>
-            {/* Stats row */}
-            <div className="flex items-center gap-3 mt-2">
-              <div className="flex items-center gap-1">
-                <Database className="h-3 w-3 text-claude-text-muted" />
-                <span className="text-[11px] font-mono font-semibold text-claude-text">{totalPdb}</span>
-                <span className="text-[10px] text-claude-text-muted">PDB</span>
+          {/* Title + badge row */}
+          <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+            <div className="flex items-start justify-between gap-1">
+              <h2 className="text-xs font-semibold text-claude-text leading-tight truncate">{batch.title || 'Batch'}</h2>
+              <span className="flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800 ml-1">
+                <Layers className="h-2.5 w-2.5 mr-0.5" />Batch
+              </span>
+            </div>
+            <p className="text-[10px] text-claude-text-muted">Complex Evaluation Group</p>
+            {/* Stats row - compact single line */}
+            <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-0.5">
+                <Database className="h-2.5 w-2.5 text-claude-text-muted" />
+                <span className="text-[10px] font-mono font-semibold text-claude-text">{totalPdb}</span>
+                <span className="text-[9px] text-claude-text-muted">PDB</span>
               </div>
-              <div className="w-px h-3 bg-claude-border" />
-              <div className="flex items-center gap-1">
-                <FileSearch className="h-3 w-3 text-claude-text-muted" />
-                <span className="text-[11px] font-mono font-semibold text-claude-text">{totalBlast}</span>
-                <span className="text-[10px] text-claude-text-muted">BLAST</span>
+              <div className="w-px h-2.5 bg-claude-border" />
+              <div className="flex items-center gap-0.5">
+                <FileSearch className="h-2.5 w-2.5 text-claude-text-muted" />
+                <span className="text-[10px] font-mono font-semibold text-claude-text">{totalBlast}</span>
+                <span className="text-[9px] text-claude-text-muted">BLAST</span>
               </div>
-              <div className="w-px h-3 bg-claude-border" />
-              <div className="flex items-center gap-1">
-                <span className="text-[10px] text-claude-text-muted">Score</span>
-                <span className="text-[11px] font-mono font-bold" style={{ color: scoreColor }}>{avgScore.toFixed(1)}</span>
+              <div className="w-px h-2.5 bg-claude-border" />
+              <div className="flex items-center gap-0.5">
+                <span className="text-[9px] text-claude-text-muted">Score</span>
+                <span className="text-[10px] font-mono font-bold" style={{ color: scoreColor }}>{avgScore.toFixed(1)}</span>
               </div>
             </div>
-          </div>
-          {/* Batch badge */}
-          <div className="flex-shrink-0">
-            <span className="inline-flex items-center px-2 py-1 rounded text-[10px] font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-              <Layers className="h-3 w-3 mr-1" />Batch
-            </span>
           </div>
         </div>
       </div>
@@ -10029,13 +10029,13 @@ function BatchPreviewContent({ batchId, onSelectSubTarget, selectedSubTargetId, 
       {/* ── Full Batch Report Button ── */}
       <button
         onClick={() => onOpenBatchReport?.(batch.batchId, batch.title || 'Batch Report')}
-        className="w-full rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2 hover:border-claude-accent/40 hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30 transition-all duration-150"
+        className="w-full rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-2.5 space-y-1.5 hover:border-claude-accent/40 hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30 transition-all duration-150"
       >
         <div className="flex items-center gap-1.5">
-          <FileText className="h-3.5 w-3.5 text-claude-accent" />
+          <FileText className="h-3 w-3 text-claude-accent" />
           <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">View Full Batch Report</span>
         </div>
-        <div className="text-[11px] text-claude-text-secondary leading-relaxed pl-4 border-l-2 border-claude-border/50 dark:border-[#3d3832]/50">
+        <div className="text-[10px] text-claude-text-secondary leading-relaxed pl-4 border-l-2 border-claude-border/50 dark:border-[#3d3832]/50">
           {batch.combinedReport}
         </div>
       </button>
