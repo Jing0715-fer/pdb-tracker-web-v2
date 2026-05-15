@@ -42,10 +42,14 @@ export async function GET(request: NextRequest) {
         GROUP BY e.uniprot_id
         ORDER BY e.created_at DESC
       `;
+      // Batch fetch blast counts for all sub-targets in this batch
+      const allUniprotIds = subs.map((s: any) => s.uniprot_id as string);
       const blastCounts: Record<string, number> = {};
-      for (const s of subs) {
-        const bc = await db.$queryRaw<any[]>`SELECT COUNT(*) as cnt FROM evaluation_blast_results WHERE uniprot_id = ${s.uniprot_id}`;
-        blastCounts[s.uniprot_id as string] = Number(bc[0]?.cnt) || 0;
+      if (allUniprotIds.length > 0) {
+        const blastCountRows = await db.$queryRaw<any[]>`SELECT uniprot_id, COUNT(*) as cnt FROM evaluation_blast_results WHERE uniprot_id IN (${Prisma.join(allUniprotIds)}) GROUP BY uniprot_id`;
+        for (const row of blastCountRows) {
+          blastCounts[row.uniprot_id as string] = Number(row.cnt) || 0;
+        }
       }
       batchSubTargets[bid] = subs.map((s: any) => {
         let scoresObj = {};
