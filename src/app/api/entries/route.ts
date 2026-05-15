@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const method = searchParams.get('method');
     const q = searchParams.get('q');
     const limit = parseInt(searchParams.get('limit') || '500');
+    const cappedLimit = Math.min(limit, 1000);
 
     const conditions: any[] = [];
 
@@ -40,13 +41,15 @@ export async function GET(request: NextRequest) {
     }
 
     if (q) {
-      const upperQ = q.toUpperCase();
+      // Escape LIKE wildcards so they match literally
+      const escapedQ = q.replace(/[%_]/g, '\\$&');
+      const upperEscapedQ = escapedQ.toUpperCase();
       conditions.push(Prisma.sql`(
-        pdb_id LIKE ${'%' + upperQ + '%'} OR
-        title LIKE ${'%' + q + '%'} OR
-        journal LIKE ${'%' + q + '%'} OR
-        organisms LIKE ${'%' + q + '%'} OR
-        ligands LIKE ${'%' + upperQ + '%'}
+        pdb_id LIKE ${'%' + upperEscapedQ + '%'} OR
+        title LIKE ${'%' + escapedQ + '%'} OR
+        journal LIKE ${'%' + escapedQ + '%'} OR
+        organisms LIKE ${'%' + escapedQ + '%'} OR
+        ligands LIKE ${'%' + upperEscapedQ + '%'}
       )`);
     }
 
@@ -57,7 +60,7 @@ export async function GET(request: NextRequest) {
     const entries = await db.$queryRaw`
       SELECT * FROM pdb_structures ${whereClause}
       ORDER BY release_date DESC
-      LIMIT ${limit}
+      LIMIT ${cappedLimit}
     `;
 
     return NextResponse.json((entries as any[]).map(toCamelCase));
