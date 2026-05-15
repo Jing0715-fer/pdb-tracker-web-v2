@@ -3325,6 +3325,7 @@ export default function PdbTracker() {
         (row as any)._sharedCount = batchSharedStructureMap.get(row.pdbId) || 0;
         (row as any)._firstUniport = firstOccurrenceMap.get(row.pdbId) || row._sourceUniport;
       });
+      console.log('[DEBUG] batch dedup:', { total: all.length, uniquePdbIds: [...new Set(all.map(r => r.pdbId))], first10: all.slice(0,10).map(r => r.pdbId) });
       return all.sort((a, b) => {
         let aVal: any, bVal: any;
         switch (sortField) {
