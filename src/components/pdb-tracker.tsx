@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Suspense, useSyncExternalStore } from 'react';
+import { FixedSizeList as List } from 'react-window';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
