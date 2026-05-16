@@ -21,7 +21,7 @@ interface PdbeMolecule {
 interface PdbeChainDetail {
   chain: string;
   asym_id: string;
-  length: number;
+  length: number | null;
 }
 
 export async function GET(

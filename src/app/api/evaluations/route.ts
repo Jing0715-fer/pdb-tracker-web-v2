@@ -53,7 +53,7 @@ export async function GET(request: NextRequest) {
         }
       }
       batchSubTargets[bid] = subs.map((s: any) => {
-        let scoresObj = {};
+        let scoresObj: any = {};
         try { scoresObj = s.scores ? JSON.parse(s.scores) : {}; } catch { /* ignore */ }
         return {
           uniprotId: s.uniprot_id,

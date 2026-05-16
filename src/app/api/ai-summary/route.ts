@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const sdk = new Sdk();
+    const sdk = await Sdk.create();
 
     const methodStr = method || 'Unknown';
     const resStr = resolution != null ? `${resolution}Å` : 'N/A';
@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const prompt = `Provide a brief 2-3 sentence scientific summary of this protein structure entry: ${pdbId} - ${title}. Method: ${methodStr}, Resolution: ${resStr}, Published in ${journalStr} ${ifStr}. Organisms: ${orgStr}. Ligands: ${ligStr}. Focus on the scientific significance and methodology.`;
 
-    const result = await sdk.chat({
+    const result = await sdk.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
       model: 'default',
     });
