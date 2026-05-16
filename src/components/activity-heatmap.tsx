@@ -2,7 +2,7 @@
 
 import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
-import type { PdbEntry, WeeklySnapshot } from '@/app/page';
+import type { PdbEntry, WeeklySnapshot } from '@/components/types';
 
 // ─── Activity Heatmap ─────────────────────────────────────────────────────────
 

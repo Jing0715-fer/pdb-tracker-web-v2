@@ -98,11 +98,7 @@ export async function createOrUpdateBatch(
 
   if (subTargetIds.length > 0) {
     const placeholders = subTargetIds.map(() => '?').join(',');
-    await db.$executeRaw(
-      `UPDATE evaluations SET batch_id = ? WHERE uniprot_id IN (${placeholders})`,
-      batchId,
-      ...subTargetIds
-    );
+    await db.$executeRaw`UPDATE evaluations SET batch_id = ${batchId} WHERE uniprot_id IN (${placeholders})`;
   }
 }
 

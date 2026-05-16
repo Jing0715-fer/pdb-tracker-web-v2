@@ -5,8 +5,8 @@ import React, { useState } from 'react';
 import {
   BarChart3, Network, Link2, Bookmark, GitBranch, FileText,
 } from 'lucide-react';
+import { QualityMetricsSection } from './validation-table';
 import {
-  QualityMetricsSection,
   LigandInteractionNetwork,
   ContactsSection,
   AnnotationsSection,

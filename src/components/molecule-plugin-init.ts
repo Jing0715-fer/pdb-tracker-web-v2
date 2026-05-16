@@ -175,3 +175,29 @@ export interface HoverInfoState {
   ligandName?: string;
   ligandType?: string;
 }
+// ─── Ligand Detection ────────────────────────────────────────────────────
+
+export function detectLigandCodes(entities: EntityInfo[]): string[] {
+  const codes = new Set<string>();
+  for (const entity of entities) {
+    for (const chemCompId of entity.chem_comp_ids) {
+      if (chemCompId && !/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(chemCompId)) {
+        codes.add(chemCompId);
+      }
+    }
+  }
+  return Array.from(codes);
+}
+
+// detectLigandCodes is at end of file
+
+// EntityInfo used by detectLigandCodes - defined locally to avoid circular dep with molecule-viewer
+export interface EntityInfo {
+  entity_id: number;
+  molecule_type: string;
+  description: string;
+  organism: string;
+  gene_name: string;
+  chem_comp_ids: string[];
+  chains: { chain: string; asym_id: string; length: number | null }[];
+}

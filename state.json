@@ -1,1 +1,18 @@
-{"currentRound": 20, "note": "R18 skipped (virtualize complex + pre-existing eval-summary.tsx TS errors). R19 filterConfig done. R20: fix eval-summary TS errors (pre-existing since R12). Line counts: pdb-tracker 8701, entity-panel 5004, molecule-viewer 4122."}
+{
+  "currentRound": 20,
+  "note": "R17 done (react-window + hook). R18 skipped (tbody virtualization complex + react-window v2 API change requires hook wrapper). R19 done (filterConfig grouping, deps 16→5). R20 done (fix react-window import via useVirtualizedList hook + fix eval-summary.tsx missing </div>). Remaining TS errors: entity-panel/eval-summary pre-existing (import conflicts, missing components).",
+  "lineCounts": {
+    "pdb-tracker": 8701,
+    "entityPanel": 5004,
+    "moleculeViewer": 4122,
+    "total": 17827
+  },
+  "completedRounds": [17, 19, 20],
+  "skippedRounds": [18],
+  "tsErrors": {
+    "pdb-tracker": "28 (including pre-existing null|string issues)",
+    "entity-panel": "many (import conflicts, missing components since R14 extraction)",
+    "eval-summary": "resolved",
+    "molecule-viewer": "3 (in backup/, outside main)"
+  }
+}

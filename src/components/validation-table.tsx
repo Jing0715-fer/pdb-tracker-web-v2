@@ -142,7 +142,7 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                 <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                   <MetricBar
                     label="Rama. Favored"
-                    value={ramaData?.favored ?? data?.ramachandran_favored}
+                    value={ramaData?.favored ?? data?.ramachandran_favored ?? null}
                     max={100}
                     suffix="%"
                     percentile={data?.ramachandran_percentile}
@@ -150,14 +150,14 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   />
                   <MetricBar
                     label="Rama. Outliers"
-                    value={ramaData?.outliers ?? data?.ramachandran_outliers}
+                    value={ramaData?.outliers ?? data?.ramachandran_outliers ?? null}
                     max={10}
                     suffix="%"
                     trend={ramaData?.outliers != null && ramaData.outliers <= 0.5 ? 'up' : ramaData?.outliers != null && ramaData.outliers > 2 ? 'down' : 'stable'}
                   />
                   <MetricBar
                     label="Clash Score"
-                    value={data?.clash_score}
+                    value={data?.clash_score ?? null}
                     max={50}
                     percentile={data?.clash_percentile}
                     trend={data?.clash_score != null && data.clash_score <= 5 ? 'up' : data?.clash_score != null && data.clash_score > 15 ? 'down' : 'stable'}
@@ -180,14 +180,14 @@ export function QualityMetricsSection({ pdbId }: { pdbId: string }) {
                   </div>
                   <MetricBar
                     label="Bond Length"
-                    value={data?.rmsd_bonds}
+                    value={data?.rmsd_bonds ?? null}
                     max={0.2}
                     suffix="Å"
                     trend={data?.rmsd_bonds != null && data.rmsd_bonds <= 0.02 ? 'up' : data?.rmsd_bonds != null && data.rmsd_bonds > 0.05 ? 'down' : 'stable'}
                   />
                   <MetricBar
                     label="Bond Angle"
-                    value={data?.rmsd_angles}
+                    value={data?.rmsd_angles ?? null}
                     max={2}
                     suffix="°"
                     trend={data?.rmsd_angles != null && data.rmsd_angles <= 1 ? 'up' : data?.rmsd_angles != null && data.rmsd_angles > 2 ? 'down' : 'stable'}

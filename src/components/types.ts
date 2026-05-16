@@ -18,9 +18,22 @@ export interface PdbEntry {
 
 export interface WeeklySnapshot {
   weekId: string;
+  weekStart: string;
+  weekEnd: string;
   totalStructures: number;
   methods: Record<string, number>;
   date: string;
+  cryoemCount?: number;
+  xrayCount?: number;
+  nmrCount?: number;
+  otherCount?: number;
+  cryoemAvgRes?: number | null;
+  xrayAvgRes?: number | null;
+  topJournals?: string | null;
+  ifDist?: string | null;
+  cryoemResDist?: string | null;
+  xrayResDist?: string | null;
+  createdAt?: string;
 }
 
 export type SortField = string;

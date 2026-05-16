@@ -89,7 +89,7 @@ export function useValidationData(pdbId: string): {
       })
       .catch(() => {
         if (cancelled) return;
-        const errorResult: ValidationData = { pdb_id: pdbId, error: 'Failed to fetch validation data' };
+        const errorResult: ValidationData = { pdb_id: pdbId, error: 'Failed to fetch validation data' } as ValidationData;
         validationCache.set(pdbId, errorResult);
         setData(errorResult);
         setLoading(false);

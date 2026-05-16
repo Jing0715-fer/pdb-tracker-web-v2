@@ -44,7 +44,6 @@ import {
 import {
   isChunkLoadError,
   importWithRetry,
-  BackgroundMode,
   BACKGROUND_COLORS,
   BACKGROUND_LABELS,
   PRESET_COLORS,
@@ -54,15 +53,13 @@ import {
   MolstarModules,
   ContextMenuState,
   HoverInfoState,
+  detectLigandCodes,
 } from './molecule-plugin-init';
 import {
   ToolbarButton,
   formatCount,
   getBackgroundIcon,
 } from './molecule-controls';
-
-// ─── Types ───────────────────────────────────────────────────────────────
-
 export interface ChainInfo {
   chain: string;
   asym_id: string;

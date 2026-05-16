@@ -185,7 +185,7 @@ import { DeltaIndicator, WeekComparisonView } from './week-comparison';
 import { EvaluationToolbar } from './EvaluationToolbar';
 import { BatchPreviewContent } from './BatchPreviewContent';
 import { ComplexEvalSummary } from './ComplexEvalSummary';
-import type { EntityInfo } from './molecule-viewer';
+import type { EntityInfo, ViewerActions } from './molecule-viewer';
 
 // ─── useAnimatedValue Hook ─────────────────────────────────────────────────
 
@@ -471,6 +471,8 @@ interface WeeklySnapshot {
   weekStart: string;
   weekEnd: string;
   totalStructures: number;
+  methods: Record<string, number>;
+  date: string;
   cryoemCount: number;
   xrayCount: number;
   nmrCount: number;
@@ -505,7 +507,7 @@ interface PdbEntry {
   ifTier: string;
 }
 
-interface Evaluation {
+export interface Evaluation {
   uniprotId: string;
   entryName: string | null;
   proteinName: string | null;
@@ -616,7 +618,7 @@ type TagCategory = 'method' | 'resolution' | 'if' | 'quality' | 'date' | 'organi
 
 interface TagInfo {
   label: string;
-  category: TagCategory;
+  category: string;
 }
 
 const TAG_CATEGORY_STYLES: Record<TagCategory, { bg: string; text: string; border: string; darkBg: string; darkText: string }> = {
@@ -938,7 +940,7 @@ function BlastHomologTooltipContent({ result }: { result: EvalBlastResult }) {
       <div className="flex items-start gap-2">
         <img
           src={`https://cdn.rcsb.org/images/structures/${(result.pdbId ?? '').toLowerCase()}_assembly-1.jpeg`}
-          alt={result.pdbId}
+          alt={result.pdbId ?? ''}
           className="w-40 h-40 rounded-md bg-claude-border-light dark:bg-[#3d3832] object-cover flex-shrink-0 border border-claude-border-light dark:border-[#3d3832]"
           loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
@@ -1236,7 +1238,7 @@ function EntryComparisonModal({
                       {/* Entry A value */}
                       <div className={`p-3 rounded-l-lg border border-r-0 border-claude-border text-xs transition-colors ${diff.aClass}`}>
                         <div className="text-[9px] font-semibold uppercase text-claude-text-muted mb-1">{prop.label}</div>
-                        <div className={`text-claude-text-secondary leading-relaxed ${prop.type === 'title' ? 'line-clamp-3' : 'line-clamp-2'}`}>
+                        <div className={`text-claude-text-secondary leading-relaxed ${prop.label === 'Title' ? 'line-clamp-3' : 'line-clamp-2'}`}>
                           {formatValue(prop.keyA, prop.type)}
                         </div>
                       </div>
@@ -1249,7 +1251,7 @@ function EntryComparisonModal({
                       {/* Entry B value */}
                       <div className={`p-3 rounded-r-lg border border-l-0 border-claude-border text-xs transition-colors ${diff.bClass}`}>
                         <div className="text-[9px] font-semibold uppercase text-claude-text-muted mb-1">{prop.label}</div>
-                        <div className={`text-claude-text-secondary leading-relaxed ${prop.type === 'title' ? 'line-clamp-3' : 'line-clamp-2'}`}>
+                        <div className={`text-claude-text-secondary leading-relaxed ${prop.label === 'Title' ? 'line-clamp-3' : 'line-clamp-2'}`}>
                           {formatValue(prop.keyB, prop.type)}
                         </div>
                       </div>
@@ -2119,9 +2121,21 @@ export default function PdbTracker() {
     hasLigandsFilter,
     selectedTagFilter,
     diffMode,
-    diffResult,
     entryNotes,
-  }), [showBookmarksOnly, debouncedSearch, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, selectedTagFilter, diffMode, diffResult, entryNotes]);
+  }), [showBookmarksOnly, debouncedSearch, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, selectedTagFilter, diffMode, entryNotes]);
+
+  const diffResult = useMemo(() => {
+    if (!diffMode || !selectedWeekId || prevWeekEntries.length === 0 && entries.length === 0) {
+      return { newIds: new Set<string>(), removedIds: new Set<string>(), unchangedIds: new Set<string>(), removedEntries: [] as PdbEntry[] };
+    }
+    const currentIds = new Set(entries.map(e => e.pdbId));
+    const prevIds = new Set(prevWeekEntries.map(e => e.pdbId));
+    const newIds = new Set([...currentIds].filter(id => !prevIds.has(id)));
+    const removedIds = new Set([...prevIds].filter(id => !currentIds.has(id)));
+    const unchangedIds = new Set([...currentIds].filter(id => prevIds.has(id)));
+    const removedEntries = prevWeekEntries.filter(e => removedIds.has(e.pdbId));
+    return { newIds, removedIds, unchangedIds, removedEntries };
+  }, [diffMode, selectedWeekId, entries, prevWeekEntries]);
 
   // Organism list from current week's entries
   const organismOptions = useMemo(() => {
@@ -2403,7 +2417,7 @@ export default function PdbTracker() {
   const [representation, setRepresentation] = useState<'cartoon' | 'ball-stick' | 'surface'>('cartoon');
   const [soloLigand, setSoloLigand] = useState<string | null>(null);
   const [soloEntity, setSoloEntity] = useState<string | null>(null);
-  const viewerActionsRef = useRef<{ focusOnTarget: (target: string, type: 'entity' | 'ligand') => void } | null>(null);
+  const viewerActionsRef = useRef<ViewerActions | null>(null);
 
   // ── Sync selectedPdbId with selectedEntry & reset entity states ──
   useEffect(() => {
@@ -2762,7 +2776,7 @@ export default function PdbTracker() {
     async function load() {
       try {
         const params = new URLSearchParams();
-        params.set('week', compareWeekId);
+        params.set('week', compareWeekId ?? '');
         const res = await fetch(`/api/entries?${params}`);
         if (!cancelled) {
           const data = await res.json();
@@ -2790,7 +2804,7 @@ export default function PdbTracker() {
     async function load() {
       try {
         const params = new URLSearchParams();
-        params.set('week', prevWeekId);
+        params.set('week', prevWeekId ?? '');
         const res = await fetch(`/api/entries?${params}`);
         if (!cancelled) {
           const data = await res.json();
@@ -2803,18 +2817,6 @@ export default function PdbTracker() {
   }, [diffMode, prevWeekId]);
 
   // ── Diff Computation ──
-  const diffResult = useMemo(() => {
-    if (!diffMode || !selectedWeekId || prevWeekEntries.length === 0 && entries.length === 0) {
-      return { newIds: new Set<string>(), removedIds: new Set<string>(), unchangedIds: new Set<string>(), removedEntries: [] as PdbEntry[] };
-    }
-    const currentIds = new Set(entries.map(e => e.pdbId));
-    const prevIds = new Set(prevWeekEntries.map(e => e.pdbId));
-    const newIds = new Set([...currentIds].filter(id => !prevIds.has(id)));
-    const removedIds = new Set([...prevIds].filter(id => !currentIds.has(id)));
-    const unchangedIds = new Set([...currentIds].filter(id => prevIds.has(id)));
-    const removedEntries = prevWeekEntries.filter(e => removedIds.has(e.pdbId));
-    return { newIds, removedIds, unchangedIds, removedEntries };
-  }, [diffMode, selectedWeekId, entries, prevWeekEntries]);
 
   // ── Fetch Evaluation Detail ──
   useEffect(() => {
@@ -3023,12 +3025,12 @@ export default function PdbTracker() {
       });
       // Deduplicate: remove BLAST entries whose pdbId already exists in structures
       const structurePdbIds = new Set(allStructures.map(s => s.pdbId));
-      const filteredBlasts = allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
+      const filteredBlasts = allBlasts.filter(b => !structurePdbIds.has(b.pdbId ?? ''));
       const all = [...allStructures, ...filteredBlasts];
       // Attach shared count and first occurrence uniprot to each row
       all.forEach(row => {
-        (row as any)._sharedCount = batchSharedStructureMap.get(row.pdbId) || 0;
-        (row as any)._firstUniport = firstOccurrenceMap.get(row.pdbId) || row._sourceUniport;
+        (row as any)._sharedCount = batchSharedStructureMap.get(row.pdbId ?? "") || 0;
+        (row as any)._firstUniport = firstOccurrenceMap.get(row.pdbId ?? "") || (row._sourceUniport ?? "");
       });
       console.log('[DEBUG] batch dedup:', { total: all.length, uniquePdbIds: [...new Set(all.map(r => r.pdbId))], first10: all.slice(0,10).map(r => r.pdbId) });
       return all.sort((a, b) => {
@@ -3060,7 +3062,7 @@ export default function PdbTracker() {
         (selectedEval.pdbStructures || []).map(s => ({ ...s, _type: 'structure' as const }));
       const structurePdbIds = new Set(structures.map(s => s.pdbId));
       const blasts: (EvalBlastResult & { _type: 'blast' })[] =
-        (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId)).map(b => ({ ...b, _type: 'blast' as const }));
+        (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId ?? "")).map(b => ({ ...b, _type: 'blast' as const }));
       const all = [...structures, ...blasts];
       return all.sort((a, b) => {
         let aVal: any, bVal: any;
@@ -3089,7 +3091,7 @@ export default function PdbTracker() {
     if (selectedComplexId && complexEvalData) {
       // Deduplicate: remove BLAST entries whose pdbId already exists in structures
       const structurePdbIds = new Set(complexEvalData.allStructures.map(s => s.pdbId));
-      const filteredBlasts = complexEvalData.allBlasts.filter(b => !structurePdbIds.has(b.pdbId));
+      const filteredBlasts = complexEvalData.allBlasts.filter(b => !structurePdbIds.has(b.pdbId ?? ""));
       const all = [...complexEvalData.allStructures, ...filteredBlasts];
       return all.sort((a, b) => {
         let aVal: any, bVal: any;
@@ -3120,7 +3122,7 @@ export default function PdbTracker() {
       (selectedEval.pdbStructures || []).map(s => ({ ...s, _type: 'structure' as const }));
     const structurePdbIds = new Set(structures.map(s => s.pdbId));
     const blasts: (EvalBlastResult & { _type: 'blast' })[] =
-      (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId)).map(b => ({ ...b, _type: 'blast' as const }));
+      (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId ?? "")).map(b => ({ ...b, _type: 'blast' as const }));
 
     const all = [...structures, ...blasts];
     return all.sort((a, b) => {
@@ -4201,7 +4203,7 @@ export default function PdbTracker() {
               toggleAllOrganisms={toggleAllOrganisms}
               setHiddenColumns={setHiddenColumns}
               hiddenColumns={hiddenColumns}
-              generateTags={generateTags}
+              generateTags={generateTags as any}
               tagCategoryStyles={TAG_CATEGORY_STYLES}
               getMethodLabel={getMethodLabel}
               selectedEval={selectedEval}
@@ -5043,7 +5045,7 @@ export default function PdbTracker() {
                               setDetailPanelOpen(true);
                             } else if (blastResult) {
                               setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                              setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.date || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
+                              setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
                               setDetailPanelOpen(true);
                             }
                           }}>
@@ -5056,7 +5058,7 @@ export default function PdbTracker() {
                                     setDetailPanelOpen(true);
                                   } else if (blastResult) {
                                     setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.date || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
+                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
                                     setDetailPanelOpen(true);
                                   }
                                 }}
@@ -5143,7 +5145,7 @@ export default function PdbTracker() {
                             {((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) && '_sourceUniport' in row && (
                             <td className="px-3 py-2">
                               <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">
-                                {row._sourceUniport}
+                                {String(row._sourceUniport)}
                               </span>
                             </td>
                             )}
@@ -5245,7 +5247,7 @@ export default function PdbTracker() {
                                     setPreviewTab('summary');
                                   } else if (blastResult) {
                                     setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.date || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
+                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
                                     setDetailPanelOpen(true);
                                     setPreviewTab('summary');
                                   }
@@ -6100,7 +6102,7 @@ export default function PdbTracker() {
                   exit={{ y: '100%' }}
                   transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                   drag="y"
-                  dragConstraints={{ top: `${(1 - 0.9) * 100}%`, bottom: 0 }}
+                  dragConstraints={{ top: 0, bottom: 0 }}
                   dragElastic={0.1}
                   onDragEnd={(_event, info) => {
                     const sheetEl = document.querySelector('[data-bottom-sheet]');
@@ -7281,7 +7283,7 @@ export default function PdbTracker() {
                   <ChevronLeft className="h-3 w-3" />
                   Back to batch
                 </button>
-                <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
+                <EvalSummary evalData={selectedEval as any} openReport={openEvalReport} />
               </div>
             ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval ? (
               <ComplexEvalSummary subEvals={complexEvalData.subEvals} group={complexEvalData.group} openReport={openEvalReport} onSelectEval={(uniprotId) => setSelectedEvalId(uniprotId)} />
@@ -7294,10 +7296,10 @@ export default function PdbTracker() {
                   <ChevronLeft className="h-3 w-3" />
                   Back to {complexEvalData.group.name}
                 </button>
-                <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
+                <EvalSummary evalData={selectedEval as any} openReport={openEvalReport} />
               </div>
             ) : mode === 'evaluation' && selectedEval ? (
-              <EvalSummary evalData={selectedEval} openReport={openEvalReport} />
+              <EvalSummary evalData={selectedEval as any} openReport={openEvalReport} />
             ) : (
               <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
                 <Info className="h-8 w-8 mb-2 opacity-30" />
@@ -7316,8 +7318,8 @@ export default function PdbTracker() {
               />
             ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
               <EvaluationTimeline
-                pdbStructures={selectedEval.pdbStructures || []}
-                blastResults={selectedEval.blastResults || []}
+                pdbStructures={selectedEval.pdbStructures as unknown as { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null }[]}
+                blastResults={selectedEval.blastResults as unknown as { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; identity: number | null }[]}
                 onSelectPdb={(pdbId) => {
                   // Find in PDB structures first, then BLAST results
                   const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
@@ -7404,8 +7406,8 @@ export default function PdbTracker() {
               />
             ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
               <EvaluationHeatmap
-                pdbStructures={selectedEval.pdbStructures || []}
-                blastResults={selectedEval.blastResults || []}
+                pdbStructures={selectedEval.pdbStructures as unknown as { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[]}
+                blastResults={selectedEval.blastResults as unknown as { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null; identity: number | null }[]}
                 onSelectPdb={(pdbId) => {
                   const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
                   const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);

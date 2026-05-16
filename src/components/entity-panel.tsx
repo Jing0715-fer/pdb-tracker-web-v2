@@ -69,7 +69,20 @@ import {
 } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { getQualityLevel, getQualityColor, getQualityBgColor, TrendArrow, MetricBar, PercentileBar, QualityGauge, RamachandranPlot, useValidationData, useRamaData } from './validation-report';
+
+// ─── Types ───────────────────────────────────────────────────────────────
+
+// ─── Constants ───────────────────────────────────────────────────────────
+
+const SITE_TYPE_COLORS: Record<string, string> = {
+  cofactor: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+  metal: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  inhibitor: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+  substrate: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  activator: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+  antibody: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  other: 'bg-gray-100 text-gray-700 dark:bg-gray-800/30 dark:text-gray-400',
+};
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -215,6 +228,606 @@ const LIGAND_TYPE_BADGE_COLORS: Record<string, { bg: string; border: string; tex
   'REDUCING AGENT': { bg: 'bg-red-100 dark:bg-red-900/30', border: '#ef4444', text: 'text-red-700 dark:text-red-300' },
   CHELATOR: { bg: 'bg-teal-100 dark:bg-teal-900/30', border: '#14b8a6', text: 'text-teal-700 dark:text-teal-300' },
 };
+
+// ─── Residue coloring maps ───────────────────────────────────────────────
+
+const AMINO_ACID_COLORS: Record<string, { color: string; label: string }> = {
+  A: { color: '#f97316', label: 'Ala (Hydrophobic)' },
+  V: { color: '#f97316', label: 'Val (Hydrophobic)' },
+  L: { color: '#f97316', label: 'Leu (Hydrophobic)' },
+  I: { color: '#f97316', label: 'Ile (Hydrophobic)' },
+  M: { color: '#f97316', label: 'Met (Hydrophobic)' },
+  F: { color: '#f97316', label: 'Phe (Hydrophobic)' },
+  W: { color: '#f97316', label: 'Trp (Hydrophobic)' },
+  P: { color: '#f97316', label: 'Pro (Hydrophobic)' },
+  S: { color: '#22c55e', label: 'Ser (Polar)' },
+  T: { color: '#22c55e', label: 'Thr (Polar)' },
+  N: { color: '#22c55e', label: 'Asn (Polar)' },
+  Q: { color: '#22c55e', label: 'Gln (Polar)' },
+  Y: { color: '#22c55e', label: 'Tyr (Polar)' },
+  C: { color: '#22c55e', label: 'Cys (Polar)' },
+  K: { color: '#3b82f6', label: 'Lys (Positive)' },
+  R: { color: '#3b82f6', label: 'Arg (Positive)' },
+  H: { color: '#3b82f6', label: 'His (Positive)' },
+  D: { color: '#ef4444', label: 'Asp (Negative)' },
+  E: { color: '#ef4444', label: 'Glu (Negative)' },
+  G: { color: '#9ca3af', label: 'Gly (Special)' },
+};
+
+const NUCLEOTIDE_COLORS: Record<string, { color: string; label: string }> = {
+  A: { color: '#22c55e', label: 'Adenine' },
+  T: { color: '#ef4444', label: 'Thymine' },
+  G: { color: '#f97316', label: 'Guanine' },
+  C: { color: '#3b82f6', label: 'Cytosine' },
+  U: { color: '#a855f7', label: 'Uracil' },
+};
+
+function getMoleculeBadge(moleculeType: string): MoleculeBadge {
+  const mt = moleculeType.toLowerCase();
+  if (mt.includes('polydeoxyribonucleotide')) return 'DNA';
+  if (mt.includes('polyribonucleotide')) return 'RNA';
+  if (mt.includes('carbohydrate')) return 'POL';
+  if (mt.includes('polypeptide')) return 'POL';
+  if (mt.includes('water')) return 'WAT';
+  if (mt.includes('bound') || mt.includes('non-polymer') || mt.includes('ligand')) return 'LIG';
+  return 'OTHER';
+}
+
+function isNucleotideType(moleculeType: string): boolean {
+  const mt = moleculeType.toLowerCase();
+  return mt.includes('nucleotide');
+}
+
+// ─── Sequence Data Cache ─────────────────────────────────────────────────
+
+const MAX_CACHE_SIZE = 50;
+
+function evictOldestEntry(cache: Map<string, any>): void {
+  const firstKey = cache.keys().next().value;
+  if (firstKey !== undefined) cache.delete(firstKey);
+}
+
+const sequenceCache = new Map<string, Record<string, string> | null>();
+
+function useSequenceData(pdbId: string): {
+  sequences: Record<string, string> | null;
+  loading: boolean;
+} {
+  const cached = sequenceCache.get(pdbId) ?? null;
+  const isCached = sequenceCache.has(pdbId);
+  const [data, setData] = useState<Record<string, string> | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/sequence/${pdbId}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        const seqs = json?.sequences || null;
+        if (sequenceCache.size >= MAX_CACHE_SIZE) evictOldestEntry(sequenceCache);
+        sequenceCache.set(pdbId, seqs);
+        setData(seqs);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (sequenceCache.size >= MAX_CACHE_SIZE) evictOldestEntry(sequenceCache);
+        sequenceCache.set(pdbId, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdbId, isCached]);
+
+  return { sequences: data, loading };
+}
+
+// ─── Validation Data Cache ────────────────────────────────────────────────
+
+const validationCache = new Map<string, ValidationData | null>();
+
+function useValidationData(pdbId: string): {
+  data: ValidationData | null;
+  loading: boolean;
+} {
+  const cached = validationCache.get(pdbId) ?? null;
+  const isCached = validationCache.has(pdbId);
+  const [data, setData] = useState<ValidationData | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/validation/${pdbId}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        if (validationCache.size >= MAX_CACHE_SIZE) evictOldestEntry(validationCache);
+        validationCache.set(pdbId, json || null);
+        setData(json || null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        if (validationCache.size >= MAX_CACHE_SIZE) evictOldestEntry(validationCache);
+        validationCache.set(pdbId, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdbId, isCached]);
+
+  return { data, loading };
+}
+
+// ─── Ramachandran Real Phi/Psi Data Cache ──────────────────────────────────
+
+interface ChainScore {
+  chain: string;
+  favored: number;
+  allowed: number;
+  outliers: number;
+  total: number;
+}
+
+interface RamaData {
+  pdb_id: string;
+  residue_count: number;
+  favored: number | null;
+  allowed: number | null;
+  outliers: number | null;
+  points: { phi: number; psi: number; region: string; chain?: string }[];
+  chain_scores: ChainScore[] | null;
+}
+
+const ramaCache = new Map<string, RamaData | null>();
+
+function useRamaData(pdbId: string): {
+  data: RamaData | null;
+  loading: boolean;
+} {
+  const cached = ramaCache.get(pdbId) ?? null;
+  const isCached = ramaCache.has(pdbId);
+  const [data, setData] = useState<RamaData | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/rama/${pdbId}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        ramaCache.set(pdbId, json || null);
+        setData(json || null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        ramaCache.set(pdbId, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdbId, isCached]);
+
+  return { data, loading };
+}
+
+// ─── Annotations Data Cache ─────────────────────────────────────────────
+
+const annotationsCache = new Map<string, AnnotationsData | null>();
+
+function useAnnotationsData(pdbId: string): {
+  data: AnnotationsData | null;
+  loading: boolean;
+} {
+  const cached = annotationsCache.get(pdbId) ?? null;
+  const isCached = annotationsCache.has(pdbId);
+  const [data, setData] = useState<AnnotationsData | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/annotations/${pdbId}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        annotationsCache.set(pdbId, json || null);
+        setData(json || null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        annotationsCache.set(pdbId, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdbId, isCached]);
+
+  return { data, loading };
+}
+
+// ─── Contacts Data Cache ─────────────────────────────────────────────────
+
+interface ResidueContact {
+  chain1: string;
+  residue1: string;
+  chain2: string;
+  residue2: string;
+  distance: number;
+  type: string;
+}
+
+interface ContactsData {
+  pdbId: string;
+  contacts: ResidueContact[];
+  error?: string;
+}
+
+const contactsCache = new Map<string, ContactsData | null>();
+
+function useContactsData(pdbId: string): {
+  data: ContactsData | null;
+  loading: boolean;
+} {
+  const cached = contactsCache.get(pdbId) ?? null;
+  const isCached = contactsCache.has(pdbId);
+  const [data, setData] = useState<ContactsData | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/contacts/${pdbId}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        contactsCache.set(pdbId, json || null);
+        setData(json || null);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        contactsCache.set(pdbId, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pdbId, isCached]);
+
+  return { data, loading };
+}
+
+// ─── Ligand Data Cache ───────────────────────────────────────────────────
+
+const ligandCache = new Map<string, LigandData | null>();
+
+function useLigandData(code: string): {
+  data: LigandData | null;
+  loading: boolean;
+} {
+  const cached = ligandCache.get(code) ?? null;
+  const isCached = ligandCache.has(code);
+  const [data, setData] = useState<LigandData | null>(cached);
+  const [loading, setLoading] = useState(!isCached);
+
+  useEffect(() => {
+    if (isCached) return;
+
+    let cancelled = false;
+
+    fetch(`/api/ligand/${code}`)
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((json) => {
+        if (cancelled) return;
+        const ligandData: LigandData | null = json
+          ? {
+              code: json.code || code,
+              name: json.name || code,
+              formula: json.formula || null,
+              weight: (() => { const w = json.weight; return typeof w === 'number' && !isNaN(w) ? w : null; })(),
+              type: json.type || null,
+              description: json.description || null,
+              imageUrl: json.imageUrl || null,
+            }
+          : null;
+        ligandCache.set(code, ligandData);
+        setData(ligandData);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        ligandCache.set(code, null);
+        setData(null);
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [code, isCached]);
+
+  return { data, loading };
+}
+
+// ─── Color Picker Popup ──────────────────────────────────────────────────
+
+function ColorPickerPopup({
+  currentColor,
+  onColorChange,
+  onClose,
+  anchorRef,
+}: {
+  currentColor: string;
+  onColorChange: (color: string) => void;
+  onClose: () => void;
+  anchorRef?: React.RefObject<HTMLElement | null>;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+
+  useEffect(() => {
+    if (anchorRef?.current) {
+      const rect = anchorRef.current.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 4,
+        left: rect.left,
+      });
+    }
+  }, [anchorRef]);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  const popupContent = (
+    <div
+      ref={ref}
+      className={`fixed z-[9999] p-2 rounded-lg shadow-xl border border-claude-border
+                 bg-claude-surface scale-in-bounce color-picker-transition`}
+      style={{ minWidth: 150, ...(pos ? { top: pos.top, left: pos.left } : { visibility: 'hidden' }) }}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div className="grid grid-cols-5 gap-1.5 mb-2">
+        {PRESET_COLORS.map((color) => (
+          <button
+            key={color}
+            onClick={(e) => {
+              e.stopPropagation();
+              onColorChange(color);
+            }}
+            className="w-6 h-6 rounded-md border-2 transition-transform hover:scale-110
+                       focus:outline-none focus:ring-2 focus:ring-claude-accent/50"
+            style={{
+              backgroundColor: color,
+              borderColor:
+                currentColor.toLowerCase() === color.toLowerCase()
+                  ? 'var(--claude-accent)'
+                  : 'transparent',
+            }}
+            title={color}
+          >
+            {currentColor.toLowerCase() === color.toLowerCase() && (
+              <Check className="w-3.5 h-3.5 text-white mx-auto drop-shadow-sm" />
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="flex items-center gap-2 pt-1 border-t border-claude-border-light">
+        <label className="text-[10px] text-claude-text-muted font-medium">Custom:</label>
+        <input
+          type="color"
+          value={currentColor}
+          onChange={(e) => onColorChange(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          className="w-6 h-6 rounded cursor-pointer border border-claude-border bg-transparent"
+        />
+        <span className="text-[10px] font-mono text-claude-text-secondary">
+          {currentColor.toUpperCase()}
+        </span>
+      </div>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        className="mt-2 w-full py-1 text-[10px] font-medium rounded
+                   bg-claude-accent-light text-claude-accent
+                   hover:bg-claude-accent hover:text-white transition-colors"
+      >
+        Done
+      </button>
+    </div>
+  );
+
+  if (typeof document !== 'undefined') {
+    return createPortal(popupContent, document.body);
+  }
+  return popupContent;
+}
+
+// ─── Molecule Type Badge ─────────────────────────────────────────────────
+
+function MoleculeBadgeTag({ type }: { type: string }) {
+  const badge = getMoleculeBadge(type);
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded
+                  tracking-wider uppercase ${BADGE_STYLES[badge]}`}
+    >
+      {badge}
+    </span>
+  );
+}
+
+// ─── Gene Badge ──────────────────────────────────────────────────────────
+
+function GeneBadge({ geneName }: { geneName: string }) {
+  return (
+    <span className="inline-flex items-center px-1.5 py-0.5 text-[8px] font-semibold rounded
+                     bg-claude-accent-light text-claude-accent tracking-wide uppercase
+                     border border-claude-accent/20">
+      {geneName}
+    </span>
+  );
+}
+
+// ─── Ligand Hover Card ───────────────────────────────────────────────────
+
+function LigandHoverCard({
+  code,
+  children,
+}: {
+  code: string;
+  children: React.ReactNode;
+}) {
+  const { data, loading } = useLigandData(code);
+
+  return (
+    <HoverCard openDelay={400} closeDelay={200}>
+      <HoverCardTrigger asChild>
+        {children}
+      </HoverCardTrigger>
+      <HoverCardContent
+        side="left"
+        align="start"
+        className="w-72 p-0 overflow-hidden border border-claude-border bg-claude-surface shadow-xl"
+      >
+        <div className="h-28 bg-claude-bg flex items-center justify-center border-b border-claude-border-light overflow-hidden relative">
+          {loading ? (
+            <Loader2 className="w-5 h-5 text-claude-accent animate-spin" />
+          ) : data?.imageUrl ? (
+            <img
+              src={data.imageUrl}
+              alt={`${code} 2D structure`}
+              className={`${/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(code) ? 'w-[150%] h-[150%]' : 'w-full h-full'} object-cover object-center`}
+              style={/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(code) ? { margin: '0 -25%' } : undefined}
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.style.display = 'none';
+                const container = target.parentElement;
+                if (container) {
+                  container.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;"><span style="font-family:monospace;font-size:${/^ion$|^mg$|^ca$|^na$|^cl$|^k$|^zn$|^fe$|^cu$|^mn$/i.test(code) ? '120' : '48'}px;font-weight:bold;color:#9b9590;">${code}</span></div>`;
+                }
+              }}
+            />
+          ) : (
+            <span className="font-mono text-5xl font-bold text-claude-text-muted">
+              {code}
+            </span>
+          )}
+        </div>
+
+        <div className="p-3">
+          <div className="flex items-start justify-between gap-2 mb-1.5">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-claude-text leading-tight truncate">
+                {loading ? code : (data?.name || code)}
+              </p>
+              <p className="text-[10px] font-mono text-claude-accent font-bold">
+                {code}
+              </p>
+            </div>
+            {data?.type && (
+              <span className={`text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ligand-type-border chip-hover whitespace-nowrap
+                              bg-claude-border-light ${LIGAND_TYPE_COLORS[data.type] || 'text-claude-text-secondary'}`}
+                style={{ '--ligand-type-color': 'currentColor' } as React.CSSProperties}>
+                {data.type}
+              </span>
+            )}
+          </div>
+
+          {data?.formula && (
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[9px] text-claude-text-muted font-medium uppercase">Formula:</span>
+              <span className="text-[10px] font-mono text-claude-text-secondary">{data.formula}</span>
+            </div>
+          )}
+
+          {data?.weight != null && typeof data.weight === 'number' && !isNaN(data.weight) && (
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className="text-[9px] text-claude-text-muted font-medium uppercase">MW:</span>
+              <span className="text-[10px] font-mono text-claude-text-secondary">{data.weight.toFixed(2)} Da</span>
+            </div>
+          )}
+
+          {data?.description && (
+            <p className="text-[10px] text-claude-text-muted leading-relaxed mt-1.5 line-clamp-3">
+              {data.description}
+            </p>
+          )}
+        </div>
+      </HoverCardContent>
+    </HoverCard>
+  );
+}
+
+// ─── Selected Indicator Dot ──────────────────────────────────────────────
+
+function SelectedIndicator({ color }: { color: string }) {
+  return (
+    <span
+      className="w-2 h-2 rounded-full flex-shrink-0 animate-pulse shadow-sm"
+      style={{ backgroundColor: color, boxShadow: `0 0 6px ${color}60` }}
+    />
+  );
+}
+
 // ─── Chain Row ───────────────────────────────────────────────────────────
 
 function ChainRow({
@@ -953,7 +1566,7 @@ function RamachandranPlot({
   favored: number | null;
   outliers: number | null;
   residueCount: number;
-  realPoints?: { phi: number; psi: number; region: string }[];
+  realPoints?: { phi: number; psi: number; region: string; chain?: string }[];
 }) {
   const svgSize = 200;
   const padding = 25;
@@ -1243,15 +1856,7 @@ function RamachandranPlot({
     </div>
   );
 }
-import { QualityGauge, MetricBar, PercentileBar, RamachandranPlot, TrendArrow } from './validation-table';
-
-const SITE_TYPE_COLORS: Record<string, string> = {
-  cofactor: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-  inhibitor: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  substrate: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  binding: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  other: 'bg-gray-100 text-gray-600 dark:bg-gray-800/60 dark:text-gray-400',
-};
+// MetricBar, PercentileBar, RamachandranPlot, TrendArrow are defined locally
 
 // ─── Ligand Interaction Network (Force-Directed Graph) ───────────────────
 
@@ -2171,11 +2776,11 @@ function ContactNetworkGraph({
             <line x1={50} y1={4} x2={62} y2={4} stroke="var(--claude-accent)" strokeWidth={1.5} opacity={0.5} />
             <text x={65} y={4} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '7px' }}>Edge</text>
             {/* Distance colors */}
-            <circle cx={54} cy={17} r={pt.region === 'favored' ? 2.5 : 2} fill="#22c55e" />
+            <circle cx={54} cy={17} r={2.5} fill="#22c55e" />
             <text x={58} y={17} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '6px' }}>≤3Å</text>
-            <circle cx={68} cy={17} r={pt.region === 'favored' ? 2.5 : 2} fill="#f59e0b" />
+            <circle cx={68} cy={17} r={2.5} fill="#f59e0b" />
             <text x={72} y={17} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '6px' }}>≤4Å</text>
-            <circle cx={82} cy={17} r={pt.region === 'favored' ? 2.5 : 2} fill="#ef4444" />
+            <circle cx={82} cy={17} r={2.5} fill="#ef4444" />
             <text x={86} y={17} dominantBaseline="central" className="fill-claude-text-muted" style={{ fontSize: '6px' }}>4Å+</text>
           </g>
         </svg>

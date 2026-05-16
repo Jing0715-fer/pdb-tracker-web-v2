@@ -3,7 +3,7 @@
 import React, { useMemo } from 'react';
 import { useTheme } from 'next-themes';
 import { Layers, Database, FileSearch } from 'lucide-react';
-import { ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend, BarChart, Bar, XAxis, YAxis, Cell } from 'recharts';
+import { ResponsiveContainer, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend, BarChart, Bar, XAxis, YAxis, PieChart, Pie, Cell } from 'recharts';
 import type { Evaluation } from './pdb-tracker';
 
 interface ComplexEvalSummaryProps {
@@ -114,7 +114,7 @@ export function ComplexEvalSummary({
   const pieData = useMemo(() => {
     const methodCounts: Record<string, number> = {};
     subEvals.forEach(ev => {
-      const method = ev.method || 'Unknown';
+      const method = ev.pdbStructures?.[0]?.method || 'Unknown';
       methodCounts[method] = (methodCounts[method] || 0) + 1;
     });
     return Object.entries(methodCounts).map(([name, value]) => ({ name, value }));

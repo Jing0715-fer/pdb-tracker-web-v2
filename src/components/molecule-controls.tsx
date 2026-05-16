@@ -21,6 +21,8 @@ import {
   ZoomIn,
   ChevronRight,
   SlidersHorizontal,
+  Sun,
+  Moon,
 } from 'lucide-react';
 import {
   Tooltip,

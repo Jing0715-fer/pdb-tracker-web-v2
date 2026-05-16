@@ -5,7 +5,7 @@ import { useMemo } from 'react';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 import { ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend, Tooltip as RTooltip } from 'recharts';
 import { METHOD_COLORS, RESOLUTION_RANGES, ClaudeChartTooltip, getChartAxisColor, getChartTickColor } from './chart-tooltips';
-import type { WeeklySnapshot } from '@/app/page';
+import type { WeeklySnapshot, PdbEntry } from '@/components/types';
 
 // ─── Delta Indicator ──────────────────────────────────────────────────────────
 
@@ -32,8 +32,8 @@ export function WeekComparisonView({
 }: {
   snapshotA: WeeklySnapshot;
   snapshotB: WeeklySnapshot;
-  entriesA: never[];
-  entriesB: never[];
+  entriesA: PdbEntry[];
+  entriesB: PdbEntry[];
   snapshots: WeeklySnapshot[];
 }) {
   const { theme } = useTheme();
@@ -45,14 +45,14 @@ export function WeekComparisonView({
     { name: 'X-ray', value: snapshotA.xrayCount, color: METHOD_COLORS['X-ray'] },
     { name: 'NMR', value: snapshotA.nmrCount, color: METHOD_COLORS['NMR'] },
     { name: 'Other', value: snapshotA.otherCount, color: METHOD_COLORS['Other'] },
-  ].filter(d => d.value > 0), [snapshotA]);
+  ].filter(d => (d.value ?? 0) > 0), [snapshotA]);
 
   const methodDataB = useMemo(() => [
-    { name: 'Cryo-EM', value: snapshotB.cryoemCount, color: METHOD_COLORS['Cryo-EM'] },
-    { name: 'X-ray', value: snapshotB.xrayCount, color: METHOD_COLORS['X-ray'] },
-    { name: 'NMR', value: snapshotB.nmrCount, color: METHOD_COLORS['NMR'] },
-    { name: 'Other', value: snapshotB.otherCount, color: METHOD_COLORS['Other'] },
-  ].filter(d => d.value > 0), [snapshotB]);
+    { name: 'Cryo-EM', value: snapshotB.cryoemCount ?? 0, color: METHOD_COLORS['Cryo-EM'] },
+    { name: 'X-ray', value: snapshotB.xrayCount ?? 0, color: METHOD_COLORS['X-ray'] },
+    { name: 'NMR', value: snapshotB.nmrCount ?? 0, color: METHOD_COLORS['NMR'] },
+    { name: 'Other', value: snapshotB.otherCount ?? 0, color: METHOD_COLORS['Other'] },
+  ].filter(d => (d.value ?? 0) > 0), [snapshotB]);
 
   // Resolution distribution for both weeks
   const resDataA = useMemo(() => {
@@ -87,14 +87,18 @@ export function WeekComparisonView({
   // Delta calculations
   const deltas = useMemo(() => {
     const totalDelta = snapshotB.totalStructures - snapshotA.totalStructures;
-    const cryoemDelta = snapshotB.cryoemCount - snapshotA.cryoemCount;
-    const xrayDelta = snapshotB.xrayCount - snapshotA.xrayCount;
-    const nmrDelta = snapshotB.nmrCount - snapshotA.nmrCount;
+    const cryoemDelta = (snapshotB.cryoemCount ?? 0) - (snapshotA.cryoemCount ?? 0);
+    const xrayDelta = (snapshotB.xrayCount ?? 0) - (snapshotA.xrayCount ?? 0);
+    const nmrDelta = (snapshotB.nmrCount ?? 0) - (snapshotA.nmrCount ?? 0);
+    const aCryoem = snapshotA.cryoemCount ?? 0;
+    const aXray = snapshotA.xrayCount ?? 0;
+    const bCryoem = snapshotB.cryoemCount ?? 0;
+    const bXray = snapshotB.xrayCount ?? 0;
     const avgResA = snapshotA.cryoemAvgRes != null && snapshotA.xrayAvgRes != null
-      ? ((snapshotA.cryoemAvgRes * snapshotA.cryoemCount + snapshotA.xrayAvgRes * snapshotA.xrayCount) / (snapshotA.cryoemCount + snapshotA.xrayCount || 1))
+      ? ((snapshotA.cryoemAvgRes * aCryoem + snapshotA.xrayAvgRes * aXray) / (aCryoem + aXray || 1))
       : snapshotA.cryoemAvgRes ?? snapshotA.xrayAvgRes ?? null;
     const avgResB = snapshotB.cryoemAvgRes != null && snapshotB.xrayAvgRes != null
-      ? ((snapshotB.cryoemAvgRes * snapshotB.cryoemCount + snapshotB.xrayAvgRes * snapshotB.xrayCount) / (snapshotB.cryoemCount + snapshotB.xrayCount || 1))
+      ? ((snapshotB.cryoemAvgRes * bCryoem + snapshotB.xrayAvgRes * bXray) / (bCryoem + bXray || 1))
       : snapshotB.cryoemAvgRes ?? snapshotB.xrayAvgRes ?? null;
     const resDelta = avgResA != null && avgResB != null ? avgResB - avgResA : null;
     return { totalDelta, cryoemDelta, xrayDelta, nmrDelta, resDelta };
