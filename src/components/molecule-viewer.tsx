@@ -55,6 +55,11 @@ import {
   ContextMenuState,
   HoverInfoState,
 } from './molecule-plugin-init';
+import {
+  ToolbarButton,
+  formatCount,
+  getBackgroundIcon,
+} from './molecule-controls';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -122,51 +127,7 @@ export interface MoleculeViewerProps {
 
 // (BACKGROUND_COLORS and BACKGROUND_LABELS imported from molecule-plugin-init.ts)
 
-// ─── Toolbar Button Component ───────────────────────────────────────────
-
-function ToolbarButton({
-  onClick,
-  icon,
-  label,
-  active,
-  disabled,
-  className = '',
-}: {
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-  active?: boolean;
-  disabled?: boolean;
-  className?: string;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <button
-          onClick={onClick}
-          disabled={disabled}
-          className={`flex items-center justify-center w-7 h-7 rounded-md
-                     backdrop-blur-sm border transition-all duration-150 scale-in-bounce btn-icon-hover
-                     disabled:opacity-40 disabled:cursor-not-allowed
-                     ${
-                       active
-                         ? 'bg-claude-accent text-white border-claude-accent/60 shadow-sm'
-                         : 'bg-claude-surface/80 border-claude-border-light text-claude-text-secondary hover:text-claude-text hover:bg-claude-surface hover:border-claude-border shadow-sm'
-                     }
-                     ${className}`}
-        >
-          {icon}
-        </button>
-      </TooltipTrigger>
-      <TooltipContent
-        side="bottom"
-        className="bg-claude-surface text-claude-text border border-claude-border shadow-lg"
-      >
-        {label}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
+// ─── (ToolbarButton imported from molecule-controls.tsx)
 
 // ─── Helper: resolve ligand code from clicked entity ──────────────────
 
@@ -215,8 +176,6 @@ function resolveLigandCode(
 // ─── (PRESET_COLORS imported from molecule-plugin-init.ts)
 
 // ─── (ContextMenuState and HoverInfoState imported from molecule-plugin-init.ts)
-
-// ─── Component ───────────────────────────────────────────────────────────
 
 export function MoleculeViewer({
   pdbId,
@@ -2977,14 +2936,6 @@ export function MoleculeViewer({
     setSelectedItem(null);
     highlightSurfaceRefs.current = [];
   }, [pdbId]);
-
-  // ─── Format atom count ───────────────────────────────────────────────
-  const formatCount = useCallback((count: number): string => {
-    if (count === 0) return '—';
-    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
-    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
-    return String(count);
-  }, []);
 
   // ─── Background mode icon ────────────────────────────────────────────
   const getBackgroundIcon = useCallback(() => {
