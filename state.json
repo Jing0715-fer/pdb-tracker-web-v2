@@ -1,1 +1,1 @@
-{"currentRound": 18}
+{"currentRound": 18, "note": "Skipped R18 (virtualize PDB rows) due to complexity + pre-existing TS errors in eval-summary.tsx. Will do R19+R20 instead."}

@@ -2107,6 +2107,22 @@ export default function PdbTracker() {
   const [qualityFilter, setQualityFilter] = useState<string>('all');
   const [hasLigandsFilter, setHasLigandsFilter] = useState(false);
 
+  // ── Filter Config (stable object for sortedEntries memoization) ──
+  const filterConfig = useMemo(() => ({
+    showBookmarksOnly,
+    debouncedSearch,
+    resolutionRange,
+    ifRange,
+    selectedOrganisms,
+    dateRange,
+    qualityFilter,
+    hasLigandsFilter,
+    selectedTagFilter,
+    diffMode,
+    diffResult,
+    entryNotes,
+  }), [showBookmarksOnly, debouncedSearch, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, selectedTagFilter, diffMode, diffResult, entryNotes]);
+
   // Organism list from current week's entries
   const organismOptions = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -2951,7 +2967,7 @@ export default function PdbTracker() {
       return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
     });
     return sorted;
-  }, [entries, sortField, sortDir, showBookmarksOnly, bookmarks, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, hasLigandsFilter, selectedTagFilter, diffMode, diffResult, debouncedSearch, entryNotes]);
+  }, [entries, sortField, sortDir, bookmarks, filterConfig]);
 
   // ── Paginated Weekly Entries ──
   const paginatedEntries = useMemo(() => {
