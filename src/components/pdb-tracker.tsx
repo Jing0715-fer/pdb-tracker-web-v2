@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect, Suspense, useSyncExternalStore } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import { List, useListRef, type RowComponentProps } from '@/hooks/useVirtualizedList';
 import { motion, AnimatePresence, useMotionValue } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -937,7 +937,7 @@ function BlastHomologTooltipContent({ result }: { result: EvalBlastResult }) {
     <div className="w-[400px] p-3 space-y-2">
       <div className="flex items-start gap-2">
         <img
-          src={`https://cdn.rcsb.org/images/structures/${(result.pdbId || '').toLowerCase()}_assembly-1.jpeg`}
+          src={`https://cdn.rcsb.org/images/structures/${(result.pdbId ?? '').toLowerCase()}_assembly-1.jpeg`}
           alt={result.pdbId}
           className="w-40 h-40 rounded-md bg-claude-border-light dark:bg-[#3d3832] object-cover flex-shrink-0 border border-claude-border-light dark:border-[#3d3832]"
           loading="lazy"
@@ -7871,7 +7871,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
               <XAxis dataKey="tier" tick={{ fontSize: 9, fill: getChartAxisColor(isDark) }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 9, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} width={24} />
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#3d3832' : '#f0e8df'} vertical={false} />
-              <RTooltip content={({ active, payload, label }) => <ClaudeChartTooltip active={active} payload={payload as any} label={label} isDark={isDark} />} />
+              <RTooltip content={({ active, payload, label }) => <ClaudeChartTooltip active={active} payload={payload as any} label={typeof label === 'string' ? label : undefined} isDark={isDark} />} />
               <Bar dataKey="count" radius={[4, 4, 0, 0]} animationDuration={600} style={{ cursor: 'pointer' }}>
                 {ifTierBarData.map((entry, index) => (
                   <Cell key={`if-cell-${index}`} fill={entry.color} className="transition-opacity duration-150 hover:opacity-80" />
@@ -7903,7 +7903,7 @@ function WeeklySummary({ snapshot, snapshots, entries }: { snapshot: WeeklySnaps
               />
               <YAxis tick={{ fontSize: 8, fill: getChartTickColor(isDark) }} axisLine={false} tickLine={false} width={28} />
               <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#3d3832' : '#f0e8df'} vertical={false} />
-              <RTooltip content={({ active, payload, label }) => <ClaudeTrendTooltip active={active} payload={payload as any} label={label} isDark={isDark} />} />
+              <RTooltip content={({ active, payload, label }) => <ClaudeTrendTooltip active={active} payload={payload as any} label={typeof label === 'string' ? label : undefined} isDark={isDark} />} />
               <Area
                 type="monotone"
                 dataKey="total"

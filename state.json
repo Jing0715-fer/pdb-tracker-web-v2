@@ -1,1 +1,1 @@
-{"currentRound": 18, "note": "Skipped R18 (virtualize PDB rows) due to complexity + pre-existing TS errors in eval-summary.tsx. Will do R19+R20 instead."}
+{"currentRound": 20, "note": "R18 skipped (virtualize complex + pre-existing eval-summary.tsx TS errors). R19 filterConfig done. R20: fix eval-summary TS errors (pre-existing since R12). Line counts: pdb-tracker 8701, entity-panel 5004, molecule-viewer 4122."}

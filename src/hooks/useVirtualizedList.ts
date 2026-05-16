@@ -1,5 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import type { ListChildComponentProps } from 'react-window';
+import { List, useListRef } from 'react-window';
+import type { RowComponentProps } from 'react-window';
+
+// Re-export react-window components for consumers
+export { List, useListRef };
+export type { RowComponentProps };
 
 /**
  * Virtualized list configuration for large datasets.
@@ -82,10 +87,9 @@ export function useVirtualizedList<T>(
   const itemCount = items.length;
   const totalHeight = itemCount * rowHeight;
 
-  // Memoized row renderer - caller provides their own row renderer
-  // compatible with react-window's ListChildComponentProps
+  // Memoized row renderer compatible with react-window v2 RowComponentProps
   const RowComponent = useCallback(
-    ({ index, style }: ListChildComponentProps) => ({
+    ({ index, style }: RowComponentProps) => ({
       index,
       style,
     }),

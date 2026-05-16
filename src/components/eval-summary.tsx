@@ -10,7 +10,7 @@ import { getScoreColor } from './pdb-helpers';
 interface Evaluation {
   uniprotId: string;
   pdbStructures?: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[];
-  blastResults?: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null }[];
+  blastResults?: { pdbId: string | null; uniprotRef: string | null; description: string | null; identity: number | null; evalue: number | null; queryCoverage: number | null; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; }[];
   scores?: string;
   coverage?: number;
   sequenceLength?: number;
@@ -30,7 +30,7 @@ interface LigandInfo {
 }
 
 export function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openReport: (uniprotId: string, title: string) => void }) {
-  const { theme } = 'dark';
+  
   const isDark = false;
 
   const scores = useMemo(() => {
@@ -236,7 +236,7 @@ export function EvalSummary({ evalData, openReport }: { evalData: Evaluation; op
             </div>
           )}
         </div>
-      )}
+      </div>
 
       {/* ── Protein Sequence Coverage Bar ── */}
       {evalData.sequenceLength != null && evalData.sequenceLength > 0 && (
