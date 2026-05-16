@@ -69,6 +69,7 @@ import {
 } from '@/components/ui/collapsible';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
+import { getQualityLevel, getQualityColor, getQualityBgColor, TrendArrow, MetricBar, PercentileBar, QualityGauge, RamachandranPlot, useValidationData, useRamaData } from './validation-report';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
