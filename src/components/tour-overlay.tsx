@@ -33,6 +33,10 @@ export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
     title: 'Structure Preview',
     description: 'Click any structure to see detailed information including sequences, ligands, and cross-references.',
   },
+  {
+    title: 'Keyboard Shortcuts',
+    description: 'Press ? to toggle the shortcuts overlay. Use / to focus search, Escape to close panels.',
+  },
 ];
 
 // ─── Tour Overlay ──────────────────────────────────────────────────────────────
