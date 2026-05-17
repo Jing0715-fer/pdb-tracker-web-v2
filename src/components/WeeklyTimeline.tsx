@@ -1,10 +1,10 @@
 // @ts-nocheck
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { useTheme } from 'next-themes';
+import { METHOD_COLORS, getChartAxisColor, getChartTickColor, ClaudeChartTooltip } from './chart-tooltips';
+import { formatDate } from './pdb-helpers';
 import type { PdbEntry, WeeklySnapshot } from './types';
-import { getChartAxisColor, getChartTickColor } from './chart-tooltips';
-import { ClaudeChartTooltip } from './chart-tooltips';
-import { BarChart, Bar, XAxis, YAxis, Tooltip as BTooltip, ResponsiveContainer } from 'recharts';
 
 export function WeeklyTimeline({
   entries,
@@ -104,17 +104,21 @@ export function WeeklyTimeline({
     return { maxCount, peakDay, avgPerDay, emCount, xrCount, nmrCount, otherCount };
   }, [entriesByDay, dayLabels, entries, totalDays]);
 
-  // SVG dimensions - axis at bottom of chart area
+  // SVG dimensions - vertically centered in available space
   const svgHeight = 280;
   const marginLeft = 8;
   const marginRight = 8;
-  const marginTop = 24;
+  const marginTop = 16;
+  const marginBottom = 16;
   const timelineY = 40;
-  const axisY = svgHeight - 50; // Axis near bottom of SVG
-  const dayLabelY = axisY + 14;
+  // Center the dots vertically: axis at midpoint between marginTop and (svgHeight - marginBottom)
+  const axisY = (marginTop + (svgHeight - marginBottom)) / 2;
+  const dayLabelY = svgHeight - marginBottom + 14;
   const dateLabelY = dayLabelY + 12;
   const usableWidth = containerWidth - marginLeft - marginRight;
   const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
+  // Total stack height = from axisY up to marginTop, minus a small gap
+  const maxStackHeight = axisY - marginTop - 4;
 
   // Get dot color by method
   const getDotColor = (entry: PdbEntry): string => {
@@ -153,8 +157,10 @@ export function WeeklyTimeline({
         // Alternate direction for adjacent groups to form a triangle pattern
         const actualStackPos = stackGroup % 2 === 0 ? stackPos : maxDotsPerStack - 1 - stackPos;
         // Dots grow UPWARD from axis line (toward smaller y, negative direction)
-        const rawCY = axisY - 5 - actualStackPos * (size + 2);
-        const cy = Math.max(rawCY, marginTop + 10);
+        // Dots grow upward and downward from center axis, capped at margins
+        const maxStackPos = maxDotsPerStack;
+        const rawCY = axisY - (actualStackPos - maxStackPos / 2) * (size + 2);
+        const cy = Math.min(Math.max(rawCY, marginTop + 4), svgHeight - marginBottom - 4);
         // Offset cx for groups after the first
         const groupOffset = stackGroup * dotSpacing;
         positions.push({
