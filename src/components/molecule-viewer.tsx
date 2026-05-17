@@ -818,7 +818,7 @@ export function MoleculeViewer({
 
         setLoadProgress(30);
 
-        // Use local proxy to download CIF (avoids CORS issues with RCSB direct download)
+        // Use proxy API to load CIF from RCSB (avoids CORS issues)
         const url = `/api/pdb-download/${pdbId.toUpperCase()}`;
         const data = await plugin.builders.data.download(
           { url, isBinary: false, label: pdbId.toUpperCase() },
