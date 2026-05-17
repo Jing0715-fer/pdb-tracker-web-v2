@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { useTheme } from 'next-themes';
 import { METHOD_COLORS, getChartAxisColor, getChartTickColor, ClaudeChartTooltip } from './chart-tooltips';
 import { formatDate } from './pdb-helpers';
+import { getMethodLabel } from './pdb-helpers';
 import type { PdbEntry, WeeklySnapshot } from './types';
 
 export function WeeklyTimeline({
@@ -105,7 +106,7 @@ export function WeeklyTimeline({
   }, [entriesByDay, dayLabels, entries, totalDays]);
 
   // SVG dimensions - vertically centered in available space
-  const svgHeight = 280;
+  const svgHeight = 320;
   const marginLeft = 8;
   const marginRight = 8;
   const marginTop = 16;
@@ -117,8 +118,9 @@ export function WeeklyTimeline({
   const dateLabelY = dayLabelY + 12;
   const usableWidth = containerWidth - marginLeft - marginRight;
   const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
-  // Total stack height = from axisY up to marginTop, minus a small gap
-  const maxStackHeight = axisY - marginTop - 4;
+  // Allow plenty of dots per day column before wrapping
+  const maxDotsPerStack = 40; // Max dots before wrapping to next column
+  const dotSpacing = 8; // Horizontal spacing between stacked dots
 
   // Get dot color by method
   const getDotColor = (entry: PdbEntry): string => {
