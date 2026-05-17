@@ -4976,328 +4976,65 @@ export default function PdbTracker() {
                     </tbody>
                   </table>
                 ) : (
-                  <table className={`min-w-[700px] w-full text-xs ${compactMode ? 'compact-table' : ''}`}>
-                    <thead className="sticky top-0 z-10 border-b border-claude-border dark:border-[#3d3832]">
-                      <tr className="bg-claude-bg dark:bg-[#1a1917]">
-                        {[
-                          { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
-                          { field: '_type', label: 'Type', w: 'w-[70px]' },
-                          ...(((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) ? [{ field: '_source', label: 'Source', w: 'w-[80px]' }] : []),
-                          { field: 'method', label: 'Method', w: 'w-[90px]' },
-                          { field: 'resolution', label: 'Resolution', w: 'w-[80px]' },
-                          { field: 'journalIf', label: 'IF', w: 'w-[55px]' },
-                          { field: 'title', label: 'Title / Description', w: '' },
-                          { field: 'releaseDate', label: 'Date', w: 'w-[95px]' },
-                          { field: '_ligands', label: 'Ligands', w: 'w-[120px]' },
-                        ].filter(col => !hiddenColumns.has(col.field)).map(col => (
-                          <th
-                            key={col.field}
-                            onClick={() => !['_type', '_ligands'].includes(col.field) && handleSort(col.field)}
-                            className={`px-3 py-3.5 text-left text-[11px] font-semibold text-claude-text-muted uppercase tracking-wide transition-colors duration-200 table-header-cell ${sortField === col.field && !['_type', '_ligands'].includes(col.field) ? 'sort-active' : ''} ${col.w} ${!['_type', '_ligands'].includes(col.field) ? 'sortable-header hover:text-claude-text-secondary' : ''}`}
-                          >
-                            <span className="inline-flex items-center gap-1">
-                              {col.label}
-                              {!['_type', '_ligands'].includes(col.field) && <SortIcon field={col.field} />}
-                            </span>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedEvalRows.map((row, idx) => {
+                  <EvalPdbTable
+                    paginatedEvalRows={paginatedEvalRows}
+                    sortedEvalRows={sortedEvalRows}
+                    selectedEval={selectedEval}
+                    selectedComplexId={selectedComplexId}
+                    selectedBatchId={selectedBatchId}
+                    complexEvalData={complexEvalData}
+                    currentPage={currentPage}
+                    totalEvalPages={totalEvalPages}
+                    sortField={sortField}
+                    hiddenColumns={hiddenColumns}
+                    compactMode={compactMode}
+                    onSort={handleSort}
+                    onSelectRow={(row) => {
+                      const isBlast = row._type === 'blast';
+                      const structResult = !isBlast ? row : null;
+                      const blastResult = isBlast ? row : null;
+                      if (structResult) {
+                        setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
+                        setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
+                        setDetailPanelOpen(true);
+                      } else if (blastResult) {
+                        setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
+                        setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
+                        setDetailPanelOpen(true);
+                      }
+                    }}
+                    onCopyPdbId={copyPdbId}
+                    onOpenRcsb={(pdbId) => window.open(`https://www.rcsb.org/structure/${pdbId}`, '_blank')}
+                    onSearchPubmed={(row) => {
+                      const pubmedId = 'pubmedId' in row ? row.pubmedId : null;
+                      const journal = 'journal' in row ? row.journal : null;
+                      const title = row.title || '';
+                      if (pubmedId) {
+                        window.open(`https://pubmed.ncbi.nlm.nih.gov/${pubmedId}/`, '_blank');
+                      } else if (journal) {
+                        window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(`${title} ${journal}`)}`, '_blank');
+                      }
+                    }}
+                    onExportRow={(row) => {
+                      if (row.pdbId) {
                         const isBlast = row._type === 'blast';
-                        const mc = getMethodColor(row.method || '');
-                        const ifStyle = getIfTierStyle(row.ifTier);
-                        const blastResult = isBlast ? row as EvalBlastResult & { _type: 'blast' } : null;
-                        const structResult = !isBlast ? row as EvalPdbStructure & { _type: 'structure' } : null;
-
-                        return (
-                          <ContextMenu key={`${row._type}-${row.pdbId || 'noid'}-${idx}`}><ContextMenuTrigger asChild onClick={() => {
-                            if (structResult) {
-                              setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
-                              setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
-                              setDetailPanelOpen(true);
-                            } else if (blastResult) {
-                              setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                              setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
-                              setDetailPanelOpen(true);
-                            }
-                          }}>
-                              <tr
-                                className={`table-row-hover-enhanced border-b border-claude-border-light dark:border-b-[#3d3832] ${idx % 2 === 0 ? 'table-row-even' : 'table-row-odd'} ${isBlast ? 'bg-claude-border-light/30 dark:bg-[#2b2926]/50' : ''} cursor-pointer`}
-                                onClick={() => {
-                                  if (structResult) {
-                                    setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
-                                    setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
-                                    setDetailPanelOpen(true);
-                                  } else if (blastResult) {
-                                    setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
-                                    setDetailPanelOpen(true);
-                                  }
-                                }}
-                              ><td className="px-3 py-2">
-                              {row.pdbId ? (
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <span className="inline-flex items-center gap-1">
-                                    <a
-                                      href={`https://www.rcsb.org/structure/${row.pdbId}`}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="font-mono font-semibold text-claude-accent pdb-link external-link-hover link-animated inline-flex items-center gap-0.5"
-                                    >
-                                      {row.pdbId}
-                                      <ExternalLink className="h-2.5 w-2.5 opacity-50 ext-arrow" />
-                                    </a>
-                                    {(() => {
-                                      // Shared structure badge for complex groups
-                                      if (selectedComplexId && !selectedEval && complexEvalData?.sharedStructureMap) {
-                                        const sharedCount = complexEvalData.sharedStructureMap.get(row.pdbId) || 0;
-                                        if (sharedCount <= 1) return null;
-                                        const badgeColor = sharedCount >= 4 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/40' :
-                                          sharedCount === 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40' :
-                                          'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40';
-                                        return (
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span className={`inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] font-mono font-semibold border ${badgeColor}`}>
-                                                <GitMerge className="h-2 w-2" />×{sharedCount}
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right" className="text-[10px]">Shared by {sharedCount} sub-targets</TooltipContent>
-                                          </Tooltip>
-                                        );
-                                      }
-                                      // Shared structure badge for batch evals
-                                      if (selectedBatchId && !selectedEval) {
-                                        const sharedCount = ((row as EvalRow)._sharedCount) || 0;
-                                        if (sharedCount <= 1) return null;
-                                        const badgeColor = sharedCount >= 4 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/40' :
-                                          sharedCount === 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40' :
-                                          'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40';
-                                        return (
-                                          <Tooltip>
-                                            <TooltipTrigger asChild>
-                                              <span className={`inline-flex items-center gap-0.5 px-1 py-0 rounded text-[8px] font-mono font-semibold border ${badgeColor}`}>
-                                                <GitMerge className="h-2 w-2" />×{sharedCount}
-                                              </span>
-                                            </TooltipTrigger>
-                                            <TooltipContent side="right" className="text-[10px]">Shared by {sharedCount} sub-targets</TooltipContent>
-                                          </Tooltip>
-                                        );
-                                      }
-                                      return null;
-                                    })()}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="p-0 bg-white border border-claude-border dark:border-[#4a4540] dark:bg-[#242220] shadow-lg data-[state=delayed-open]:animate-in data-[state=closed]:animate-out data-[state=delayed-open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=delayed-open]:zoom-in-95 data-[state=closed]:zoom-out-95 duration-150">
-                                    {structResult ? (
-                                      <PdbTooltipContent entry={structResult} />
-                                    ) : blastResult ? (
-                                      <BlastHomologTooltipContent result={blastResult} />
-                                    ) : null}
-                                  </TooltipContent>
-                                </Tooltip>
-                              ) : (
-                                <span className="text-claude-text-muted">—</span>
-                              )}
-                            </td>
-                            {!hiddenColumns.has('_type') && (
-                            <td className="px-3 py-2">
-                              {isBlast ? (
-                                <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">
-                                  Homolog
-                                </span>
-                              ) : (
-                                <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg text-claude-mid">
-                                  Structure
-                                </span>
-                              )}
-                            </td>
-                            )}
-                            {((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) && '_sourceUniport' in row && (
-                            <td className="px-3 py-2">
-                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">
-                                {String(row._sourceUniport)}
-                              </span>
-                            </td>
-                            )}
-                            {!hiddenColumns.has('method') && (
-                            <td className="px-3 py-2">
-                              {row.method ? (
-                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${mc.bg} ${mc.text} method-badge ${row.method?.toUpperCase().includes('CRYO') || row.method?.toUpperCase().includes('ELECTRON MICROSCOPY') ? 'method-badge-cryoem' : row.method?.toUpperCase().includes('X-RAY') || row.method?.toUpperCase().includes('XRAY') ? 'method-badge-xray' : row.method?.toUpperCase().includes('NMR') ? 'method-badge-nmr' : 'method-badge-other'}`}>
-                                  {getMethodLabel(row.method)}
-                                </span>
-                              ) : <span className="text-claude-text-muted">—</span>}
-                            </td>
-                            )}
-                            {!hiddenColumns.has('resolution') && (
-                            <td className="px-3 py-2 font-mono">
-                              {row.resolution != null ? (
-                                <span className={`font-medium ${getResolutionColor(row.resolution)}`}>
-                                  {safeNum(row.resolution, 2)}Å
-                                </span>
-                              ) : <span className="text-claude-text-muted">—</span>}
-                            </td>
-                            )}
-                            {!hiddenColumns.has('journalIf') && (
-                            <td className="px-3 py-2">
-                              {'journalIf' in row && row.journalIf != null ? (
-                                <span className={`inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium ${ifStyle.bg} ${ifStyle.text}`}>
-                                  {safeNum(row.journalIf, 1)}
-                                </span>
-                              ) : <span className="text-claude-text-muted">—</span>}
-                            </td>
-                            )}
-                            {!hiddenColumns.has('title') && (
-                            <td className="px-3 py-2 max-w-xs">
-                              <span className="text-claude-text-secondary line-clamp-2 leading-relaxed">
-                                {row.title || (blastResult?.description) || '—'}
-                              </span>
-                            </td>
-                            )}
-                            {!hiddenColumns.has('releaseDate') && (
-                            <td className="px-3 py-2 text-claude-text-muted whitespace-nowrap">{formatDate(row.releaseDate)}</td>
-                            )}
-                            {!hiddenColumns.has('_ligands') && (
-                            <td className="px-3 py-2">
-                              <div className="flex flex-wrap gap-1">
-                                {(() => {
-                                  const evalLigands = parseLigands('ligand' in row ? row.ligand : null);
-                                  if (evalLigands.length === 0) return <span className="text-claude-text-muted">—</span>;
-                                  return (<>
-                                    {evalLigands.slice(0, 3).map((lig, li) => (
-                                      <HoverCard key={`eval-lig-pop-${li}-${lig}`} openDelay={200} closeDelay={100}>
-                                        <HoverCardTrigger asChild>
-                                          <span
-                                            className="ligand-chip"
-                                            onMouseEnter={() => fetchLigandInfo(lig)}
-                                          >
-                                            {lig}
-                                          </span>
-                                        </HoverCardTrigger>
-                                        <HoverCardContent side="top" className="p-0 w-auto bg-white dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-lg rounded-xl">
-                                          {ligandCache[lig] ? (
-                                            <LigandTooltipContent ligand={ligandCache[lig]} />
-                                          ) : (
-                                            <div className="p-3 flex items-center gap-2">
-                                              <Loader2 className="h-3 w-3 animate-spin text-claude-accent" />
-                                              <span className="text-xs text-claude-text-muted">Loading...</span>
-                                            </div>
-                                          )}
-                                        </HoverCardContent>
-                                      </HoverCard>
-                                    ))}
-                                    {evalLigands.length > 3 && (
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <span className="ligand-chip cursor-default">+{evalLigands.length - 3}</span>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="top">
-                                          <div className="flex flex-wrap gap-1 max-w-48">
-                                            {evalLigands.map((l, li) => (
-                                              <span key={`eval-lig-tt-${li}-${l}`} className="ligand-chip">{l}</span>
-                                            ))}
-                                          </div>
-                                        </TooltipContent>
-                                      </Tooltip>
-                                    )}
-                                  </>);
-                                })()}
-                              </div>
-                            </td>
-                            )}
-                          </tr>
-                            </ContextMenuTrigger>
-                            <ContextMenuContent className="w-52 bg-claude-surface dark:bg-[#2b2926] border border-claude-border dark:border-[#4a4540] shadow-xl rounded-lg p-1">
-                              <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => {
-                                  if (structResult) {
-                                    setSelectedEvalStructure({ ...structResult, isBlast: false } as unknown as EvalPdbStructure & { isBlast: boolean });
-                                    setSelectedEntry({ ...structResult, _type: 'weekly' } as unknown as PdbEntry);
-                                    setDetailPanelOpen(true);
-                                    setPreviewTab('summary');
-                                  } else if (blastResult) {
-                                    setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                                    setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
-                                    setDetailPanelOpen(true);
-                                    setPreviewTab('summary');
-                                  }
-                                }}
-                              >
-                                <Eye className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                                View Detail
-                              </ContextMenuItem>
-                              <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => {
-                                  if (row.pdbId) {
-                                    navigator.clipboard.writeText(row.pdbId).catch(() => {});
-                                  }
-                                }}
-                              >
-                                <Copy className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                                Copy PDB ID
-                              </ContextMenuItem>
-                              <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => {
-                                  if (row.pdbId) {
-                                    window.open(`https://www.rcsb.org/structure/${row.pdbId}`, '_blank');
-                                  }
-                                }}
-                              >
-                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                                Open in RCSB PDB
-                              </ContextMenuItem>
-                              {('pubmedId' in row && row.pubmedId) || ('journal' in row && row.journal) ? (
-                              <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => {
-                                  const pubmedId = 'pubmedId' in row ? row.pubmedId : null;
-                                  const journal = 'journal' in row ? row.journal : null;
-                                  const title = row.title || '';
-                                  if (pubmedId) {
-                                    window.open(`https://pubmed.ncbi.nlm.nih.gov/${pubmedId}/`, '_blank');
-                                  } else if (journal) {
-                                    const query = encodeURIComponent(`${title} ${journal}`);
-                                    window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${query}`, '_blank');
-                                  }
-                                }}
-                              >
-                                <ExternalLink className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                                Search PubMed
-                              </ContextMenuItem>
-                              ) : null}
-                              <ContextMenuSeparator className="bg-claude-border-light my-1" />
-                              <ContextMenuItem
-                                className="text-xs text-claude-text-secondary focus:bg-claude-accent-light dark:focus:bg-[#3d2a22] focus:text-claude-accent rounded-md px-2 py-1.5 cursor-pointer"
-                                onClick={() => {
-                                  if (row.pdbId) {
-                                    const data = [
-                                      row.pdbId,
-                                      isBlast ? 'Homolog' : 'Structure',
-                                      row.method || '',
-                                      row.resolution != null ? String(row.resolution) : '',
-                                      row.title || '',
-                                      row.releaseDate || '',
-                                      'ligand' in row ? (row.ligand || '') : '',
-                                    ].join('\t');
-                                    navigator.clipboard.writeText(data).catch(() => {});
-                                  }
-                                }}
-                              >
-                                <Download className="h-3.5 w-3.5 mr-2 text-claude-text-muted" />
-                                Export Row
-                              </ContextMenuItem>
-                            </ContextMenuContent>
-                          </ContextMenu>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                        const data = [
+                          row.pdbId,
+                          isBlast ? 'Homolog' : 'Structure',
+                          row.method || '',
+                          row.resolution != null ? String(row.resolution) : '',
+                          row.title || '',
+                          row.releaseDate || '',
+                          'ligand' in row ? (row.ligand || '') : '',
+                        ].join('	');
+                        navigator.clipboard.writeText(data).catch(() => {});
+                      }
+                    }}
+                    setCurrentPage={setCurrentPage}
+                    ligandCache={ligandCache}
+                    fetchLigandInfo={fetchLigandInfo}
+                    openEvalReport={openEvalReport}
+                  />
                 )
               )}
                 </motion.div>
