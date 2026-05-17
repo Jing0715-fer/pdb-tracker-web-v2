@@ -108,10 +108,11 @@ export function WeeklyTimeline({
   const svgHeight = 380;
   const marginLeft = 8;
   const marginRight = 8;
-  const marginTop = 24;
+  const marginTop = 8;
+  const marginBottom = 50;
   const timelineY = 40;
-  const axisY = svgHeight - 50; // Axis near bottom of SVG
-  const dayLabelY = axisY + 14;
+  const axisY = svgHeight / 2;
+  const dayLabelY = svgHeight - marginBottom + 14;
   const dateLabelY = dayLabelY + 12;
   const usableWidth = containerWidth - marginLeft - marginRight;
   const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
