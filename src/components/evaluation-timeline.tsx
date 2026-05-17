@@ -2,7 +2,7 @@
 
 import { useTheme } from 'next-themes';
 import { useMemo, useRef, useState, useEffect } from 'react';
-import { Clock } from 'lucide-react';
+import { Clock, ExternalLink } from 'lucide-react';
 import { METHOD_COLORS } from './chart-tooltips';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -431,6 +431,93 @@ export function EvaluationHeatmap({
                   PubMed
                 </a>
               )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+// ─── Literature (grouped by PubMed) ─────────────────────────────────────────
+
+export type EvaluationLiteratureProps = {
+  pdbStructures: { pdbId: string; method: string | null; title: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[];
+  blastResults: { pdbId: string; method: string | null; title: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null }[];
+  onSelectPdb: (pdbId: string) => void;
+};
+
+interface LitGroup {
+  pubmedId: string;
+  title: string;
+  journal: string | null;
+  journalIf: number | null;
+  pdbs: { pdbId: string; method: string | null; isBlast: boolean; identity?: number | null }[];
+  _sharedCount: number;
+}
+
+export function EvaluationLiterature({ pdbStructures, blastResults, onSelectPdb }: EvaluationLiteratureProps) {
+  const [sortDesc, setSortDesc] = useState(true);
+
+  const litGroups: LitGroup[] = useMemo(() => {
+    const map = new Map<string, LitGroup>();
+    for (const s of pdbStructures) {
+      if (!s.pubmedId) continue;
+      let g = map.get(s.pubmedId);
+      if (!g) { g = { pubmedId: s.pubmedId, title: s.title || 'No title', journal: s.journal, journalIf: s.journalIf, pdbs: [], _sharedCount: 0 }; map.set(s.pubmedId, g); }
+      g.pdbs.push({ pdbId: s.pdbId, method: s.method, isBlast: false });
+      g._sharedCount++;
+    }
+    for (const b of blastResults) {
+      if (!b.pubmedId) continue;
+      let g = map.get(b.pubmedId);
+      if (!g) { g = { pubmedId: b.pubmedId, title: b.title || 'No title', journal: b.journal, journalIf: b.journalIf, pdbs: [], _sharedCount: 0 }; map.set(b.pubmedId, g); }
+      g.pdbs.push({ pdbId: b.pdbId, method: b.method, isBlast: true, identity: b.identity });
+      g._sharedCount++;
+    }
+    return Array.from(map.values());
+  }, [pdbStructures, blastResults]);
+
+  const sortedGroups = useMemo(() => [...litGroups].sort((a, b) => sortDesc ? (b.journalIf ?? 0) - (a.journalIf ?? 0) : (a.journalIf ?? 0) - (b.journalIf ?? 0)), [litGroups, sortDesc]);
+
+  const mc = (m: string | null) => {
+    if (!m) return 'text-claude-text-muted';
+    const u = m.toUpperCase();
+    if (u.includes('CRYO') || u.includes('ELECTRON')) return 'text-claude-cryoem';
+    if (u.includes('X-RAY') || u.includes('XRAY')) return 'text-claude-xray';
+    if (u.includes('NMR')) return 'text-claude-nmr';
+    return 'text-claude-text-secondary';
+  };
+
+  if (sortedGroups.length === 0) return <div className="flex flex-col items-center justify-center py-12 text-claude-text-muted"><p className="text-xs">No literature data</p></div>;
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] text-claude-text-muted">{sortedGroups.length} papers</span>
+        <button onClick={() => setSortDesc(!sortDesc)} className="text-[9px] text-claude-accent hover:text-claude-accent-hover flex items-center gap-0.5">{sortDesc ? '↓' : '↑'} IF</button>
+      </div>
+      <div className="max-h-96 overflow-y-auto space-y-2 px-1">
+        {sortedGroups.map((group) => (
+          <div key={group.pubmedId} className="p-2.5 rounded-lg bg-claude-bg/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
+            <div className="flex items-start justify-between gap-1 mb-1.5">
+              <p className="text-[11px] font-medium text-claude-text line-clamp-2 flex-1 leading-snug">{group.title}</p>
+              {group.journalIf != null && <span className={`text-[11px] font-semibold flex-shrink-0 ${group.journalIf >= 10 ? 'text-claude-accent' : 'text-claude-text-secondary'}`}>{group.journalIf.toFixed(1)}</span>}
+            </div>
+            <div className="flex items-center gap-1 flex-wrap mb-1">
+              {group.pdbs.map((p, i) => (
+                <button key={`${p.pdbId}-${i}`} onClick={() => onSelectPdb(p.pdbId)} className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-claude-surface dark:bg-[#2b2926] border border-claude-border/50 dark:border-[#3d3832]/50 hover:border-claude-accent/50 transition-colors">
+                  <span className="font-mono font-semibold text-claude-accent">{p.pdbId}</span>
+                  {p.isBlast && <span className="text-[9px] px-1 py-0.5 rounded bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>}
+                  <span className={`text-[9px] ${mc(p.method)}`}>{p.method ? p.method.replace(/_/g, ' ').split(' ')[0] : '—'}</span>
+                </button>
+              ))}
+              {group._sharedCount > 1 && <span className="text-[9px] px-1.5 py-0.5 rounded bg-claude-blue-light dark:bg-[#1a2a3a] text-claude-blue border border-claude-blue/30">+{group._sharedCount - 1} more source{group._sharedCount > 2 ? 's' : ''}</span>}
+              <span className="text-[9px] text-claude-text-muted flex-shrink-0 ml-auto">{group.journal}</span>
+            </div>
+            <div className="flex items-center gap-1 mt-1">
+              <a href={`https://pubmed.gov/${group.pubmedId}`} target="_blank" rel="noopener noreferrer" className="text-[9px] text-claude-accent hover:text-claude-accent-hover flex items-center gap-0.5 opacity-70 hover:opacity-100 transition-opacity">
+                <ExternalLink className="h-3 w-3" />PubMed
+              </a>
             </div>
           </div>
         ))}

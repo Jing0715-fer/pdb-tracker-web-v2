@@ -7,7 +7,7 @@ import {
   BarChart3, LayoutGrid, BookOpen, FileText,
   Info, ChevronLeft, X,
 } from 'lucide-react';
-import { EvaluationTimeline, EvaluationHeatmap } from './evaluation-timeline';
+import { EvaluationTimeline, EvaluationHeatmap, EvaluationLiterature } from './evaluation-timeline';
 import { ActivityHeatmap } from './activity-heatmap';
 import { EvalSummary } from './eval-summary';
 import { ComplexEvalSummary } from './ComplexEvalSummary';
@@ -312,9 +312,9 @@ export function EvalPreviewPanel({
                   className="flex-1 min-h-0"
                 />
               ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
-                <EvaluationHeatmap
-                  pdbStructures={selectedEval.pdbStructures as unknown as { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[]}
-                  blastResults={selectedEval.blastResults as unknown as { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null; identity: number | null }[]}
+                <EvaluationLiterature
+                  pdbStructures={selectedEval.pdbStructures as unknown as { pdbId: string; method: string | null; title: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[]}
+                  blastResults={selectedEval.blastResults as unknown as { pdbId: string; method: string | null; title: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null }[]}
                   onSelectPdb={(pdbId) => {
                     const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
                     const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
@@ -336,7 +336,7 @@ export function EvalPreviewPanel({
                   }}
                 />
               ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval && ((complexEvalData.allStructures?.length || 0) + (complexEvalData.allBlasts?.length || 0)) > 0 ? (
-                <EvaluationHeatmap
+                <EvaluationLiterature
                   pdbStructures={complexEvalData.allStructures as any}
                   blastResults={complexEvalData.allBlasts.filter(b => b.pdbId) as any}
                   onSelectPdb={(pdbId) => {
@@ -360,7 +360,7 @@ export function EvalPreviewPanel({
                   }}
                 />
               ) : mode === 'evaluation' && selectedBatchId && !selectedEval && sortedEvalRows.length > 0 ? (
-                <EvaluationHeatmap
+                <EvaluationLiterature
                   pdbStructures={sortedEvalRows.filter(r => r._type === 'structure') as any}
                   blastResults={sortedEvalRows.filter(r => r._type === 'blast') as any}
                   onSelectPdb={(pdbId) => {
