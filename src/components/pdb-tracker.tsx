@@ -186,6 +186,9 @@ import { DeltaIndicator, WeekComparisonView } from './week-comparison';
 import { EvaluationToolbar } from './EvaluationToolbar';
 import { BatchPreviewContent } from './BatchPreviewContent';
 import { ComplexEvalSummary } from './ComplexEvalSummary';
+import { EvalModeSwitcher } from './EvalModeSwitcher';
+import { EvalPdbTable } from './EvalPdbTable';
+import { EvalPreviewPanel } from './EvalPreviewPanel';
 import type { EntityInfo, ViewerActions } from './molecule-viewer';
 
 // ─── useAnimatedValue Hook ─────────────────────────────────────────────────
@@ -6787,255 +6790,60 @@ export default function PdbTracker() {
                 />
               </div>
 
-              {/* Complex Evaluation Groups */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Complex Evaluation</span>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        onClick={() => setShowComplexDialog(true)}
-                        className="h-5 w-5 flex items-center justify-center rounded text-claude-accent hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] transition-colors duration-150"
-                      >
-                        <Layers className="h-3 w-3" />
-                      </button>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="text-xs">Create complex group</TooltipContent>
-                  </Tooltip>
-                </div>
-                {complexGroups.length > 0 ? (
-                  complexGroups.map(group => {
-                    const isExpanded = expandedComplexId === group.id;
-                    const isSelected = selectedComplexId === group.id;
-                    const totalPdbs = group.uniprotIds.reduce((sum, uid) => {
-                      const ev = evaluations.find(e => e.uniprotId === uid);
-                      return sum + (ev?._count?.pdbStructures || 0);
-                    }, 0);
-                    const totalBlasts = group.uniprotIds.reduce((sum, uid) => {
-                      const ev = evaluations.find(e => e.uniprotId === uid);
-                      return sum + (ev?._count?.blastResults || 0);
-                    }, 0);
-                    // Compute group average score
-                    const groupScores = group.uniprotIds.map(uid => {
-                      const ev = evaluations.find(e => e.uniprotId === uid);
-                      return ev ? getAvgScore(ev.scores) : null;
-                    }).filter((s): s is number => s !== null);
-                    const groupAvgScore = groupScores.length > 0 ? groupScores.reduce((a, b) => a + b, 0) / groupScores.length : null;
-                    const groupScoreColor = groupAvgScore !== null ? getScoreColor(groupAvgScore) : '#9b9590';
-                    // Compute average coverage
-                    const groupCoverages = group.uniprotIds.map(uid => {
-                      const ev = evaluations.find(e => e.uniprotId === uid);
-                      if (!ev) return null;
-                      const computedCoverage = ev.pdbStructures?.length > 0
-                        ? Math.max(...(ev.pdbStructures || []).map((s: any) => s.coverage || 0))
-                        : null;
-                      return Math.min((ev.coverage != null && ev.coverage > 0) ? ev.coverage : computedCoverage ?? 0, 100);
-                    }).filter((c): c is number => c !== null && c > 0);
-                    const groupAvgCoverage = groupCoverages.length > 0 ? groupCoverages.reduce((a, b) => a + b, 0) / groupCoverages.length : null;
-                    return (
-                      <div key={group.id}>
-                        <div
-                          onClick={() => {
-                            if (isSelected && selectedEval) {
-                              // Deselect sub-target, keep group selected
-                              setSelectedEvalId(null);
-                              setSelectedEval(null);
-                            } else if (isSelected) {
-                              // Already viewing group (no sub-target), deselect group
-                              setSelectedComplexId(null);
-                            } else {
-                              setSelectedComplexId(group.id);
-                              setSelectedEvalId(null);
-                              setSelectedEval(null);
-                              setSelectedBatchId(null);
-                              setExpandedComplexId(group.id);
-                              setExpandedEvalGroups(new Set());
-                            }
-                          }}
-                          className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] overflow-hidden cursor-pointer ${
-                            isSelected
-                              ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
-                              : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
-                          }`}
-                        >
-                            <div className="flex items-start justify-between gap-2 mb-1">
-                              <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-1">
-                                  <Layers className="h-3 w-3 text-claude-accent flex-shrink-0" />
-                                  <span className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{group.name}</span>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                {groupAvgScore !== null && (
-                                  <span
-                                    className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded"
-                                    style={{ color: groupScoreColor, backgroundColor: `${groupScoreColor}15` }}
-                                  >
-                                    {groupAvgScore.toFixed(1)}
-                                  </span>
-                                )}
-                                <button
-                                  onClick={() => { setExpandedComplexId(isExpanded ? null : group.id); }}
-                                  className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
-                                >
-                                  <ChevronDown className={`h-3 w-3 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
-                                </button>
-                                <button
-                                  onClick={() => { removeComplexGroup(group.id); }}
-                                  className="h-5 w-5 flex items-center justify-center rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors duration-150"
-                                >
-                                  <X className="h-3 w-3 text-claude-text-muted hover:text-red-500" />
-                                </button>
-                              </div>
-                            </div>
-                            <div className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight">
-                              {group.uniprotIds.length} UniProt IDs
-                            </div>
-                            <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
-                              {groupAvgCoverage !== null && <span>{groupAvgCoverage.toFixed(1)}% coverage</span>}
-                              <span>·</span>
-                              <span>{totalPdbs} PDB</span>
-                              <span>{totalBlasts} BLAST</span>
-                            </div>
-                          {/* Expanded sub-entries */}
-                          {isExpanded && (
-                            <div className="mt-2 pt-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
-                              {group.uniprotIds.map(uid => {
-                                const subEv = evaluations.find(e => e.uniprotId === uid) || complexFetchedEvals[uid];
-                                const subScore = subEv ? getAvgScore(subEv.scores) : null;
-                                const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
-                                return (
-                                  <button
-                                    key={uid}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedEval(null);
-                                      setSelectedEvalId(uid);
-                                      setSelectedComplexId(group.id);
-                                    }}
-                                    className={`w-full text-left p-1.5 rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
-                                      selectedEvalId === uid && selectedComplexId === group.id
-                                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
-                                        : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
-                                    }`}
-                                  >
-                                    <span className="font-mono text-[10px] font-semibold text-claude-accent">{uid}</span>
-                                    {subEv && (
-                                      <>
-                                        <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv.proteinName || subEv.entryName}</span>
-                                        {subScore !== null && (
-                                          <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
-                                            {subScore.toFixed(1)}
-                                          </span>
-                                        )}
-                                      </>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-[10px] text-claude-text-muted/60 dark:text-[#9b9590] text-center py-1.5">
-                    Click + to create a complex group
-                  </div>
-                )}
-              </div>
+              <EvalModeSwitcher
+                complexGroups={complexGroups}
+                selectedComplexId={selectedComplexId}
+                expandedComplexId={expandedComplexId}
+                selectedEvalId={selectedEvalId}
+                evaluations={evaluations}
+                complexFetchedEvals={complexFetchedEvals}
+                onSelectComplexGroup={(id) => {
+                  if (selectedComplexId === id && selectedEval) {
+                    setSelectedEvalId(null);
+                    setSelectedEval(null);
+                  } else if (selectedComplexId === id) {
+                    setSelectedComplexId(null);
+                  } else {
+                    setSelectedComplexId(id);
+                    setSelectedEvalId(null);
+                    setSelectedEval(null);
+                    setSelectedBatchId(null);
+                    setExpandedComplexId(id);
+                    setExpandedEvalGroups(new Set());
+                  }
+                }}
+                onToggleExpandedComplex={(id) => setExpandedComplexId(expandedComplexId === id ? null : id)}
+                onRemoveComplexGroup={removeComplexGroup}
+                evalBatches={evalBatches}
+                evalBatchSubTargets={evalBatchSubTargets}
+                selectedBatchId={selectedBatchId}
+                expandedEvalGroups={expandedEvalGroups}
+                batchFetchedEvals={batchFetchedEvals}
+                onSelectBatch={(id) => {
+                  setSelectedBatchId(id);
+                  setSelectedEvalId(null);
+                  setSelectedEval(null);
+                  setSelectedComplexId(null);
+                  setExpandedComplexId(null);
+                  setPreviewOpen(true);
+                  setMobileSidebarOpen(false);
+                  setExpandedEvalGroups(new Set([id]));
+                }}
+                onToggleExpandedBatch={(id, expanded) => {
+                  setExpandedEvalGroups(prev => {
+                    const next = new Set(prev);
+                    if (expanded) next.add(id);
+                    else next.delete(id);
+                    return next;
+                  });
+                }}
+                showComplexDialog={showComplexDialog}
+                onOpenComplexDialog={() => setShowComplexDialog(true)}
+              />
 
               <Separator className="my-2" />
 
-              {/* Complex Evaluation Groups */}
-              {evalBatches.length > 0 && (
-                <div className="mb-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1 flex items-center gap-1">
-                    <Layers className="h-3 w-3 text-purple-500" />
-                    Complex Evaluation
-                  </div>
-                  <div className="space-y-1.5">
-                    {evalBatches.map(batch => {
-                      const isExpanded = expandedEvalGroups.has(batch.batchId);
-                      const isSelected = selectedBatchId === batch.batchId;
-                      const subs = evalBatchSubTargets[batch.batchId] || [];
-                      const totalPDB = subs.reduce((sum: number, sub: any) => sum + (sub.pdbCount || 0), 0);
-                      const totalBLAST = subs.reduce((sum: number, sub: any) => sum + (sub.blastCount || 0), 0);
-                      return (
-                        <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={v => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (v) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
-                          <div
-                            onClick={() => { setSelectedBatchId(batch.batchId); setSelectedEvalId(null); setSelectedEval(null); setSelectedComplexId(null); setExpandedComplexId(null); setPreviewOpen(true); setMobileSidebarOpen(false); setExpandedEvalGroups(new Set([batch.batchId])); }}
-                            className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] overflow-hidden cursor-pointer ${
-                              isSelected
-                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
-                                : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
-                            }`}
-                          >
-                              <div className="flex items-start justify-between gap-2 mb-1">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-1">
-                                    <Layers className="h-3 w-3 text-purple-500 flex-shrink-0" />
-                                    <span className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{batch.title || batch.batchId}</span>
-                                    <span className="ml-1 text-[10px] font-mono px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{batch.subTargetCount}</span>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    onClick={() => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (isExpanded) next.delete(batch.batchId); else next.add(batch.batchId); return next; }); }}
-                                    className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
-                                  >
-                                    <ChevronDown className={`h-3 w-3 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
-                                  </button>
-                                </div>
-                              </div>
-                              <div className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-tight">
-                                {subs.length} sub-targets
-                              </div>
-                              <div className="flex items-center gap-2 mt-1.5 text-[10px] text-claude-text-muted dark:text-[#6b6560]">
-                                <span>{totalPDB} PDB</span>
-                                <span>·</span>
-                                <span>{totalBLAST} BLAST</span>
-                              </div>
-                            {isExpanded && (
-                              <CollapsibleContent>
-                                <div className="mt-2 pt-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
-                                  {subs.map((sub: any) => {
-                                    const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
-                                    const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
-                                    const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
-                                    return (
-                                      <button
-                                        key={sub.uniprotId}
-                                        onClick={() => { setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                                        className={`w-full text-left p-1.5 rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
-                                          selectedEvalId === sub.uniprotId && selectedBatchId === batch.batchId
-                                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
-                                            : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
-                                        }`}
-                                      >
-                                        <span className="font-mono text-[10px] font-semibold text-claude-accent">{sub.uniprotId}</span>
-                                        <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
-                                        {subScore !== null && (
-                                          <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
-                                            {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
-                                          </span>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </CollapsibleContent>
-                            )}
-                          </div>
-                        </Collapsible>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <Separator className="my-2" />
+<Separator className="my-2" />
 
               {/* Individual Evaluations */}
               <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1">Individual Evaluations</div>
