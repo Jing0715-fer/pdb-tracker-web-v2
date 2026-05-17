@@ -1,13 +1,4 @@
-// @ts-nocheck
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
-import { useTheme } from 'next-themes';
-import { METHOD_COLORS, getChartAxisColor, getChartTickColor, ClaudeChartTooltip } from './chart-tooltips';
-import { formatDate } from './pdb-helpers';
-import { getMethodLabel } from './pdb-helpers';
-import type { PdbEntry, WeeklySnapshot } from './types';
-
-export function WeeklyTimeline({
+function WeeklyTimeline({
   entries,
   snapshot,
   onSelectEntry,
@@ -105,22 +96,24 @@ export function WeeklyTimeline({
     return { maxCount, peakDay, avgPerDay, emCount, xrCount, nmrCount, otherCount };
   }, [entriesByDay, dayLabels, entries, totalDays]);
 
-  // SVG dimensions - vertically centered in available space
-  const svgHeight = 320;
+  // SVG dimensions - axis at bottom of chart area
+  const svgHeight = 380;
   const marginLeft = 8;
   const marginRight = 8;
-  const marginTop = 16;
-  const marginBottom = 16;
+  const marginTop = 8;
+  const marginBottom = 8;
   const timelineY = 40;
-  // Center the dots vertically: axis at midpoint between marginTop and (svgHeight - marginBottom)
-  const axisY = (marginTop + (svgHeight - marginBottom)) / 2;
+  const axisY = svgHeight / 2;
   const dayLabelY = svgHeight - marginBottom + 14;
   const dateLabelY = dayLabelY + 12;
   const usableWidth = containerWidth - marginLeft - marginRight;
   const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
-  // Allow plenty of dots per day column before wrapping
-  const maxDotsPerStack = 40; // Max dots before wrapping to next column
-  const dotSpacing = 8; // Horizontal spacing between stacked dots
+  // Dot layout constants
+  const maxDotsPerGroup = 120;
+  const dotBaseSize = 3;
+  const dotMaxSize = 10;
+  const dotVStep = 2;
+  const dotHStep = 3;
 
   // Get dot color by method
   const getDotColor = (entry: PdbEntry): string => {
@@ -133,8 +126,7 @@ export function WeeklyTimeline({
 
   // Get dot size by IF
   const getDotSize = (entry: PdbEntry): number => {
-    const if_ = entry.journalIf ?? 0;
-    return Math.min(16, Math.max(6, (if_ / 50) * 10 + 6));
+    return 10;
   };
 
   // Calculate dot positions - wrap horizontally to prevent overflow
@@ -152,17 +144,15 @@ export function WeeklyTimeline({
       const sortedEntries = [...dayEntries].sort((a, b) => (b.journalIf ?? 0) - (a.journalIf ?? 0));
 
       sortedEntries.forEach((entry, stackIdx) => {
-        const size = getDotSize(entry);
+        const size = dotBaseSize + (if_ / 50) * (dotMaxSize - dotBaseSize);
         // Wrap horizontally when exceeding max stack
         const stackGroup = Math.floor(stackIdx / maxDotsPerStack);
         const stackPos = stackIdx % maxDotsPerStack;
         // Alternate direction for adjacent groups to form a triangle pattern
         const actualStackPos = stackGroup % 2 === 0 ? stackPos : maxDotsPerStack - 1 - stackPos;
         // Dots grow UPWARD from axis line (toward smaller y, negative direction)
-        // Dots grow upward and downward from center axis, capped at margins
-        const maxStackPos = maxDotsPerStack;
-        const rawCY = axisY - (actualStackPos - maxStackPos / 2) * (size + 2);
-        const cy = Math.min(Math.max(rawCY, marginTop + 4), svgHeight - marginBottom - 4);
+        const rawCY = axisY - 5 - actualStackPos * (size + 2);
+        const cy = Math.min(Math.max(rawCY, marginTop + size), svgHeight - marginBottom - size);
         // Offset cx for groups after the first
         const groupOffset = stackGroup * dotSpacing;
         positions.push({
@@ -451,6 +441,3 @@ export function WeeklyTimeline({
       </div>
     </div>
   );
-
-
-}
