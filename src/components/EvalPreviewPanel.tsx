@@ -5,10 +5,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart3, LayoutGrid, BookOpen, FileText,
-  Info, ChevronLeft, X,
+  Info, ChevronLeft, X, Clock,
 } from 'lucide-react';
 import { EvaluationTimeline, EvaluationHeatmap, EvaluationLiterature } from './evaluation-timeline';
 import { ActivityHeatmap } from './activity-heatmap';
+import { WeeklySummary } from './WeeklySummary';
+import { WeeklyTimeline } from './WeeklyTimeline';
 import { EvalSummary } from './eval-summary';
 import { ComplexEvalSummary } from './ComplexEvalSummary';
 import { BatchPreviewContent } from './BatchPreviewContent';
@@ -166,7 +168,9 @@ export function EvalPreviewPanel({
           >
             {/* Summary Tab */}
             {previewTab === 'summary' ? (
-              mode === 'evaluation' && selectedBatchId && !selectedEval ? (
+              mode === 'weekly' && selectedSnapshot ? (
+                <WeeklySummary snapshot={selectedSnapshot} snapshots={snapshots} entries={entries} />
+              ) : mode === 'evaluation' && selectedBatchId && !selectedEval ? (
                 <BatchPreviewContent
                   batchId={selectedBatchId}
                   onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }}
@@ -217,7 +221,7 @@ export function EvalPreviewPanel({
             ) : previewTab === 'timeline' ? (
               /* Timeline Tab */
               mode === 'weekly' && selectedSnapshot && entries.length > 0 ? (
-                <WeeklyTimelineForPreview
+                <WeeklyTimeline
                   entries={entries}
                   snapshot={selectedSnapshot}
                   onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }}
@@ -488,32 +492,5 @@ export function EvalPreviewPanel({
         </AnimatePresence>
       </div>
     </Tabs>
-  );
-}
-
-// ─── Weekly Timeline (weekly mode only, inline copy) ─────────────────────────
-
-import { Clock } from 'lucide-react';
-
-function WeeklyTimelineForPreview({
-  entries,
-  snapshot,
-  onSelectEntry,
-  onHighlightEntry,
-  highlightedEntry,
-}: {
-  entries: PdbEntry[];
-  snapshot: WeeklySnapshot;
-  onSelectEntry: (entry: PdbEntry) => void;
-  onHighlightEntry: (id: string | null) => void;
-  highlightedEntry: string | null;
-}) {
-  // This is a placeholder - the actual WeeklyTimeline is defined in pdb-tracker.tsx
-  // and not extracted here to avoid deep nesting. Weekly mode is handled separately.
-  return (
-    <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
-      <Clock className="h-8 w-8 mb-2 opacity-30" />
-      <p className="text-xs">Weekly timeline content</p>
-    </div>
   );
 }
