@@ -81,6 +81,7 @@ import {
   Tag,
   RefreshCw,
   AlertTriangle,
+  LayoutGrid,
 } from 'lucide-react';
 import { StructureAnalysisSection } from './StructureAnalysisSection';
 import { Button } from '@/components/ui/button';
@@ -466,7 +467,7 @@ function TypewriterText({ text, speed = 30 }: { text: string; speed?: number }) 
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface WeeklySnapshot {
+export interface WeeklySnapshot {
   weekId: string;
   weekStart: string;
   weekEnd: string;
@@ -524,7 +525,7 @@ export interface Evaluation {
   _count?: { pdbStructures: number; blastResults: number };
 }
 
-interface EvalPdbStructure {
+export interface EvalPdbStructure {
   id: number;
   uniprotId: string;
   pdbId: string;
@@ -548,7 +549,7 @@ interface EvalPdbStructure {
   updatedAt: string;
 }
 
-interface EvalBlastResult {
+export interface EvalBlastResult {
   id: number;
   uniprotId: string;
   pdbId: string | null;
@@ -582,14 +583,14 @@ interface WeeklyReport {
   createdAt: string;
 }
 
-interface EvaluationReport {
+export interface EvaluationReport {
   id: number;
   uniprotId: string;
   title: string | null;
   createdAt: string;
 }
 
-interface LigandInfo {
+export interface LigandInfo {
   code: string;
   name: string;
   formula: string;
@@ -610,6 +611,37 @@ interface AppNotification {
   description: string;
   timestamp: Date;
   read: boolean;
+}
+
+// ─── Shared Types for Eval Rows ───────────────────────────────────────────────
+export type EvalStructureRow = EvalPdbStructure & { _type: 'structure'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string };
+export type EvalBlastRow = EvalBlastResult & { _type: 'blast'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string };
+export type EvalRow = EvalStructureRow | EvalBlastRow;
+
+// ─── Sorting Helper ──────────────────────────────────────────────────────────
+function sortEvalEntries<T extends EvalRow>(entries: T[], sortField: string, sortDir: SortDir): T[] {
+  return [...entries].sort((a, b) => {
+    let aVal: string | number, bVal: string | number;
+    switch (sortField) {
+      case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
+      case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
+      case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
+      case 'journalIf':
+        aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
+        bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
+        break;
+      case 'title':
+        aVal = a.title || ('description' in a ? (a as any).description : '') || '';
+        bVal = b.title || ('description' in b ? (b as any).description : '') || '';
+        break;
+      case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
+      default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
+    }
+    if (typeof aVal === 'string' && typeof bVal === 'string') {
+      return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    }
+    return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+  });
 }
 
 // ─── Smart Tag System ────────────────────────────────────────────────────────
@@ -1772,7 +1804,16 @@ export default function PdbTracker() {
         sharedStructureMap.set(pdbId, (sharedStructureMap.get(pdbId) || 0) + 1);
       });
     });
-    return { group, subEvals, allStructures, allBlasts, sharedStructureMap };
+    // Deduplicate structures: keep first occurrence of each pdbId across sub-targets
+    const seenPdbIds = new Set<string>();
+    const dedupedStructures: (EvalPdbStructure & { _type: 'structure'; _sourceUniport: string })[] = [];
+    allStructures.forEach(s => {
+      if (seenPdbIds.has(s.pdbId)) return;
+      seenPdbIds.add(s.pdbId);
+      (s as EvalRow)._sharedCount = sharedStructureMap.get(s.pdbId) || 0;
+      dedupedStructures.push(s);
+    });
+    return { group, subEvals, allStructures: dedupedStructures, allBlasts, sharedStructureMap };
   }, [selectedComplexId, complexGroups, evaluations, complexFetchedEvals]);
 
   // ── Mobile State ──
@@ -3029,32 +3070,22 @@ export default function PdbTracker() {
       const all = [...allStructures, ...filteredBlasts];
       // Attach shared count and first occurrence uniprot to each row
       all.forEach(row => {
-        (row as any)._sharedCount = batchSharedStructureMap.get(row.pdbId ?? "") || 0;
-        (row as any)._firstUniport = firstOccurrenceMap.get(row.pdbId ?? "") || (row._sourceUniport ?? "");
+        (row as EvalRow)._sharedCount = batchSharedStructureMap.get(row.pdbId ?? "") || 0;
+        (row as EvalRow)._firstUniport = firstOccurrenceMap.get(row.pdbId ?? "") || ((row as EvalRow)._sourceUniport ?? "");
       });
-      console.log('[DEBUG] batch dedup:', { total: all.length, uniquePdbIds: [...new Set(all.map(r => r.pdbId))], first10: all.slice(0,10).map(r => r.pdbId) });
-      return all.sort((a, b) => {
-        let aVal: any, bVal: any;
-        switch (sortField) {
-          case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
-          case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
-          case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
-          case 'journalIf':
-            aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
-            bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
-            break;
-          case 'title':
-            aVal = a.title || ('description' in a ? a.description : '') || '';
-            bVal = b.title || ('description' in b ? b.description : '') || '';
-            break;
-          case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
-          default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
+      // Final deduplicate: same pdbId only once (prefer structure over blast, keep first sorted)
+      const finalDeduped = all.reduce((acc: typeof all, row) => {
+        if (!row.pdbId) return acc;
+        const existing = acc.find(r => r.pdbId === row.pdbId);
+        if (!existing) { acc.push(row); return acc; }
+        // Prefer structure over blast
+        if (row._type === 'structure' && existing._type === 'blast') {
+          acc = acc.filter(r => r.pdbId !== row.pdbId);
+          acc.push(row);
         }
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-        }
-        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-      });
+        return acc;
+      }, []);
+      return sortEvalEntries(finalDeduped, sortField, sortDir);
     }
     // If a sub-target is selected within a complex group, show only that target's PDB list
     if (selectedComplexId && selectedEval && complexEvalData) {
@@ -3064,28 +3095,8 @@ export default function PdbTracker() {
       const blasts: (EvalBlastResult & { _type: 'blast' })[] =
         (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId ?? "")).map(b => ({ ...b, _type: 'blast' as const }));
       const all = [...structures, ...blasts];
-      return all.sort((a, b) => {
-        let aVal: any, bVal: any;
-        switch (sortField) {
-          case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
-          case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
-          case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
-          case 'journalIf':
-            aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
-            bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
-            break;
-          case 'title':
-            aVal = a.title || ('description' in a ? a.description : '') || '';
-            bVal = b.title || ('description' in b ? b.description : '') || '';
-            break;
-          case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
-          default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
-        }
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-        }
-        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-      });
+      all.forEach(row => { (row as EvalRow)._sharedCount = 0; });
+      return sortEvalEntries(all, sortField, sortDir);
     }
     // If a complex group is selected (no sub-target), show merged data for all sub-targets
     if (selectedComplexId && complexEvalData) {
@@ -3093,28 +3104,8 @@ export default function PdbTracker() {
       const structurePdbIds = new Set(complexEvalData.allStructures.map(s => s.pdbId));
       const filteredBlasts = complexEvalData.allBlasts.filter(b => !structurePdbIds.has(b.pdbId ?? ""));
       const all = [...complexEvalData.allStructures, ...filteredBlasts];
-      return all.sort((a, b) => {
-        let aVal: any, bVal: any;
-        switch (sortField) {
-          case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
-          case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
-          case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
-          case 'journalIf':
-            aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
-            bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
-            break;
-          case 'title':
-            aVal = a.title || ('description' in a ? a.description : '') || '';
-            bVal = b.title || ('description' in b ? b.description : '') || '';
-            break;
-          case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
-          default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
-        }
-        if (typeof aVal === 'string' && typeof bVal === 'string') {
-          return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-        }
-        return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-      });
+      all.forEach(row => { (row as EvalRow)._sharedCount = 0; });
+      return sortEvalEntries(all, sortField, sortDir);
     }
 
     if (!selectedEval) return [];
@@ -3125,28 +3116,8 @@ export default function PdbTracker() {
       (selectedEval.blastResults || []).filter(b => !structurePdbIds.has(b.pdbId ?? "")).map(b => ({ ...b, _type: 'blast' as const }));
 
     const all = [...structures, ...blasts];
-    return all.sort((a, b) => {
-      let aVal: any, bVal: any;
-      switch (sortField) {
-        case 'pdbId': aVal = a.pdbId || ''; bVal = b.pdbId || ''; break;
-        case 'method': aVal = a.method || ''; bVal = b.method || ''; break;
-        case 'resolution': aVal = a.resolution ?? 999; bVal = b.resolution ?? 999; break;
-        case 'journalIf':
-          aVal = ('journalIf' in a ? a.journalIf : null) ?? -1;
-          bVal = ('journalIf' in b ? b.journalIf : null) ?? -1;
-          break;
-        case 'title':
-          aVal = a.title || ('description' in a ? a.description : '') || '';
-          bVal = b.title || ('description' in b ? b.description : '') || '';
-          break;
-        case 'releaseDate': aVal = a.releaseDate || ''; bVal = b.releaseDate || ''; break;
-        default: aVal = a.releaseDate || ''; bVal = b.releaseDate || '';
-      }
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
-    });
+    all.forEach(row => { (row as EvalRow)._sharedCount = 0; });
+    return sortEvalEntries(all, sortField, sortDir);
   }, [selectedEval, selectedComplexId, complexEvalData, selectedBatchId, evalBatchSubTargets, evaluations, batchFetchedEvals, sortField, sortDir]);
 
   // ── Paginated Eval Rows ──
@@ -5097,7 +5068,7 @@ export default function PdbTracker() {
                                       }
                                       // Shared structure badge for batch evals
                                       if (selectedBatchId && !selectedEval) {
-                                        const sharedCount = (row as any)._sharedCount || 0;
+                                        const sharedCount = ((row as EvalRow)._sharedCount) || 0;
                                         if (sharedCount <= 1) return null;
                                         const badgeColor = sharedCount >= 4 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-400 border-orange-200 dark:border-orange-800/40' :
                                           sharedCount === 3 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40' :
@@ -7200,12 +7171,19 @@ export default function PdbTracker() {
 
   // ── Preview Panel Render Function ──
   function renderPreviewPanel() {
-    const previewTabs = [
+    const weeklyTabs = [
+      { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
+      { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
+      { value: 'heatmap', icon: <LayoutGrid className="h-3 w-3 mr-1" />, label: 'Heatmap' },
+      { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Report' },
+    ];
+    const evalTabs = [
       { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
       { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
       { value: 'heatmap', icon: <BookOpen className="h-3 w-3 mr-1" />, label: 'Literature' },
       { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Report' },
     ];
+    const previewTabs = mode === 'weekly' ? weeklyTabs : evalTabs;
 
     return (
       <Tabs value={previewTab} onValueChange={setPreviewTab} className="h-full flex flex-col min-h-0">
@@ -7241,7 +7219,7 @@ export default function PdbTracker() {
           </button>
         </div>
 
-        <ScrollArea className="flex-1 preview-scroll min-h-0">
+        <div className="flex-1 overflow-y-auto preview-scroll min-h-0">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               key={previewTab}
@@ -7249,6 +7227,7 @@ export default function PdbTracker() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -6 }}
               transition={{ duration: 0.15 }}
+              className="flex flex-col min-h-0 flex-1"
             >
           {previewTab === 'summary' ? (
             mode === 'weekly' && selectedSnapshot ? (
@@ -7403,6 +7382,7 @@ export default function PdbTracker() {
                 entries={heatmapEntries}
                 snapshots={snapshots}
                 loading={heatmapLoading}
+                className="flex-1 min-h-0"
               />
             ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
               <EvaluationHeatmap
@@ -7579,7 +7559,7 @@ export default function PdbTracker() {
           )}
             </motion.div>
           </AnimatePresence>
-        </ScrollArea>
+        </div>
       </Tabs>
     );
   }

@@ -72,14 +72,14 @@ export function useValidationData(pdbId: string): {
     let cancelled = false;
     setLoading(true);
 
-    fetch(`https://www.ebi.ac.uk/pdbe/api/validation/molprobity_score/summary/${pdbId.toUpperCase()}`)
+    fetch(`/api/validation/${pdbId.toUpperCase()}`)
       .then(res => {
         if (!res.ok) throw new Error('Network response was not ok');
         return res.json();
       })
       .then(json => {
         if (cancelled) return;
-        const result: ValidationData = json?.[0] ?? { pdb_id: pdbId, error: 'No data returned' };
+        const result: ValidationData = json && !json.error ? json : { pdb_id: pdbId, error: json?.error || 'Failed to fetch validation data' };
         if (validationCache.size >= MAX_VALIDATION_CACHE) {
           evictOldestValidationEntry(validationCache);
         }
@@ -117,15 +117,16 @@ export function useRamaData(pdbId: string): { data: RamaData | null; loading: bo
     let cancelled = false;
     setLoading(true);
 
-    fetch(`https://www.ebi.ac.uk/pdbe/api/validation/ramachandran_outliers/${pdbId.toUpperCase()}`)
+    fetch(`/api/rama/${pdbId.toUpperCase()}`)
       .then(res => {
         if (!res.ok) throw new Error('Network response was not ok');
         return res.json();
       })
       .then(json => {
         if (cancelled) return;
-        const entry = json?.[0];
-        if (!entry) {
+        // API returns object directly, not array
+        const entry = Array.isArray(json) ? json[0] : json;
+        if (!entry || entry.error) {
           ramaCache.set(pdbId, null);
           setData(null);
           setLoading(false);

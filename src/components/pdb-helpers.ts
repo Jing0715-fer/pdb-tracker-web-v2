@@ -1,5 +1,42 @@
 'use client';
 
+import type { EvalPdbStructure, EvalBlastResult } from './pdb-tracker';
+
+// ─── Evaluation Types ────────────────────────────────────────────────────────
+
+export interface Evaluation {
+  uniprotId: string;
+  entryName: string | null;
+  proteinName: string | null;
+  geneNames: string | null;
+  organism: string | null;
+  sequenceLength: number | null;
+  coverage: number | null;
+  scores: string | null;
+  report: string | null;
+  createdAt: string;
+  updatedAt: string;
+  pdbStructures: EvalPdbStructure[];
+  blastResults: EvalBlastResult[];
+  _count?: { pdbStructures: number; blastResults: number };
+  // Dynamic field from API
+  evaluation_report?: EvaluationReport | null;
+}
+
+export interface EvaluationReport {
+  id?: number;
+  uniprotId: string;
+  title: string;
+  authors: string[];
+  journal: string | null;
+  year: number | null;
+  doi: string | null;
+  pdbId: string | null;
+  summary: string | null;
+  generatedAt: string;
+  createdAt?: string;
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 export const PAGE_SIZE = 50;

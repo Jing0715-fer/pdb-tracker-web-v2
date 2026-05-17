@@ -18,6 +18,13 @@ export type EvalTimelineItem = {
   journalIf: number | null;
   isBlast: boolean;
   identity?: number | null;
+  _sourceUniport?: string;
+  _sharedCount?: number;
+};
+
+export type EvalLitItem = EvalTimelineItem & {
+  pubmedId: string | null;
+  _idx?: number;
 };
 
 // ─── Evaluation Timeline ───────────────────────────────────────────────────────
@@ -27,8 +34,8 @@ export function EvaluationTimeline({
   blastResults,
   onSelectPdb,
 }: {
-  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null }[];
-  blastResults: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; identity: number | null }[];
+  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; _sourceUniport?: string; _sharedCount?: number }[];
+  blastResults: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; identity: number | null; _sourceUniport?: string; _sharedCount?: number }[];
   onSelectPdb: (pdbId: string) => void;
 }) {
   const { theme } = useTheme();
@@ -58,8 +65,18 @@ export function EvaluationTimeline({
       journalIf: b.journalIf,
       isBlast: true,
       identity: b.identity,
+      _sourceUniport: (b as any)._sourceUniport,
+      _sharedCount: (b as any)._sharedCount,
     }));
-    return [...pdbItems, ...blastItems].filter(i => i.pdbId && i.releaseDate);
+    // Deduplicate by pdbId (prefer structure over blast for same pdbId)
+    const seen = new Set<string>();
+    const deduped = [...pdbItems, ...blastItems].filter(item => {
+      if (!item.pdbId || !item.releaseDate) return false;
+      if (seen.has(item.pdbId)) return false;
+      seen.add(item.pdbId);
+      return true;
+    });
+    return deduped;
   }, [pdbStructures, blastResults]);
 
   // Responsive container width
@@ -314,45 +331,56 @@ export function EvaluationTimeline({
 
 // ─── Evaluation Heatmap ────────────────────────────────────────────────────────
 
-export type EvalLitItem = {
-  pdbId: string;
-  method: string | null;
-  resolution: number | null;
-  title: string | null;
-  ligand: string | null;
-  releaseDate: string | null;
-  journal: string | null;
-  journalIf: number | null;
-  pubmedId: string | null;
-  isBlast: boolean;
-  identity?: number | null;
-};
-
 export function EvaluationHeatmap({
   pdbStructures,
   blastResults,
   onSelectPdb,
 }: {
-  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[];
-  blastResults: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null }[];
+  pdbStructures: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null; _sourceUniport?: string; _sharedCount?: number }[];
+  blastResults: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null; _sourceUniport?: string; _sharedCount?: number }[];
   onSelectPdb: (pdbId: string) => void;
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const [sortDesc, setSortDesc] = useState(true);
 
-  // Combine and sort by IF
+  // Combine and sort by IF (deduplicate by pdbId, structure preferred over blast)
   const allLiterature: EvalLitItem[] = useMemo(() => {
-    const pdbItems: EvalLitItem[] = pdbStructures.map(s => ({ ...s, isBlast: false }));
-    const blastItems: EvalLitItem[] = blastResults.map(b => ({
+    const pdbItems: EvalLitItem[] = pdbStructures.map((s, i) => ({
+      ...s, isBlast: false, _idx: i,
+      _sourceUniport: (s as any)._sourceUniport,
+      _sharedCount: (s as any)._sharedCount,
+    }));
+    const blastItems: EvalLitItem[] = blastResults.map((b, i) => ({
       ...b,
       pubmedId: b.pubmedId ?? null,
       isBlast: true,
       identity: b.identity,
+      _idx: i + pdbStructures.length,
+      _sourceUniport: (b as any)._sourceUniport,
+      _sharedCount: (b as any)._sharedCount,
     }));
-    return [...pdbItems, ...blastItems].filter(i => i.pdbId);
+    // Deduplicate: same pdbId prefers structure (isBlast=false) over blast
+    const seen = new Set<string>();
+    const deduped: EvalLitItem[] = [];
+    // First add all structures
+    pdbItems.forEach(item => {
+      if (item.pdbId) {
+        seen.add(item.pdbId);
+        deduped.push(item);
+      }
+    });
+    // Then add blasts only if pdbId not already added
+    blastItems.forEach(item => {
+      if (item.pdbId && !seen.has(item.pdbId)) {
+        seen.add(item.pdbId);
+        deduped.push(item);
+      }
+    });
+    return deduped;
   }, [pdbStructures, blastResults]);
 
+  // Sort all literature by IF
   const sortedLiterature = useMemo(() => {
     return [...allLiterature].sort((a, b) => {
       const ifA = a.journalIf ?? 0;
@@ -360,6 +388,34 @@ export function EvaluationHeatmap({
       return sortDesc ? ifB - ifA : ifA - ifB;
     });
   }, [allLiterature, sortDesc]);
+
+  // Group literature by title (same title = same paper = same PubMed ID)
+  const literatureByTitle: Record<string, {
+    title: string | null;
+    journal: string | null;
+    journalIf: number | null;
+    pubmedId: string | null;
+    items: EvalLitItem[];
+  }> = useMemo(() => {
+    const groups: Record<string, { title: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null; items: EvalLitItem[] }> = {};
+    sortedLiterature.forEach(item => {
+      // Use pubmedId as key if available, otherwise use title
+      const key = item.pubmedId ? `pmid:${item.pubmedId}` : (item.title || `no-title:${item.pdbId}`);
+      if (!groups[key]) {
+        groups[key] = { title: item.title, journal: item.journal, journalIf: item.journalIf, pubmedId: item.pubmedId, items: [] };
+      }
+      groups[key].items.push(item);
+    });
+    return groups;
+  }, [sortedLiterature]);
+
+  const groupedLiterature = useMemo(() => {
+    return Object.values(literatureByTitle).sort((a, b) => {
+      const ifA = a.journalIf ?? 0;
+      const ifB = b.journalIf ?? 0;
+      return sortDesc ? ifB - ifA : ifA - ifB;
+    });
+  }, [literatureByTitle, sortDesc]);
 
   const getMethodColor = (m: string | null) => {
     if (!m) return 'text-claude-text-muted';
@@ -379,9 +435,9 @@ export function EvaluationHeatmap({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2 flex flex-col min-h-0 flex-1">
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] text-claude-text-muted">{sortedLiterature.length} entries</span>
+        <span className="text-[10px] text-claude-text-muted">{groupedLiterature.reduce((sum, g) => sum + g.items.length, 0)} entries</span>
         <button
           onClick={() => setSortDesc(!sortDesc)}
           className="text-[9px] text-claude-accent hover:text-claude-accent-hover flex items-center gap-0.5"
@@ -389,49 +445,66 @@ export function EvaluationHeatmap({
           {sortDesc ? '↓' : '↑'} IF
         </button>
       </div>
-      <div className="max-h-64 overflow-y-auto space-y-0.5 px-1">
-        {sortedLiterature.map((item) => (
-          <div
-            key={`${item.pdbId}-${item.isBlast}`}
-            className="group flex items-start gap-2 p-2 rounded-lg hover:bg-claude-bg dark:hover:bg-[#1a1917] cursor-pointer transition-colors"
-            onClick={() => onSelectPdb(item.pdbId)}
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5 mb-0.5">
-                <span className="font-mono text-[11px] font-semibold text-claude-accent">{item.pdbId}</span>
-                {item.isBlast && (
-                  <span className="text-[9px] px-1 py-0.5 rounded bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">Homolog</span>
-                )}
-                <span className={`text-[9px] px-1 py-0.5 rounded ${getMethodColor(item.method)} bg-claude-border-light dark:bg-[#2b2926]`}>
-                  {item.method ? item.method.replace(/_/g, ' ').split(' ')[0] : '—'}
-                </span>
+      <div className="flex-1 overflow-y-auto space-y-1 px-1 min-h-0">
+        {groupedLiterature.map((group, gi) => {
+          const first = group.items[0];
+          const sharedCount = group.items.filter(i => (i._sharedCount ?? 0) > 1).length;
+          return (
+            <div key={gi} className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] overflow-hidden">
+              {/* Card header: title as primary heading */}
+              <div className="px-2.5 pt-2 pb-1.5 cursor-pointer" onClick={() => group.items.length === 1 ? onSelectPdb(first.pdbId) : null}>
+                <p className="text-[11px] font-medium text-claude-text dark:text-[#d4d0c8] leading-relaxed line-clamp-2 mb-1">
+                  {group.title || 'No title'}
+                </p>
+                {/* Meta row */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* All PDB IDs in this group */}
+                  {group.items.map((item, ii) => (
+                    <span
+                      key={ii}
+                      onClick={(e) => { e.stopPropagation(); onSelectPdb(item.pdbId); }}
+                      className={`inline-flex items-center gap-0.5 font-mono text-[10px] font-semibold cursor-pointer hover:text-claude-accent-hover ${ii === 0 ? 'text-claude-accent' : 'text-claude-text-secondary'}`}
+                    >
+                      {item.pdbId}
+                      {item.isBlast && <span className="text-[8px] text-claude-accent">H</span>}
+                      {ii < group.items.length - 1 && <span className="text-claude-text-muted font-light">·</span>}
+                    </span>
+                  ))}
+                  <span className={`text-[9px] px-1 py-0.5 rounded ${getMethodColor(first.method)} bg-claude-border-light dark:bg-[#2b2926]`}>
+                    {first.method ? first.method.replace(/_/g, ' ').split(' ')[0] : '—'}
+                  </span>
+                  {(first._sharedCount ?? 0) > 1 && (
+                    <span className="text-[9px] px-1 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                      +{(first._sharedCount ?? 0) - 1} more source{(first._sharedCount ?? 0) > 2 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
               </div>
-              <p className="text-[10px] text-claude-text-secondary dark:text-[#9b9590] line-clamp-1 leading-relaxed">
-                {item.title || 'No title'}
-              </p>
+              {/* Card footer: journal IF + PubMed */}
+              <div className="flex items-center justify-between px-2.5 pb-1.5">
+                <span className="text-[10px] text-claude-text-muted">{group.journal || 'Unknown journal'}</span>
+                <div className="flex items-center gap-2">
+                  {group.journalIf ? (
+                    <span className={`text-[11px] font-semibold ${group.journalIf >= 10 ? 'text-claude-accent' : 'text-claude-text-secondary'}`}>
+                      IF {group.journalIf.toFixed(1)}
+                    </span>
+                  ) : null}
+                  {group.pubmedId && (
+                    <a
+                      href={`https://pubmed.gov/${group.pubmedId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-[9px] text-claude-accent hover:text-claude-accent-hover flex items-center gap-0.5"
+                    >
+                      PubMed
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-              {item.journalIf ? (
-                <span className={`text-[11px] font-semibold ${item.journalIf >= 10 ? 'text-claude-accent' : 'text-claude-text-secondary'}`}>
-                  {item.journalIf.toFixed(1)}
-                </span>
-              ) : item.journal ? (
-                <span className="text-[9px] text-claude-text-muted">TBD</span>
-              ) : null}
-              {item.pubmedId && (
-                <a
-                  href={`https://pubmed.gov/${item.pubmedId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[9px] text-claude-accent hover:text-claude-accent-hover opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-0.5"
-                >
-                  PubMed
-                </a>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

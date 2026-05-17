@@ -818,8 +818,8 @@ export function MoleculeViewer({
 
         setLoadProgress(30);
 
-        // Use Molstar's built-in download builder to load CIF from RCSB
-        const url = `https://files.rcsb.org/download/${pdbId.toUpperCase()}.cif`;
+        // Use local proxy to download CIF (avoids CORS issues with RCSB direct download)
+        const url = `/api/pdb-download/${pdbId.toUpperCase()}`;
         const data = await plugin.builders.data.download(
           { url, isBinary: false, label: pdbId.toUpperCase() },
           { state: { isGhost: true } }

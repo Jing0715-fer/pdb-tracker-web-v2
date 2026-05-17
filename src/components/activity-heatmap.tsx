@@ -10,10 +10,12 @@ export function ActivityHeatmap({
   entries,
   snapshots,
   loading,
+  className = '',
 }: {
   entries: PdbEntry[];
   snapshots: WeeklySnapshot[];
   loading: boolean;
+  className?: string;
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -98,7 +100,7 @@ export function ActivityHeatmap({
   const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
-    <div className="space-y-2">
+    <div className={`space-y-2 p-2 flex flex-col min-h-0 ${className}`}>
       <div className="flex items-end gap-1 overflow-x-auto pb-1">
         {/* Day labels column */}
         <div className="flex-shrink-0 space-y-0.5">

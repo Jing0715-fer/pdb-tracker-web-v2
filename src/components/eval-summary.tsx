@@ -1,129 +1,95 @@
-'use client';
-
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
-import { FileText } from 'lucide-react';
+import { FileText, Database, FileSearch, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { getScoreColor } from './pdb-helpers';
-
-interface Evaluation {
-  uniprotId: string;
-  pdbStructures?: { pdbId: string; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[];
-  blastResults?: { pdbId: string | null; uniprotRef: string | null; description: string | null; identity: number | null; evalue: number | null; queryCoverage: number | null; method: string | null; resolution: number | null; title: string | null; ligand: string | null; releaseDate: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; }[];
-  scores?: string;
-  coverage?: number;
-  sequenceLength?: number;
-  report?: string;
-}
+import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from 'recharts';
+import { useTheme } from 'next-themes';
+import type { Evaluation } from './pdb-tracker';
 
 interface EvaluationReport {
   id: number;
-  title: string | null;
   uniprotId: string;
+  title: string | null;
+  createdAt: string;
 }
 
-interface LigandInfo {
-  code: string;
-  name: string;
-  smiles?: string;
+interface EvalSummaryProps {
+  evalData: Evaluation;
+  openReport: (uniprotId: string, title: string) => void;
 }
 
-export function EvalSummary({ evalData, openReport }: { evalData: Evaluation; openReport: (uniprotId: string, title: string) => void }) {
-  
-  const isDark = false;
+function getScoreColor(score: number): string {
+  if (score >= 8) return '#2d8f8f';
+  if (score >= 5) return '#c9872e';
+  return '#dc2626';
+}
 
+export function EvalSummary({ evalData, openReport }: EvalSummaryProps) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  const pdbStructures = evalData.pdbStructures ?? [];
+  const blastResults = evalData.blastResults ?? [];
+  const evalReport: EvaluationReport | undefined = (evalData as any).evaluation_report;
+
+  const [pdbSortField, setPdbSortField] = useState<'date' | 'resolution' | 'method'>('date');
+  const [pdbSortDir, setPdbSortDir] = useState<'asc' | 'desc'>('desc');
+  const [blastSortField, setBlastSortField] = useState<'evalDate' | 'identity' | 'coverage'>('evalDate');
+  const [blastSortDir, setBlastSortDir] = useState<'asc' | 'desc'>('desc');
+
+  // Scores from evaluation data
   const scores = useMemo(() => {
-    try { return evalData.scores ? JSON.parse(evalData.scores) : {}; }
-    catch { return {}; }
+    if (!evalData.scores) return {};
+    try {
+      const parsed = JSON.parse(evalData.scores);
+      const s: Record<string, number> = {};
+      Object.entries(parsed).forEach(([key, val]) => {
+        s[key] = typeof val === 'number' ? val : (val as any)?.score ?? 0;
+      });
+      return s;
+    } catch { return {}; }
   }, [evalData.scores]);
 
   const overallScore = useMemo(() => {
-    const vals = Object.values(scores).map(v => typeof v === 'number' ? v : (v as any)?.score ?? 0) as number[];
-    if (!vals.length) return null;
+    const vals = Object.values(scores);
+    if (vals.length === 0) return null;
     return vals.reduce((a, b) => a + b, 0) / vals.length;
   }, [scores]);
 
-  const [evalReport, setEvalReport] = useState<EvaluationReport | null>(null);
-
-  // BLAST table sort state
-  const [blastSortField, setBlastSortField] = useState<string>('identity');
-  const [blastSortDir, setBlastSortDir] = useState<'asc' | 'desc'>('desc');
-
-  const blastResults = evalData.blastResults || [];
-  const pdbStructures = evalData.pdbStructures || [];
-
-  // Ligand cache for PDB structure tooltips
-  const [ligandCache, setLigandCache] = useState<Record<string, LigandInfo>>({});
-  const fetchLigandInfo = useCallback(async (code: string) => {
-    if (ligandCache[code] || !code) return;
-    try {
-      const res = await fetch(`/api/ligand/${code}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.code) { setLigandCache(prev => ({ ...prev, [code]: data })); }
-      }
-    } catch { /* ignore */ }
-  }, [ligandCache]);
-
-  // Preload all unique ligands on mount
-  useEffect(() => {
-    const allCodes = new Set<string>();
-    pdbStructures.forEach(s => {
-      if (s.ligand) {
-        s.ligand.split(/[;,\s]+/).filter(Boolean).forEach(c => allCodes.add(c.trim()));
-      }
+  // Sort PDB structures
+  const sortedPdb = useMemo(() => {
+    return [...pdbStructures].sort((a, b) => {
+      let cmp = 0;
+      if (pdbSortField === 'date') cmp = (a.releaseDate || '').localeCompare(b.releaseDate || '');
+      else if (pdbSortField === 'resolution') cmp = (a.resolution || 999) - (b.resolution || 999);
+      else if (pdbSortField === 'method') cmp = (a.method || '').localeCompare(b.method || '');
+      return pdbSortDir === 'asc' ? cmp : -cmp;
     });
-    allCodes.forEach(code => fetchLigandInfo(code));
-  }, [evalData.uniprotId, fetchLigandInfo]);
-
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await fetch('/api/evaluation-reports');
-        const data = await res.json();
-        const found = data.find((r: EvaluationReport) => r.uniprotId === evalData.uniprotId);
-        if (found) setEvalReport(found);
-      } catch { /* ignore */ }
-    }
-    load();
-  }, [evalData.uniprotId]);
+  }, [pdbStructures, pdbSortField, pdbSortDir]);
 
   // Sort BLAST results
-  const sortedBlastResults = useMemo(() => {
-    if (!blastResults.length) return [];
-    const sorted = [...blastResults].sort((a, b) => {
-      let aVal: number | string = 0;
-      let bVal: number | string = 0;
-      switch (blastSortField) {
-        case 'accession': aVal = a.uniprotRef || a.pdbId || ''; bVal = b.uniprotRef || b.pdbId || ''; break;
-        case 'organism': aVal = a.description || ''; bVal = b.description || ''; break;
-        case 'identity': aVal = a.identity ?? -1; bVal = b.identity ?? -1; break;
-        case 'evalue': aVal = a.evalue ?? 999; bVal = b.evalue ?? 999; break;
-        case 'score': aVal = a.queryCoverage ?? -1; bVal = b.queryCoverage ?? -1; break;
-        default: aVal = a.identity ?? -1; bVal = b.identity ?? -1;
-      }
-      if (typeof aVal === 'string' && typeof bVal === 'string') {
-        return blastSortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return blastSortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+  const sortedBlast = useMemo(() => {
+    return [...blastResults].sort((a, b) => {
+      let cmp = 0;
+      if (blastSortField === 'evalDate') cmp = (a.updatedAt || '').localeCompare(b.updatedAt || '');
+      else if (blastSortField === 'identity') cmp = (a.identity ?? 0) - (b.identity ?? 0);
+      else if (blastSortField === 'coverage') cmp = (a.queryCoverage ?? 0) - (b.queryCoverage ?? 0);
+      return blastSortDir === 'asc' ? cmp : -cmp;
     });
-    return sorted;
   }, [blastResults, blastSortField, blastSortDir]);
 
-  const handleBlastSort = useCallback((field: string) => {
-    if (blastSortField === field) {
-      setBlastSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
-    } else {
-      setBlastSortField(field);
-      setBlastSortDir('desc');
-    }
-  }, [blastSortField]);
+  const handlePdbSort = (field: typeof pdbSortField) => {
+    if (pdbSortField === field) setPdbSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    else { setPdbSortField(field); setPdbSortDir('desc'); }
+  };
+  const handleBlastSort = (field: typeof blastSortField) => {
+    if (blastSortField === field) setBlastSortDir(prev => prev === 'asc' ? 'desc' : 'asc');
+    else { setBlastSortField(field); setBlastSortDir('desc'); }
+  };
 
   // Coverage circular progress SVG
   const coveragePct = Math.min(evalData.coverage ?? 0, 100);
   const coverageColor = coveragePct >= 80 ? '#2d8f8f' : coveragePct >= 50 ? '#c9872e' : coveragePct >= 25 ? '#ea580c' : '#dc2626';
-  const coverageLabel = coveragePct >= 80 ? 'Excellent' : coveragePct >= 50 ? 'Moderate' : coveragePct >= 25 ? 'Limited' : 'Very Limited';
 
   // Animated circular progress
   const circumference = 2 * Math.PI * 40;
@@ -194,48 +160,48 @@ export function EvalSummary({ evalData, openReport }: { evalData: Evaluation; op
               );
             })}
           </div>
-          {/* Overall score bar */}
-          {overallScore !== null && (
-            <div className="pt-1 mt-1 border-t border-claude-border/50">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-claude-text">Overall Score</span>
-                <span className="text-xs font-mono font-bold" style={{ color: getScoreColor(overallScore) }}>{overallScore.toFixed(1)}/10</span>
-              </div>
-              <div className="h-2 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden mt-1">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${Math.min((overallScore / 10) * 100, 100)}%` }}
-                  transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
-                  className="h-full rounded-full"
-                  style={{ backgroundColor: getScoreColor(overallScore) }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Score Radar Chart */}
-          {Object.keys(scores).length >= 3 && (
-            <div className="pt-2 mt-2 border-t border-claude-border/50">
-              <h5 className="text-[11px] font-semibold text-claude-text mb-2">Score Radar</h5>
-              <ResponsiveContainer width="100%" height={180}>
-                <RadarChart cx="50%" cy="50%" outerRadius="70%" data={Object.entries(scores).map(([key, value]) => {
-                  // Handle both number scores and {score: number} object format
-                  const scoreNum = typeof value === 'number' ? value : (value as any)?.score ?? 0;
-                  return {
-                    metric: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
-                    score: scoreNum,
-                    fullMark: 10,
-                  };
-                })}>
-                  <PolarGrid stroke={isDark ? '#3d3832' : '#e8e4dd'} />
-                  <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9, fill: isDark ? '#9b9590' : '#6b6560' }} />
-                  <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fontSize: 8, fill: isDark ? '#6b6560' : '#9b9590' }} axisLine={false} />
-                  <Radar name="Score" dataKey="score" stroke={isDark ? '#d4784f' : '#c96442'} fill={isDark ? '#d4784f' : '#c96442'} fillOpacity={0.15} strokeWidth={2} />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
         </div>
+        {/* Overall score bar */}
+        {overallScore !== null && (
+          <div className="pt-1 mt-1 border-t border-claude-border/50">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-medium text-claude-text">Overall Score</span>
+              <span className="text-xs font-mono font-bold" style={{ color: getScoreColor(overallScore) }}>{overallScore.toFixed(1)}/10</span>
+            </div>
+            <div className="h-2 bg-claude-border-light dark:bg-[#1a1917] rounded-full overflow-hidden mt-1">
+              <motion.div
+                initial={{ width: 0 }}
+                animate={{ width: `${Math.min((overallScore / 10) * 100, 100)}%` }}
+                transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
+                className="h-full rounded-full"
+                style={{ backgroundColor: getScoreColor(overallScore) }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Score Radar Chart */}
+        {Object.keys(scores).length >= 3 && (
+          <div className="pt-2 mt-2 border-t border-claude-border/50">
+            <h5 className="text-[11px] font-semibold text-claude-text mb-2">Score Radar</h5>
+            <ResponsiveContainer width="100%" height={180}>
+              <RadarChart cx="50%" cy="50%" outerRadius="70%" data={Object.entries(scores).map(([key, value]) => {
+                // Handle both number scores and {score: number} object format
+                const scoreNum = typeof value === 'number' ? value : (value as any)?.score ?? 0;
+                return {
+                  metric: key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1'),
+                  score: scoreNum,
+                  fullMark: 10,
+                };
+              })}>
+                <PolarGrid stroke={isDark ? '#3d3832' : '#e8e4dd'} />
+                <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9, fill: isDark ? '#9b9590' : '#6b6560' }} />
+                <PolarRadiusAxis angle={90} domain={[0, 10]} tick={{ fontSize: 8, fill: isDark ? '#6b6560' : '#9b9590' }} axisLine={false} />
+                <Radar name="Score" dataKey="score" stroke={isDark ? '#d4784f' : '#c96442'} fill={isDark ? '#d4784f' : '#c96442'} fillOpacity={0.15} strokeWidth={2} />
+              </RadarChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* ── Protein Sequence Coverage Bar ── */}
@@ -288,17 +254,6 @@ export function EvalSummary({ evalData, openReport }: { evalData: Evaluation; op
               .join(' ')}
           </div>
         </div>
-      )}
-
-      {/* ── View Report Button ── */}
-      {evalReport && (
-        <Button
-          onClick={() => openReport(evalData.uniprotId, evalReport.title || 'Evaluation Report')}
-          className="w-full text-xs h-8 bg-claude-accent hover:bg-claude-accent-hover text-white"
-        >
-          <FileText className="h-3.5 w-3.5 mr-1.5" />
-          View Full Report
-        </Button>
       )}
     </div>
   );
