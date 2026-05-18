@@ -31,15 +31,23 @@ export async function GET(
 
     const evaluation = toCamelCase((evalRows as any[])[0]);
 
-    // Fetch PDB structures
+    // Fetch PDB structures with pubmed metadata
     const pdbStructures = await db.$queryRaw`
-      SELECT * FROM evaluation_pdb_structures WHERE uniprot_id = ${uniprotId} ORDER BY release_date DESC
+      SELECT p.*, a.title AS pubmedTitle, a.authors AS pubmedAuthors, a.abstract AS pubmedAbstract
+      FROM evaluation_pdb_structures p
+      LEFT JOIN pubmed_articles a ON p.pubmed_id = a.pubmed_id
+      WHERE p.uniprot_id = ${uniprotId}
+      ORDER BY p.release_date DESC
     `;
     evaluation.pdbStructures = (pdbStructures as any[]).map(toCamelCase);
 
-    // Fetch BLAST results
+    // Fetch BLAST results with pubmed metadata
     const blastResults = await db.$queryRaw`
-      SELECT * FROM evaluation_blast_results WHERE uniprot_id = ${uniprotId} ORDER BY identity DESC
+      SELECT b.*, a.title AS pubmedTitle, a.authors AS pubmedAuthors, a.abstract AS pubmedAbstract
+      FROM evaluation_blast_results b
+      LEFT JOIN pubmed_articles a ON b.pubmed_id = a.pubmed_id
+      WHERE b.uniprot_id = ${uniprotId}
+      ORDER BY b.identity DESC
     `;
     evaluation.blastResults = (blastResults as any[]).map(toCamelCase);
 

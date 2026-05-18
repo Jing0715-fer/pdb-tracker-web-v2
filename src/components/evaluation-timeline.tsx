@@ -186,10 +186,12 @@ export function EvaluationTimeline({
         const rawCY = axisY - 5 - actualStackPos * (size + 2);
         const cy = Math.max(rawCY, marginTop + 10);
         const groupOffset = stackGroup * dotSpacing;
+        // stagger vertically by day index to avoid overlapping columns
+        const dayStagger = (dayIdx % 3) * 4;
         positions.push({
           item,
           cx: cx + groupOffset,
-          cy,
+          cy: cy + dayStagger,
           size,
           color: getDotColor(item),
           dayIndex: dayIdx,

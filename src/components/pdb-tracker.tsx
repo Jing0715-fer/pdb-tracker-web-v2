@@ -250,7 +250,7 @@ function AnimatedNumber({ value, decimals = 0, suffix = '' }: { value: number; d
   return (
     <motion.span
       className="tabular-nums inline-block"
-      animate={{ scale: isAnimating ? 1.05 : 1 }}
+      animate={{ scale: isAnimating ? 1 : 1 }}
       transition={{ duration: 0.4, ease: 'easeOut' }}
     >
       {display}{suffix}
