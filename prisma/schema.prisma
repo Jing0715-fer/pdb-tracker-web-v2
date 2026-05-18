@@ -37,6 +37,10 @@ model evaluation_blast_results {
   if_tier         String?     @default("unknown")
   ligand          String?     @default("")
   title           String?     @default("")
+  pubmed_id       String?     @default("")
+  pubmed_title    String?     @default("")
+  pubmed_authors  String?     @default("")
+  pubmed_abstract String?     @default("")
   evaluations     evaluations @relation(fields: [uniprot_id], references: [uniprot_id], onDelete: Cascade, onUpdate: NoAction) @ignore
 
   @@index([uniprot_id], map: "idx_eval_blast_uniprot")
@@ -83,6 +87,9 @@ model evaluation_pdb_structures {
   is_nmr          Int?        @default(0)
   if_tier         String?     @default("unknown")
   updated_at      String?     @default("")
+  pubmed_title    String?     @default("")
+  pubmed_authors  String?     @default("")
+  pubmed_abstract String?     @default("")
   evaluations     evaluations @relation(fields: [uniprot_id], references: [uniprot_id], onDelete: Cascade, onUpdate: NoAction) @ignore
 
   @@unique([uniprot_id, pdb_id], map: "idx_eval_pdb")
@@ -98,6 +105,16 @@ model evaluation_reports {
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+model pubmed_articles {
+  pubmed_id   String  @id
+  title       String?
+  authors     String?
+  journal     String?
+  pub_year    String?
+  abstract    String?
+  fetched_at  String?
+}
+
 model evaluations {
   uniprot_id                String?                     @id
   entry_name                String?
