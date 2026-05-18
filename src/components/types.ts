@@ -11,6 +11,10 @@ export interface PdbEntry {
   journalIf: number | null;
   organisms: string | null;
   ligands: string | null;
+  pubmedId?: string | null;
+  pubmedTitle?: string | null;
+  pubmedAuthors?: string | null;
+  pubmedAbstract?: string | null;
   bookmarked?: boolean;
   notes?: string;
   addedAt?: string;

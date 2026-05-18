@@ -1,20 +1,12 @@
 // LiteratureSection.tsx
 // Displays literature info grouped by pubmedId with associated PDB IDs
-// Fetches pubmed article metadata (title, authors, abstract) from API
+// Pubmed metadata (title, authors, abstract) comes from entry's pubmedTitle/pubmedAuthors/pubmedAbstract fields
 // Click card to open detail modal
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ExternalLink } from 'lucide-react';
 import type { PdbEntry } from './types';
 import { getMethodLabel } from './pdb-helpers';
-
-interface PubmedArticle {
-  title: string;
-  authors: string;
-  journal: string;
-  pubYear: string;
-  abstract: string;
-}
 
 interface PdbInfo {
   pdbId: string;
@@ -23,6 +15,9 @@ interface PdbInfo {
   journal: string | null;
   journalIf: number | null;
   pubmedId: string | null;
+  pubmedTitle?: string | null;
+  pubmedAuthors?: string | null;
+  pubmedAbstract?: string | null;
   identity?: number | null;
 }
 
@@ -54,19 +49,8 @@ interface EntryGroup {
 export function LiteratureSection({ entries, pdbStructures, blastResults, onSelectPdb }: LiteratureSectionProps) {
   const [sortDesc, setSortDesc] = useState(true);
   const [selectedLit, setSelectedLit] = useState<LitGroup | null>(null);
-  const [articleMap, setArticleMap] = useState<Record<string, PubmedArticle>>({});
 
-  // Fetch pubmed articles metadata
-  useEffect(() => {
-    fetch('/api/pubmed_articles')
-      .then(r => r.json())
-      .then((data: Record<string, PubmedArticle>) => {
-        if (data && !data.error) setArticleMap(data);
-      })
-      .catch(console.error);
-  }, []);
-
-  // Normal literature groups with pubmedId
+  // Normal literature groups with pubmedId - use pubmedTitle/pubmedAuthors/pubmedAbstract from entry data
   const litGroups: LitGroup[] = useMemo(() => {
     const map = new Map<string, LitGroup>();
 
@@ -74,15 +58,14 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
       for (const e of entries) {
         if (!e.pubmedId) continue;
         let g = map.get(e.pubmedId);
-        const article = articleMap[e.pubmedId];
         if (!g) {
           g = {
             pubmedId: e.pubmedId,
-            title: article?.title || e.title || 'No title',
-            authors: article?.authors || null,
-            journal: article?.journal || (e.journal ?? null),
+            title: (e as any).pubmedTitle || e.title || 'No title',
+            authors: (e as any).pubmedAuthors || null,
+            journal: e.journal || null,
             journalIf: e.journalIf ?? null,
-            abstract: article?.abstract || null,
+            abstract: (e as any).pubmedAbstract || null,
             pdbs: [],
             _sharedCount: 0,
           };
@@ -97,15 +80,14 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
       for (const s of pdbStructures) {
         if (!s.pubmedId) continue;
         let g = map.get(s.pubmedId);
-        const article = articleMap[s.pubmedId];
         if (!g) {
           g = {
             pubmedId: s.pubmedId,
-            title: article?.title || s.title || 'No title',
-            authors: article?.authors || null,
-            journal: article?.journal || s.journal,
+            title: s.pubmedTitle || s.title || 'No title',
+            authors: s.pubmedAuthors || null,
+            journal: s.journal || null,
             journalIf: s.journalIf,
-            abstract: article?.abstract || null,
+            abstract: s.pubmedAbstract || null,
             pdbs: [],
             _sharedCount: 0,
           };
@@ -120,15 +102,14 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
       for (const b of blastResults) {
         if (!b.pubmedId) continue;
         let g = map.get(b.pubmedId);
-        const article = articleMap[b.pubmedId];
         if (!g) {
           g = {
             pubmedId: b.pubmedId,
-            title: article?.title || b.title || 'No title',
-            authors: article?.authors || null,
-            journal: article?.journal || b.journal,
+            title: b.pubmedTitle || b.title || 'No title',
+            authors: b.pubmedAuthors || null,
+            journal: b.journal || null,
             journalIf: b.journalIf,
-            abstract: article?.abstract || null,
+            abstract: b.pubmedAbstract || null,
             pdbs: [],
             _sharedCount: 0,
           };
@@ -140,7 +121,7 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
     }
 
     return Array.from(map.values());
-  }, [entries, pdbStructures, blastResults, articleMap]);
+  }, [entries, pdbStructures, blastResults]);
 
   // Fallback groups when no pubmedId exists - group by journal
   const entryGroups: EntryGroup[] = useMemo(() => {
