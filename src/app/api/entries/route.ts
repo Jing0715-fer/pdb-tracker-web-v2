@@ -58,8 +58,11 @@ export async function GET(request: NextRequest) {
       : Prisma.sql``;
 
     const entries = await db.$queryRaw`
-      SELECT * FROM pdb_structures ${whereClause}
-      ORDER BY release_date DESC
+      SELECT p.*, a.title AS pubmedTitle, a.authors AS pubmedAuthors, a.abstract AS pubmedAbstract
+      FROM pdb_structures p
+      LEFT JOIN pubmed_articles a ON p.pubmed_id = a.pubmed_id
+      ${whereClause}
+      ORDER BY p.release_date DESC
       LIMIT ${cappedLimit}
     `;
 
