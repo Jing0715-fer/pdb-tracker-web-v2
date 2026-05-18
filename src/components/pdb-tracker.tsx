@@ -6750,6 +6750,7 @@ export default function PdbTracker() {
       setSelectedEvalStructure={setSelectedEvalStructure}
       setSelectedEvalId={setSelectedEvalId}
       setSelectedEval={setSelectedEval}
+      setSelectedBatchId={setSelectedBatchId}
       openReport={openReport}
       openBatchReport={openBatchReport}
       openEvalReport={openEvalReport}

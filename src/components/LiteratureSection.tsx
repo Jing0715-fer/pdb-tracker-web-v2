@@ -23,8 +23,8 @@ interface PdbInfo {
 
 interface LiteratureSectionProps {
   entries?: PdbEntry[];
-  pdbStructures?: PdbInfo[];
-  blastResults?: (PdbInfo & { identity?: number | null })[];
+  pdbStructures?: (PdbInfo & { _sourceUniport?: string; _sharedCount?: number })[];
+  blastResults?: (PdbInfo & { identity?: number | null; _sourceUniport?: string; _sharedCount?: number })[];
   onSelectPdb: (pdbId: string) => void;
 }
 
@@ -35,7 +35,7 @@ interface LitGroup {
   journal: string | null;
   journalIf: number | null;
   abstract: string | null;
-  pdbs: { pdbId: string; method: string | null; isBlast?: boolean; identity?: number | null }[];
+  pdbs: { pdbId: string; method: string | null; isBlast?: boolean; identity?: number | null; _sourceUniports?: string[] }[];
   _sharedCount: number;
 }
 
@@ -71,7 +71,16 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
           };
           map.set(e.pubmedId, g);
         }
-        g.pdbs.push({ pdbId: e.pdbId, method: null });
+        const existingPdb = g.pdbs.find(p => p.pdbId === e.pdbId);
+        if (existingPdb) {
+          // entries may have _sourceUniport from sortedEvalRows
+          const src = (e as any)._sourceUniport;
+          if (src && !existingPdb._sourceUniports?.includes(src)) {
+            existingPdb._sourceUniports = [...(existingPdb._sourceUniports || []), src];
+          }
+        } else {
+          g.pdbs.push({ pdbId: e.pdbId, method: null, _sourceUniports: (e as any)._sourceUniport ? [(e as any)._sourceUniport] : [] });
+        }
         g._sharedCount++;
       }
     }
@@ -93,7 +102,15 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
           };
           map.set(s.pubmedId, g);
         }
-        g.pdbs.push({ pdbId: s.pdbId, method: null, isBlast: false });
+        // Find or create PDB entry with source tracking
+        const existingPdb = g.pdbs.find(p => p.pdbId === s.pdbId);
+        if (existingPdb) {
+          if (s._sourceUniport && !existingPdb._sourceUniports?.includes(s._sourceUniport)) {
+            existingPdb._sourceUniports = [...(existingPdb._sourceUniports || []), s._sourceUniport];
+          }
+        } else {
+          g.pdbs.push({ pdbId: s.pdbId, method: null, isBlast: false, _sourceUniports: s._sourceUniport ? [s._sourceUniport] : [] });
+        }
         g._sharedCount++;
       }
     }
@@ -115,7 +132,15 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
           };
           map.set(b.pubmedId, g);
         }
-        g.pdbs.push({ pdbId: b.pdbId, method: null, isBlast: true, identity: b.identity ?? null });
+        // Find or create PDB entry with source tracking
+        const existingPdb = g.pdbs.find(p => p.pdbId === b.pdbId);
+        if (existingPdb) {
+          if (b._sourceUniport && !existingPdb._sourceUniports?.includes(b._sourceUniport)) {
+            existingPdb._sourceUniports = [...(existingPdb._sourceUniports || []), b._sourceUniport];
+          }
+        } else {
+          g.pdbs.push({ pdbId: b.pdbId, method: null, isBlast: true, identity: b.identity ?? null, _sourceUniports: b._sourceUniport ? [b._sourceUniport] : [] });
+        }
         g._sharedCount++;
       }
     }
@@ -299,16 +324,35 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
                 <p className="text-[9px] text-claude-text-muted mb-1 line-clamp-1">{group.authors}</p>
               )}
               <div className="flex items-center gap-1 flex-wrap">
-                {group.pdbs.map((p) => (
-                  <button
-                    key={`${p.pdbId}-${p.isBlast ? 'b' : 's'}`}
-                    onClick={(e) => { e.stopPropagation(); onSelectPdb(p.pdbId); }}
-                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-claude-surface dark:bg-[#2b2926] border border-claude-border/50 dark:border-[#3d3832]/50 hover:border-claude-accent/50 transition-colors"
-                  >
-                    <span className="font-mono font-semibold text-claude-accent">{p.pdbId}</span>
-                    {p.isBlast && <span className="text-[9px] px-1 py-0.5 rounded bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">H</span>}
-                  </button>
-                ))}
+                {group.pdbs.map((p) => {
+                  const isShared = (p._sourceUniports?.length || 0) > 1;
+                  const colorClass = isShared
+                    ? 'border-amber-400/50 dark:border-amber-600/50 bg-amber-50/30 dark:bg-amber-900/20'
+                    : 'border-claude-border/50 dark:border-[#3d3832]/50';
+                  return (
+                    <div key={`${p.pdbId}-${p.isBlast ? 'b' : 's'}`} className="relative group">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onSelectPdb(p.pdbId); }}
+                        className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-claude-surface dark:bg-[#2b2926] border ${colorClass} hover:border-claude-accent/50 transition-colors`}
+                      >
+                        <span className={`font-mono font-semibold ${isShared ? 'text-amber-600 dark:text-amber-400' : 'text-claude-accent'}`}>{p.pdbId}</span>
+                        {p.isBlast && <span className="text-[9px] px-1 py-0.5 rounded bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent border border-claude-accent/20">H</span>}
+                        {isShared && <span className="text-[9px] px-0.5 py-0.5 rounded bg-amber-200 dark:bg-amber-700 text-amber-700 dark:text-amber-200 font-semibold">×{p._sourceUniports!.length}</span>}
+                      </button>
+                      {/* Hover tooltip */}
+                      {isShared && p._sourceUniports && (
+                        <div className="absolute bottom-full left-0 mb-1 hidden group-hover:block z-20 pointer-events-none">
+                          <div className="bg-gray-900 dark:bg-gray-700 text-white text-[9px] rounded-md px-2 py-1 whitespace-nowrap shadow-lg">
+                            <div className="font-semibold mb-0.5">Shared across:</div>
+                            {p._sourceUniports.map(uid => (
+                              <div key={uid} className="font-mono">{uid}</div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
                 {group._sharedCount > 1 && <span className="text-[9px] text-claude-text-muted">+{group._sharedCount - 1}</span>}
                 <span className="text-[9px] text-claude-text-muted ml-auto">{group.journal}</span>
               </div>

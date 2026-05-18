@@ -33,6 +33,9 @@ export interface EvalPreviewPanelProps {
   previewTab: PreviewTab;
   setPreviewTab: (tab: string) => void;
   setPreviewOpen: (open: boolean) => void;
+  setSelectedBatchId: (id: string | null) => void;
+  setSelectedEval: (evaluation: Evaluation | null) => void;
+  setSelectedEvalId: (id: string | null) => void;
   // State
   selectedSnapshot: WeeklySnapshot | null;
   selectedEval: Evaluation | null;
@@ -62,8 +65,6 @@ export interface EvalPreviewPanelProps {
   setSelectedEntry: (entry: PdbEntry | null) => void;
   setDetailPanelOpen: (open: boolean) => void;
   setSelectedEvalStructure: (s: (EvalPdbStructure & { isBlast?: boolean }) | null) => void;
-  setSelectedEvalId: (id: string | null) => void;
-  setSelectedEval: (ev: Evaluation | null) => void;
   openReport: (id: number, title: string) => void;
   openBatchReport: (batchId: string, title: string) => void;
   openEvalReport: (uniprotId: string, title: string) => void;
@@ -101,6 +102,7 @@ export function EvalPreviewPanel({
   setSelectedEvalStructure,
   setSelectedEvalId,
   setSelectedEval,
+  setSelectedBatchId,
   openReport,
   openBatchReport,
   openEvalReport,
@@ -175,7 +177,7 @@ export function EvalPreviewPanel({
               ) : mode === 'evaluation' && selectedBatchId && !selectedEval ? (
                 <BatchPreviewContent
                   batchId={selectedBatchId}
-                  onSelectSubTarget={(uniprotId) => { setSelectedEvalId(uniprotId); }}
+                  onSelectSubTarget={(uniprotId) => { setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(uniprotId); }}
                   selectedSubTargetId={selectedEvalId}
                   allEvals={evaluations}
                   batchFetchedEvals={batchFetchedEvals}
