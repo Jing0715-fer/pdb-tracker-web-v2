@@ -7,10 +7,12 @@ import {
   BarChart3, LayoutGrid, BookOpen, FileText,
   Info, ChevronLeft, X, Clock,
 } from 'lucide-react';
-import { EvaluationTimeline, EvaluationHeatmap, EvaluationLiterature } from './evaluation-timeline';
+import { EvaluationTimeline, EvaluationHeatmap } from './evaluation-timeline';
 import { ActivityHeatmap } from './activity-heatmap';
+import { YearCalendar } from './YearCalendar';
 import { WeeklySummary } from './WeeklySummary';
 import { WeeklyTimeline } from './WeeklyTimeline';
+import { LiteratureSection } from './LiteratureSection';
 import { EvalSummary } from './eval-summary';
 import { ComplexEvalSummary } from './ComplexEvalSummary';
 import { BatchPreviewContent } from './BatchPreviewContent';
@@ -109,7 +111,7 @@ export function EvalPreviewPanel({
   const weeklyTabs = [
     { value: 'summary', icon: <BarChart3 className="h-3 w-3 mr-1" />, label: 'Summary' },
     { value: 'timeline', icon: <Clock className="h-3 w-3 mr-1" />, label: 'Timeline' },
-    { value: 'heatmap', icon: <LayoutGrid className="h-3 w-3 mr-1" />, label: 'Heatmap' },
+    { value: 'heatmap', icon: <BookOpen className="h-3 w-3 mr-1" />, label: 'Literature' },
     { value: 'report', icon: <FileText className="h-3 w-3 mr-1" />, label: 'Report' },
   ];
   const evalTabs = [
@@ -219,14 +221,12 @@ export function EvalPreviewPanel({
                 </div>
               )
             ) : previewTab === 'timeline' ? (
-              /* Timeline Tab */
-              mode === 'weekly' && selectedSnapshot && entries.length > 0 ? (
-                <WeeklyTimeline
-                  entries={entries}
-                  snapshot={selectedSnapshot}
-                  onSelectEntry={(entry) => { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }}
-                  onHighlightEntry={setHighlightedEntry}
-                  highlightedEntry={highlightedEntry}
+              /* Timeline Tab - year calendar for weekly, evaluation timeline for eval */
+              mode === 'weekly' && entries.length > 0 ? (
+                <YearCalendar
+                  entries={heatmapEntries.length > 0 ? heatmapEntries : entries}
+                  snapshots={snapshots}
+                  className="flex-1 min-h-0"
                 />
               ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
                 <EvaluationTimeline
@@ -307,32 +307,28 @@ export function EvalPreviewPanel({
                 </div>
               )
             ) : previewTab === 'heatmap' ? (
-              /* Heatmap Tab */
+              /* Literature Tab */
               mode === 'weekly' ? (
-                <ActivityHeatmap
-                  entries={heatmapEntries}
-                  snapshots={snapshots}
-                  loading={heatmapLoading}
-                  className="flex-1 min-h-0"
+                <LiteratureSection
+                  entries={entries}
+                  onSelectPdb={(pdbId) => {
+                    const entry = entries.find(e => e.pdbId === pdbId);
+                    if (entry) { setSelectedEntry(entry); setDetailPanelOpen(true); setPreviewTab('summary'); }
+                  }}
                 />
               ) : mode === 'evaluation' && selectedEval && ((selectedEval.pdbStructures?.length || 0) + (selectedEval.blastResults?.length || 0)) > 0 ? (
-                <EvaluationLiterature
-                  pdbStructures={selectedEval.pdbStructures as unknown as { pdbId: string; method: string | null; title: string | null; journal: string | null; journalIf: number | null; pubmedId: string | null }[]}
-                  blastResults={selectedEval.blastResults as unknown as { pdbId: string; method: string | null; title: string | null; journal: string | null; journalIf: number | null; pubmedId?: string | null; identity: number | null }[]}
+                <LiteratureSection
+                  pdbStructures={selectedEval.pdbStructures as any}
+                  blastResults={selectedEval.blastResults as any}
                   onSelectPdb={(pdbId) => {
-                    const struct = selectedEval.pdbStructures?.find(s => s.pdbId === pdbId);
-                    const blast = selectedEval.blastResults?.find(b => b.pdbId === pdbId);
+                    const struct = selectedEval.pdbStructures?.find((s: any) => s.pdbId === pdbId);
+                    const blast = selectedEval.blastResults?.find((b: any) => b.pdbId === pdbId);
                     if (struct) {
                       setSelectedEvalStructure(null);
                       setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
                       setDetailPanelOpen(true);
                       setPreviewTab('summary');
                     } else if (blast?.pdbId) {
-                      setSelectedEvalStructure(null);
-                      setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
-                      setDetailPanelOpen(true);
-                      setPreviewTab('summary');
-                    } else if (blast) {
                       setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
                       setDetailPanelOpen(true);
                       setPreviewTab('summary');
@@ -340,12 +336,12 @@ export function EvalPreviewPanel({
                   }}
                 />
               ) : mode === 'evaluation' && selectedComplexId && complexEvalData && !selectedEval && ((complexEvalData.allStructures?.length || 0) + (complexEvalData.allBlasts?.length || 0)) > 0 ? (
-                <EvaluationLiterature
+                <LiteratureSection
                   pdbStructures={complexEvalData.allStructures as any}
-                  blastResults={complexEvalData.allBlasts.filter(b => b.pdbId) as any}
+                  blastResults={complexEvalData.allBlasts.filter((b: any) => b.pdbId) as any}
                   onSelectPdb={(pdbId) => {
-                    const struct = complexEvalData.allStructures.find(s => s.pdbId === pdbId);
-                    const blast = complexEvalData.allBlasts.find(b => b.pdbId === pdbId);
+                    const struct = complexEvalData.allStructures.find((s: any) => s.pdbId === pdbId);
+                    const blast = complexEvalData.allBlasts.find((b: any) => b.pdbId === pdbId);
                     if (struct) {
                       setSelectedEvalStructure(null);
                       setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
@@ -364,20 +360,15 @@ export function EvalPreviewPanel({
                   }}
                 />
               ) : mode === 'evaluation' && selectedBatchId && !selectedEval && sortedEvalRows.length > 0 ? (
-                <EvaluationLiterature
+                <LiteratureSection
                   pdbStructures={sortedEvalRows.filter(r => r._type === 'structure') as any}
                   blastResults={sortedEvalRows.filter(r => r._type === 'blast') as any}
                   onSelectPdb={(pdbId) => {
-                    const struct = sortedEvalRows.find(r => r._type === 'structure' && r.pdbId === pdbId);
-                    const blast = sortedEvalRows.find(r => r._type === 'blast' && r.pdbId === pdbId);
+                    const struct = sortedEvalRows.find((r: any) => r._type === 'structure' && r.pdbId === pdbId);
+                    const blast = sortedEvalRows.find((r: any) => r._type === 'blast' && r.pdbId === pdbId);
                     if (struct) {
                       setSelectedEvalStructure(null);
                       setSelectedEntry({ ...struct, _type: 'evaluation' } as unknown as PdbEntry);
-                      setDetailPanelOpen(true);
-                      setPreviewTab('summary');
-                    } else if (blast?.pdbId) {
-                      setSelectedEvalStructure(null);
-                      setSelectedEntry({ ...blast, _type: 'evaluation' } as unknown as PdbEntry);
                       setDetailPanelOpen(true);
                       setPreviewTab('summary');
                     } else if (blast) {

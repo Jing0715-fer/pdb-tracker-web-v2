@@ -4,8 +4,6 @@ import { useTheme } from 'next-themes';
 import { useMemo, useState } from 'react';
 import type { PdbEntry, WeeklySnapshot } from '@/components/types';
 
-// ─── Activity Heatmap ─────────────────────────────────────────────────────────
-
 export function ActivityHeatmap({
   entries,
   snapshots,
@@ -19,64 +17,37 @@ export function ActivityHeatmap({
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [hoveredCell, setHoveredCell] = useState<{ date: string; count: number; x: number; y: number } | null>(null);
+  const [hoveredWeek, setHoveredWeek] = useState<WeeklySnapshot | null>(null);
 
-  // Calculate date range from all data (snapshots)
-  const dateRange = useMemo(() => {
-    if (snapshots.length === 0) return { start: new Date(), end: new Date() };
-    const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
-    const start = new Date(sorted[0].weekStart);
-    const end = new Date(sorted[sorted.length - 1].weekEnd);
-    return { start, end };
-  }, [snapshots]);
-
-  // Count entries per day
-  const dailyCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
-    entries.forEach(entry => {
-      if (!entry.releaseDate) return;
-      const dateKey = entry.releaseDate.split('T')[0];
-      counts[dateKey] = (counts[dateKey] || 0) + 1;
-    });
-    return counts;
-  }, [entries]);
-
-  // Build grid data (weeks as rows, days as columns)
-  const gridData = useMemo(() => {
-    const { start, end } = dateRange;
-    const weeks: { date: Date; count: number; dayOfWeek: number }[][] = [];
-    let current = new Date(start);
-    // Align to start of week (Sunday)
-    current.setDate(current.getDate() - current.getDay());
-
-    while (current <= end) {
-      const week: { date: Date; count: number; dayOfWeek: number }[] = [];
-      for (let d = 0; d < 7; d++) {
-        const dateKey = current.toISOString().split('T')[0];
-        week.push({
-          date: new Date(current),
-          count: dailyCounts[dateKey] || 0,
-          dayOfWeek: d,
-        });
-        current.setDate(current.getDate() + 1);
-      }
-      weeks.push(week);
+  // Group entries by week
+  const weekData = useMemo(() => {
+    const map = new Map<string, { snapshot: WeeklySnapshot; entries: PdbEntry[]; methodCounts: Record<string, number> }>();
+    for (const snap of snapshots) {
+      map.set(snap.weekId, { snapshot: snap, entries: [], methodCounts: { CryoEM: 0, XRay: 0, NMR: 0, Other: 0 } });
     }
-    return weeks;
-  }, [dateRange, dailyCounts]);
+    for (const e of entries) {
+      const weekId = e.weekId;
+      if (!weekId) continue;
+      const group = map.get(weekId);
+      if (group) {
+        group.entries.push(e);
+        const m = (e.method || '').toUpperCase();
+        if (m.includes('CRYO') || m.includes('ELECTRON')) group.methodCounts.CryoEM++;
+        else if (m.includes('X-RAY') || m.includes('XRAY')) group.methodCounts.XRay++;
+        else if (m.includes('NMR')) group.methodCounts.NMR++;
+        else group.methodCounts.Other++;
+      }
+    }
+    return Array.from(map.values());
+  }, [entries, snapshots]);
 
-  const maxCount = useMemo(() => {
-    return Math.max(...Object.values(dailyCounts), 1);
-  }, [dailyCounts]);
+  const maxTotal = useMemo(() => Math.max(...weekData.map(w => w.entries.length), 1), [weekData]);
 
-  const getColor = (count: number) => {
-    if (count === 0) return isDark ? '#2b2926' : '#f0ebe5';
-    const intensity = Math.min(count / maxCount, 1);
-    const colors = isDark
-      ? ['#1a3a3a', '#2d5a5a', '#3d7a7a', '#4d9a9a', '#5dbaba']
-      : ['#cce8e8', '#2d8f8f', '#238f8f', '#1a7a7a', '#116a6a'];
-    const idx = Math.min(Math.floor(intensity * colors.length), colors.length - 1);
-    return colors[idx];
+  const barColor = (method: string) => {
+    if (method === 'CryoEM') return isDark ? '#4a9a9a' : '#2d8f8f';
+    if (method === 'XRay') return isDark ? '#7a6a5a' : '#9a8570';
+    if (method === 'NMR') return isDark ? '#5a7a9a' : '#5a7a9a';
+    return isDark ? '#5a5a5a' : '#a0a0a0';
   };
 
   if (loading) {
@@ -87,7 +58,7 @@ export function ActivityHeatmap({
     );
   }
 
-  if (snapshots.length === 0) {
+  if (weekData.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-10 text-claude-text-muted dark:text-[#9b9590]">
         <p className="text-xs">No weekly data available</p>
@@ -95,80 +66,95 @@ export function ActivityHeatmap({
     );
   }
 
-  const cellSize = 12;
-  const gap = 2;
-  const dayLabels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
   return (
-    <div className={`space-y-2 p-2 flex flex-col min-h-0 ${className}`}>
-      <div className="flex items-end gap-1 overflow-x-auto pb-1">
-        {/* Day labels column */}
-        <div className="flex-shrink-0 space-y-0.5">
-          {dayLabels.map((day, i) => (
-            <div key={day} className="text-[8px] text-claude-text-muted flex items-center" style={{ height: cellSize, lineHeight: `${cellSize}px` }}>
-              {i % 2 === 1 ? day : ''}
-            </div>
-          ))}
-        </div>
-
-        {/* Grid */}
-        <div className="flex gap-0.5">
-          {gridData.map((week, wi) => (
-            <div key={wi} className="flex flex-col gap-0.5">
-              {week.map((day, di) => {
-                const dateKey = day.date.toISOString().split('T')[0];
-                return (
-                  <div
-                    key={`${wi}-${di}`}
-                    className="rounded-sm cursor-pointer transition-opacity duration-150 hover:opacity-80"
-                    style={{
-                      width: cellSize,
-                      height: cellSize,
-                      backgroundColor: getColor(day.count),
-                    }}
-                    onMouseEnter={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      setHoveredCell({ date: dateKey, count: day.count, x: rect.left, y: rect.top });
-                    }}
-                    onMouseLeave={() => setHoveredCell(null)}
-                  />
-                );
-              })}
-            </div>
-          ))}
-        </div>
+    <div className={`flex flex-col gap-2 ${className}`} style={{ padding: '8px 4px' }}>
+      {/* Method legend */}
+      <div className="flex items-center gap-3 text-[9px] px-1">
+        {[
+          { label: 'Cryo-EM', key: 'CryoEM', color: isDark ? '#4a9a9a' : '#2d8f8f' },
+          { label: 'X-ray', key: 'XRay', color: isDark ? '#7a6a5a' : '#9a8570' },
+          { label: 'NMR', key: 'NMR', color: isDark ? '#5a7a9a' : '#7a8aaa' },
+          { label: 'Other', key: 'Other', color: isDark ? '#5a5a5a' : '#a0a0a0' },
+        ].map(item => (
+          <span key={item.key} className="flex items-center gap-1">
+            <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: item.color }} />
+            <span className="text-claude-text-muted">{item.label}</span>
+          </span>
+        ))}
       </div>
 
-      {/* Tooltip */}
-      {hoveredCell && (
-        <div
-          className="absolute z-50 px-2 py-1 text-[10px] rounded border bg-white dark:bg-[#242220] border-claude-border dark:border-[#4a4540] shadow-lg text-claude-text pointer-events-none"
-          style={{
-            left: Math.min(hoveredCell.x, window.innerWidth - 120),
-            top: hoveredCell.y - 30,
-          }}
-        >
-          <span className="font-semibold">{hoveredCell.date}</span>: {hoveredCell.count} {hoveredCell.count === 1 ? 'structure' : 'structures'}
-        </div>
-      )}
+      {/* Week rows */}
+      <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[calc(100vh-320px)]">
+        {weekData.map(({ snapshot, entries: weekEntries, methodCounts }) => {
+          const total = weekEntries.length;
+          const heightPx = Math.max(8, Math.round((total / maxTotal) * 80));
+          return (
+            <div
+              key={snapshot.weekId}
+              className="flex items-center gap-2 px-1 py-1 rounded hover:bg-claude-border-light/30 dark:hover:bg-[#3d3832]/30 cursor-pointer transition-colors"
+              onMouseEnter={() => setHoveredWeek(snapshot)}
+              onMouseLeave={() => setHoveredWeek(null)}
+            >
+              {/* Week label */}
+              <div className="w-10 flex-shrink-0 text-[10px] font-mono font-semibold text-claude-text-muted text-right">
+                {snapshot.weekId.replace('2026-', '')}
+              </div>
 
-      {/* Legend */}
-      <div className="flex items-center gap-1 text-[9px] text-claude-text-muted">
-        <span>Less</span>
-        {[0, 0.25, 0.5, 0.75, 1].map((intensity, i) => (
-          <div
-            key={i}
-            className="w-2 h-2 rounded-sm"
-            style={{
-              backgroundColor: intensity === 0
-                ? (isDark ? '#2b2926' : '#f0ebe5')
-                : (isDark
-                    ? ['#1a3a3a', '#2d5a5a', '#3d7a7a', '#4d9a9a', '#5dbaba'][Math.floor(intensity * 5)]
-                    : ['#cce8e8', '#2d8f8f', '#238f8f', '#1a7a7a', '#116a6a'][Math.floor(intensity * 5)])
-            }}
-          />
-        ))}
-        <span>More</span>
+              {/* Stacked bar */}
+              <div
+                className="flex rounded-sm overflow-hidden flex-shrink-0"
+                style={{ height: heightPx, minWidth: 40, maxWidth: 160 }}
+              >
+                {(['CryoEM', 'XRay', 'NMR', 'Other'] as const).map(key => {
+                  const count = methodCounts[key];
+                  if (count === 0) return null;
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        flex: count / total,
+                        backgroundColor: barColor(key),
+                        minWidth: count > 0 ? 4 : 0,
+                      }}
+                    />
+                  );
+                })}
+              </div>
+
+              {/* Count */}
+              <div className="text-[10px] text-claude-text-muted w-8 flex-shrink-0">
+                {total}
+              </div>
+
+              {/* Method breakdown on hover */}
+              {hoveredWeek?.weekId === snapshot.weekId && (
+                <div className="flex items-center gap-2 text-[9px] ml-auto">
+                  {(['CryoEM', 'XRay', 'NMR', 'Other'] as const).map(key => {
+                    const count = methodCounts[key];
+                    if (count === 0) return null;
+                    return (
+                      <span key={key} className="flex items-center gap-0.5">
+                        <span className="w-1.5 h-1.5 rounded-sm" style={{ backgroundColor: barColor(key) }} />
+                        <span className="text-claude-text-muted">{count}</span>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Scale hint */}
+      <div className="flex items-center gap-1 px-1 text-[9px] text-claude-text-muted">
+        <span>Low</span>
+        <div className="flex items-end gap-0.5 h-3">
+          {[0.2, 0.4, 0.6, 0.8, 1].map((frac, i) => (
+            <div key={i} className="w-2 rounded-sm" style={{ height: frac * 12, backgroundColor: isDark ? '#3d6a6a' : '#5a9a9a' }} />
+          ))}
+        </div>
+        <span>High</span>
       </div>
     </div>
   );

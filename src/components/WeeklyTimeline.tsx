@@ -2,9 +2,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTheme } from 'next-themes';
 import type { PdbEntry, WeeklySnapshot } from './types';
-import { getChartAxisColor, getChartTickColor } from './chart-tooltips';
+import { getChartAxisColor, getChartTickColor, METHOD_COLORS } from './chart-tooltips';
+import { formatDate, getMethodLabel } from './pdb-helpers';
 import { ClaudeChartTooltip } from './chart-tooltips';
 import { BarChart, Bar, XAxis, YAxis, Tooltip as BTooltip, ResponsiveContainer } from 'recharts';
+import { motion } from 'framer-motion';
+
+const safeNum = (val: any, decimals: number = 0, fallback: string = '—'): string => {
+  if (val == null || isNaN(Number(val))) return fallback;
+  return Number(val).toFixed(decimals);
+};
 
 export function WeeklyTimeline({
   entries,
@@ -47,7 +54,6 @@ export function WeeklyTimeline({
   const weekEnd = new Date(snapshot.weekEnd);
   const totalDays = Math.max(1, Math.round((weekEnd.getTime() - weekStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-  // Generate day labels
   const dayLabels = useMemo(() => {
     const days: { date: Date; dayName: string; dateLabel: string }[] = [];
     for (let i = 0; i < totalDays; i++) {
@@ -116,11 +122,23 @@ export function WeeklyTimeline({
   const dateLabelY = dayLabelY + 12;
   const usableWidth = containerWidth - marginLeft - marginRight;
   const dayWidth = totalDays > 0 ? usableWidth / totalDays : usableWidth;
+
+  // Shift so peak day is centered in the timeline
+  const startOffset = useMemo(() => {
+    const counts = Object.values(entriesByDay).map(e => e.length);
+    const maxCount = Math.max(...counts, 0);
+    const pidx = counts.indexOf(maxCount);
+    if (totalDays <= 1 || pidx <= 0) return 0;
+    const peakCenterX = marginLeft + pidx * dayWidth + dayWidth / 2;
+    const svgCenterX = (containerWidth - marginLeft - marginRight - 24) / 2;
+    return svgCenterX - peakCenterX;
+  }, [entriesByDay, dayWidth, totalDays, marginLeft, containerWidth]);
+
   const maxDotsPerGroup = 120;
   const dotBaseSize = 3;
-  const dotMaxSize = 10;
-  const dotVStep = 2;
-  const dotHStep = 3;
+  const dotMaxSize = 7;
+  const dotVStep = 3;
+  const dotHStep = 6;
 
   // Get dot color by method
   const getDotColor = (entry: PdbEntry): string => {
@@ -131,41 +149,58 @@ export function WeeklyTimeline({
     return METHOD_COLORS['Other'];
   };
 
-  // Calculate dot positions - wrap vertically bidirectionally from center
+  // Calculate dot positions - columns by IF ranges, wrap vertically within each column
   const dotPositions = useMemo(() => {
     const positions: { entry: PdbEntry; cx: number; cy: number; size: number; color: string; dayIndex: number }[] = [];
     const dayKeys = Object.keys(entriesByDay).sort();
-    const halfGroup = maxDotsPerGroup / 2;
 
     dayKeys.forEach((dayKey, dayIdx) => {
       const dayEntries = entriesByDay[dayKey];
-      const cx = marginLeft + dayIdx * dayWidth + dayWidth / 2;
+      const cx = marginLeft + startOffset + dayIdx * dayWidth + dayWidth / 2;
       const sortedEntries = [...dayEntries].sort((a, b) => (b.journalIf ?? 0) - (a.journalIf ?? 0));
+      const n = sortedEntries.length;
 
-      sortedEntries.forEach((entry, stackIdx) => {
-        const if_ = entry.journalIf ?? 0;
-        const size = dotBaseSize + (if_ / 50) * (dotMaxSize - dotBaseSize);
-        const group = Math.floor(stackIdx / maxDotsPerGroup);
-        const posInGroup = stackIdx % maxDotsPerGroup;
-        const signedPos = group % 2 === 0
-          ? (halfGroup / 2 - posInGroup)
-          : (posInGroup - halfGroup / 2);
-        const rawCY = axisY - signedPos * (size + dotVStep);
-        const cy = Math.min(Math.max(rawCY, marginTop + size), svgHeight - marginBottom - size);
-        const cxOffset = group * dotHStep;
-        positions.push({
-          entry,
-          cx: cx + cxOffset,
-          cy,
-          size,
-          color: getDotColor(entry),
-          dayIndex: dayIdx,
+      if (n === 0) return;
+
+      // Dynamically determine column count and per-column max based on entry count
+      const colCount = n <= 10 ? 1 : n <= 50 ? 2 : n <= 150 ? 3 : n <= 300 ? 4 : 5;
+      const perCol = Math.ceil(n / colCount);
+      const usableHeight = svgHeight - marginTop - marginBottom - 40;
+
+      for (let col = 0; col < colCount; col++) {
+        const colStart = col * perCol;
+        const colEntries = sortedEntries.slice(colStart, colStart + perCol);
+        const colIfs = colEntries.map(e => e.journalIf ?? 0);
+        const maxIf = Math.max(...colIfs, 1);
+        const minIf = Math.min(...colIfs, 0);
+        const range = Math.max(maxIf - minIf, 1);
+
+        // Column x offset from day center
+        const colOffset = (col - (colCount - 1) / 2) * 22;
+
+        colEntries.forEach((entry, idx) => {
+          const if_ = entry.journalIf ?? 0;
+          const size = dotBaseSize + (if_ / 50) * (dotMaxSize - dotBaseSize);
+          const posInCol = colEntries.length;
+          const half = posInCol / 2;
+          const signedPos = idx - half + 0.5;
+          const spacing = size + dotVStep;
+          const rawCY = axisY - signedPos * spacing;
+          const cy = Math.min(Math.max(rawCY, marginTop + size + 20), svgHeight - marginBottom - size - 20);
+          positions.push({
+            entry,
+            cx: cx + colOffset,
+            cy,
+            size,
+            color: getDotColor(entry),
+            dayIndex: dayIdx,
+          });
         });
-      });
+      }
     });
 
     return positions;
-  }, [entriesByDay, dayWidth, marginLeft, axisY]);
+  }, [entriesByDay, dayWidth, marginLeft, axisY, svgHeight]);
 
   // Method distribution bar segments
   const methodBarSegments = [
@@ -263,7 +298,7 @@ export function WeeklyTimeline({
         >
           {/* Vertical grid lines for each day */}
           {dayLabels.map((day, i) => {
-            const x = marginLeft + i * dayWidth + dayWidth / 2;
+            const x = marginLeft + startOffset + i * dayWidth + dayWidth / 2;
             return (
               <line
                 key={`grid-${i}`}
@@ -280,9 +315,9 @@ export function WeeklyTimeline({
 
           {/* Horizontal axis line */}
           <line
-            x1={marginLeft}
+            x1={marginLeft + startOffset}
             y1={axisY}
-            x2={containerWidth - marginRight - 24}
+            x2={marginLeft + startOffset + (totalDays - 1) * dayWidth + dayWidth / 2}
             y2={axisY}
             stroke={axisStroke}
             strokeWidth={1}
@@ -290,7 +325,7 @@ export function WeeklyTimeline({
 
           {/* Day labels */}
           {dayLabels.map((day, i) => {
-            const x = marginLeft + i * dayWidth + dayWidth / 2;
+            const x = marginLeft + startOffset + i * dayWidth + dayWidth / 2;
             return (
               <g key={`day-${i}`}>
                 <text
@@ -323,6 +358,27 @@ export function WeeklyTimeline({
                   strokeWidth={1}
                 />
               </g>
+            );
+          })}
+
+          {/* Day count badges */}
+          {dayLabels.map((day, i) => {
+            const dayKey = day.date.toISOString().split('T')[0];
+            const count = entriesByDay[dayKey]?.length ?? 0;
+            if (count === 0) return null;
+            const x = marginLeft + startOffset + i * dayWidth + dayWidth / 2;
+            return (
+              <text
+                key={`count-${i}`}
+                x={x}
+                y={axisY + 16}
+                textAnchor="middle"
+                fontSize={9}
+                fill={mutedTextColor}
+                fontFamily="system-ui, -apple-system, sans-serif"
+              >
+                {count > 99 ? '99+' : count}
+              </text>
             );
           })}
 

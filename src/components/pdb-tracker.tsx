@@ -2767,13 +2767,13 @@ export default function PdbTracker() {
 
   // ── Fetch All Entries for Heatmap ──
   useEffect(() => {
-    if (mode !== 'weekly' || previewTab !== 'heatmap') return;
+    if (mode !== 'weekly' || (previewTab !== 'heatmap' && previewTab !== 'timeline')) return;
     if (heatmapEntries.length > 0) return; // already loaded
     let cancelled = false;
     async function load() {
       setHeatmapLoading(true);
       try {
-        const res = await fetch('/api/entries?limit=1000');
+        const res = await fetch('/api/entries?limit=5000');
         if (!cancelled) {
           const data = await res.json();
           setHeatmapEntries(data);
