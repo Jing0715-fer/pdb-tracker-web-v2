@@ -543,6 +543,9 @@ export interface EvalPdbStructure {
   journalIf: number | null;
   doi: string | null;
   pubmedId: string | null;
+  pubmedTitle: string | null;
+  pubmedAuthors: string | null;
+  pubmedAbstract: string | null;
   organism: string | null;
   authors: string | null;
   isCryoem: number;
@@ -572,6 +575,10 @@ export interface EvalBlastResult {
   ifTier: string;
   ligand: string | null;
   title: string | null;
+  pubmedId: string | null;
+  pubmedTitle: string | null;
+  pubmedAuthors: string | null;
+  pubmedAbstract: string | null;
   updatedAt: string;
 }
 
@@ -4000,9 +4007,9 @@ export default function PdbTracker() {
                                     return (
                                       <button
                                         key={sub.uniprotId}
-                                        onClick={() => { setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                        onClick={() => { setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                                         className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
-                                          selectedEvalId === sub.uniprotId && selectedBatchId === batch.batchId
+                                          selectedEvalId === sub.uniprotId
                                             ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
                                             : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
                                         }`}
