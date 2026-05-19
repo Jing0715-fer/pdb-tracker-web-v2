@@ -4025,7 +4025,8 @@ export default function PdbTracker() {
                                     return (
                                       <button
                                         key={sub.uniprotId}
-                                        onClick={(e) => { e.stopPropagation(); setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                        data-subtarget={sub.uniprotId}
+                                        onClick={(e) => { e.stopPropagation(); console.log('[SUBBTN] onclick firing', sub.uniprotId); window.__lastSubTargetClick = sub.uniprotId; setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                                         className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
                                           selectedEvalId === sub.uniprotId
                                             ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
