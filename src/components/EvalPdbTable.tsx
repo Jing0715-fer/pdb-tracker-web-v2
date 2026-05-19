@@ -21,8 +21,8 @@ import type { EvalPdbStructure, EvalBlastResult, LigandInfo } from './pdb-tracke
 
 // ─── Local Eval Row Types (same as pdb-tracker.tsx) ─────────────────────────
 
-type EvalRow = (EvalPdbStructure & { _type: 'structure'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string })
-  | (EvalBlastResult & { _type: 'blast'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string });
+type EvalRow = (EvalPdbStructure & { _type: 'structure'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string; _allSources?: string[] })
+  | (EvalBlastResult & { _type: 'blast'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string; _allSources?: string[] });
 
 type ComplexGroup = {
   id: string;
@@ -70,6 +70,7 @@ export interface EvalPdbTableProps {
   fetchLigandInfo: (code: string) => void;
   openEvalReport: (uniprotId: string, title: string) => void;
   batchUniprotSources: Map<string, string[]> | null;
+  rowAllSources?: string[];
 }
 
 // ─── Shared Tooltip Content Components ─────────────────────────────────────
@@ -162,6 +163,7 @@ export function EvalPdbTable({
   setCurrentPage,
   ligandCache,
   fetchLigandInfo,
+  batchUniprotSources,
 }: EvalPdbTableProps) {
   const totalItems = sortedEvalRows.length;
 
@@ -299,40 +301,33 @@ export function EvalPdbTable({
                     {/* Source UniProt: batch shows multi-source badges; complex shows single source */}
                     {((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) && (
                       <td className="px-3 py-2">
-                        {selectedBatchId && !selectedEval && batchUniprotSources ? (
-                          (() => {
-                            const sources = batchUniprotSources.get(row.pdbId ?? '') || [];
-                            if (sources.length <= 1) {
-                              return <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">{sources[0] || row._sourceUniport || '—'}</span>;
-                            }
-                            // Multiple sources: show color-coded badge pills
-                            return (
-                              <div className="flex flex-wrap gap-1">
-                                {sources.map((uni, si) => {
-                                  const colors = [
-                                    'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40',
-                                    'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40',
-                                    'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/40',
-                                    'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/40',
-                                    'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800/40',
-                                  ];
-                                  const color = colors[si % colors.length];
-                                  return (
-                                    <Tooltip key={`batch-src-${si}-${uni}`}>
-                                      <TooltipTrigger asChild>
-                                        <span className={`inline-flex px-1.5 py-0 rounded text-[9px] font-medium font-mono border ${color}`}>
-                                          {uni}
-                                        </span>
-                                      </TooltipTrigger>
-                                      <TooltipContent side="top" className="text-[10px]">
-                                        From: {uni}
-                                      </TooltipContent>
-                                    </Tooltip>
-                                  );
-                                })}
-                              </div>
-                            );
-                          })()
+                        {selectedBatchId && !selectedEval && row._allSources ? (
+                          <div className="flex flex-wrap gap-1">
+                            {row._allSources.length <= 1 ? (
+                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">{row._allSources[0] || row._sourceUniport || '—'}</span>
+                            ) : row._allSources.map((uni, si) => {
+                              const colors = [
+                                'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40',
+                                'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40',
+                                'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/40',
+                                'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/40',
+                                'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800/40',
+                              ];
+                              const color = colors[si % colors.length];
+                              return (
+                                <Tooltip key={`batch-src-${si}-${uni}`}>
+                                  <TooltipTrigger asChild>
+                                    <span className={`inline-flex px-1.5 py-0 rounded text-[9px] font-medium font-mono border ${color}`}>
+                                      {uni}
+                                    </span>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="text-[10px]">
+                                    From: {uni}
+                                  </TooltipContent>
+                                </Tooltip>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">
                             {row._sourceUniport || '—'}

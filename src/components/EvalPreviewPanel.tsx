@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BarChart3, LayoutGrid, BookOpen, FileText,
-  Info, ChevronLeft, X, Clock,
+  Info, ChevronLeft, X, Clock, Loader2,
 } from 'lucide-react';
 import { EvaluationTimeline, EvaluationHeatmap } from './evaluation-timeline';
 import { ActivityHeatmap } from './activity-heatmap';
@@ -213,6 +213,11 @@ export function EvalPreviewPanel({
                     Back to {complexEvalData.group.name}
                   </button>
                   <EvalSummary evalData={selectedEval as any} openReport={openEvalReport} />
+                </div>
+              ) : mode === 'evaluation' && (selectedEvalId && !selectedEval) ? (
+                <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted dark:text-[#9b9590]">
+                  <Loader2 className="h-6 w-6 mb-2 animate-spin opacity-60" />
+                  <p className="text-xs">Loading...</p>
                 </div>
               ) : mode === 'evaluation' && selectedEval ? (
                 <EvalSummary evalData={selectedEval as any} openReport={openEvalReport} />

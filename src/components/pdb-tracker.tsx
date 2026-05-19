@@ -3099,6 +3099,7 @@ export default function PdbTracker() {
       all.forEach(row => {
         (row as EvalRow)._sharedCount = batchSharedStructureMap.get(row.pdbId ?? "") || 0;
         (row as EvalRow)._firstUniport = firstOccurrenceMap.get(row.pdbId ?? "") || ((row as EvalRow)._sourceUniport ?? "");
+        (row as EvalRow)._allSources = batchUniprotSources?.get(row.pdbId ?? "") || [row._sourceUniport ?? ""];
       });
       // Final deduplicate: same pdbId only once (prefer structure over blast, keep first sorted)
       const finalDeduped = all.reduce((acc: typeof all, row) => {
@@ -4024,7 +4025,7 @@ export default function PdbTracker() {
                                     return (
                                       <button
                                         key={sub.uniprotId}
-                                        onClick={() => { setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
+                                        onClick={(e) => { e.stopPropagation(); setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
                                         className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
                                           selectedEvalId === sub.uniprotId
                                             ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
