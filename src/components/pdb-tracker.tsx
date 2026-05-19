@@ -3032,6 +3032,23 @@ export default function PdbTracker() {
   const totalPages = Math.ceil(sortedEntries.length / PAGE_SIZE);
 
   // ── Sorted Evaluation Data ──
+  const batchUniprotSources = useMemo(() => {
+    // Map: pdbId → ordered array of uniprotIds it appears in (for batch case)
+    if (!selectedBatchId || selectedEval || selectedComplexId) return null;
+    const subs = evalBatchSubTargets[selectedBatchId] || [];
+    const batchEvals = subs.map((sub: any) => evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId]).filter(Boolean) as Evaluation[];
+    const map = new Map<string, string[]>();
+    batchEvals.forEach(ev => {
+      (ev.pdbStructures || []).forEach((s: EvalPdbStructure) => {
+        if (!s.pdbId) return;
+        if (!map.has(s.pdbId)) map.set(s.pdbId, []);
+        const arr = map.get(s.pdbId)!;
+        if (!arr.includes(ev.uniprotId)) arr.push(ev.uniprotId);
+      });
+    });
+    return map;
+  }, [selectedBatchId, selectedEval, selectedComplexId, evalBatchSubTargets, evaluations, batchFetchedEvals]);
+
   const sortedEvalRows = useMemo(() => {
     // If a batch eval is selected (without specific sub-eval), show merged data for the batch
     if (selectedBatchId && !selectedEval && !selectedComplexId) {
@@ -4990,6 +5007,7 @@ export default function PdbTracker() {
                     selectedComplexId={selectedComplexId}
                     selectedBatchId={selectedBatchId}
                     complexEvalData={complexEvalData}
+                    batchUniprotSources={batchUniprotSources}
                     currentPage={currentPage}
                     totalEvalPages={totalEvalPages}
                     sortField={sortField}
