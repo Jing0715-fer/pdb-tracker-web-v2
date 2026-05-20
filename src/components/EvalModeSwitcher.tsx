@@ -67,6 +67,7 @@ export interface EvalModeSwitcherProps {
   expandedEvalGroups: Set<string>;
   batchFetchedEvals: Record<string, Evaluation>;
   onSelectBatch: (id: string) => void;
+  onSelectBatchSubTarget: (batchId: string, uniprotId: string) => void;
   onToggleExpandedBatch: (id: string, expanded: boolean) => void;
   // Dialog
   showComplexDialog: boolean;
@@ -126,9 +127,9 @@ function ComplexGroupCard({
     <div key={group.id}>
       <div
         onClick={onSelect}
-        className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] overflow-hidden cursor-pointer ${
+        className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] cursor-pointer ${
           isSelected
-            ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
+            ? 'bg-purple-50/80 dark:bg-purple-900/15 border-purple-300/50 dark:border-purple-700/40 shadow-sm border-l-[3px] border-l-purple-500'
             : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
         }`}
       >
@@ -241,9 +242,9 @@ function EvalBatchCard({
     <Collapsible open={isExpanded} onOpenChange={onToggle}>
       <div
         onClick={onSelect}
-        className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] overflow-hidden cursor-pointer ${
+        className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] cursor-pointer ${
           isSelected
-            ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
+            ? 'bg-purple-50/80 dark:bg-purple-900/15 border-purple-300/50 dark:border-purple-700/40 shadow-sm border-l-[3px] border-l-purple-500'
             : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
         }`}
       >
@@ -272,36 +273,34 @@ function EvalBatchCard({
           <span>·</span>
           <span>{totalBLAST} BLAST</span>
         </div>
-        {isExpanded && (
-          <CollapsibleContent>
-            <div className="mt-2 pt-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
-              {subs.map((sub) => {
-                const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
-                const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
-                const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
-                return (
-                  <button
-                    key={sub.uniprotId}
-                    onClick={() => onSelectSubTarget(sub.uniprotId)}
-                    className={`w-full text-left p-1.5 rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
-                      selectedEvalId === sub.uniprotId && isSelected
-                        ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
-                        : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
-                    }`}
-                  >
-                    <span className="font-mono text-[10px] font-semibold text-claude-accent">{sub.uniprotId}</span>
-                    <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
-                    {subScore !== null && (
-                      <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
-                        {subScore.toFixed(1)}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </CollapsibleContent>
-        )}
+        <CollapsibleContent>
+          <div className="mt-2 pt-2 space-y-1 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
+            {subs.map((sub) => {
+              const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
+              const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
+              const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
+              return (
+                <button
+                  key={sub.uniprotId}
+                  onClick={(e) => { e.stopPropagation(); onSelectSubTarget(sub.uniprotId); }}
+                  className={`w-full text-left p-1.5 rounded-md transition-colors duration-150 flex items-center gap-1.5 ${
+                    selectedEvalId === sub.uniprotId && isSelected
+                      ? 'bg-purple-100 dark:bg-purple-900/25 border border-purple-300/40 dark:border-purple-600/30'
+                      : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
+                  }`}
+                >
+                  <span className="font-mono text-[10px] font-semibold text-purple-600 dark:text-purple-400">{sub.uniprotId}</span>
+                  <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
+                  {subScore !== null && (
+                    <span className="text-[9px] font-mono font-bold" style={{ color: subColor }}>
+                      {subScore.toFixed(1)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </CollapsibleContent>
       </div>
     </Collapsible>
   );
@@ -325,6 +324,7 @@ export function EvalModeSwitcher({
   expandedEvalGroups,
   batchFetchedEvals,
   onSelectBatch,
+  onSelectBatchSubTarget,
   onToggleExpandedBatch,
   showComplexDialog,
   onOpenComplexDialog,
@@ -360,7 +360,7 @@ export function EvalModeSwitcher({
               onToggle={() => onToggleExpandedComplex(expandedComplexId === group.id ? null : group.id)}
               onRemove={() => onRemoveComplexGroup(group.id)}
               onSelect={() => onSelectComplexGroup(group.id)}
-              onSelectSubTarget={(uid) => onSelectComplexGroup(group.id)}
+              onSelectSubTarget={(uid) => onSelectComplexGroup(group.id)} // Complex groups handle sub-target via parent
             />
           ))
         ) : (
@@ -392,7 +392,7 @@ export function EvalModeSwitcher({
                 selectedEvalId={selectedEvalId}
                 onToggle={() => onToggleExpandedBatch(batch.batchId, !expandedEvalGroups.has(batch.batchId))}
                 onSelect={() => onSelectBatch(batch.batchId)}
-                onSelectSubTarget={(uid) => onSelectBatch(batch.batchId)}
+                onSelectSubTarget={(uid) => onSelectBatchSubTarget(batch.batchId, uid)}
               />
             ))}
           </div>

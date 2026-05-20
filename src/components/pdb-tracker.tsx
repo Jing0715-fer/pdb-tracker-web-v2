@@ -624,8 +624,8 @@ interface AppNotification {
 }
 
 // ─── Shared Types for Eval Rows ───────────────────────────────────────────────
-export type EvalStructureRow = EvalPdbStructure & { _type: 'structure'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string };
-export type EvalBlastRow = EvalBlastResult & { _type: 'blast'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string };
+export type EvalStructureRow = EvalPdbStructure & { _type: 'structure'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string; _allSources?: string[] };
+export type EvalBlastRow = EvalBlastResult & { _type: 'blast'; _sourceUniport?: string; _sharedCount?: number; _firstUniport?: string; _allSources?: string[] };
 export type EvalRow = EvalStructureRow | EvalBlastRow;
 
 // ─── Sorting Helper ──────────────────────────────────────────────────────────
@@ -1637,6 +1637,8 @@ export default function PdbTracker() {
   const [evalBatchSubTargets, setEvalBatchSubTargets] = useState<Record<string, Array<{uniprotId:string; proteinName:string; geneName:string; organism:string; bestScore:number; pdbCount:number; blastCount:number}>>>({});
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   const [batchFetchedEvals, setBatchFetchedEvals] = useState<Record<string, Evaluation>>({});
+  // Track which batchId was last used to populate batchFetchedEvals
+  const lastFetchedBatchIdRef = useRef<string | null>(null);
 
   // ── Filters & Sort ──
   const [methodFilter, setMethodFilter] = useState<string>('all');
@@ -1740,9 +1742,14 @@ export default function PdbTracker() {
   // Batch evaluation data - fetch any missing evals for batch sub-targets
   useEffect(() => {
     if (!selectedBatchId) return;
+    // Only skip if we already fetched sub-targets for THIS specific batch
+    if (lastFetchedBatchIdRef.current === selectedBatchId) return;
     const subs = evalBatchSubTargets[selectedBatchId] || [];
     const missingIds = subs.map((sub: any) => sub.uniprotId as string).filter(uid => !evaluations.find(e => e.uniprotId === uid) && !batchFetchedEvals[uid]);
-    if (missingIds.length === 0) return;
+    if (missingIds.length === 0) {
+      lastFetchedBatchIdRef.current = selectedBatchId;
+      return;
+    }
     let cancelled = false;
     async function fetchMissing() {
       const results: Record<string, Evaluation> = {};
@@ -1757,6 +1764,7 @@ export default function PdbTracker() {
       }
       if (!cancelled && Object.keys(results).length > 0) {
         setBatchFetchedEvals(prev => ({ ...prev, ...results }));
+        lastFetchedBatchIdRef.current = selectedBatchId;
       }
     }
     fetchMissing();
@@ -2675,7 +2683,7 @@ export default function PdbTracker() {
   useEffect(() => { setFocusedRowIndex(null); }, [currentPage, selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir]);
 
   // ── Reset page on filter/sort change ──
-  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, selectedTagFilter]);
+  useEffect(() => { setCurrentPage(1); }, [selectedWeekId, methodFilter, debouncedSearch, sortField, sortDir, mode, selectedEvalId, selectedBatchId, selectedComplexId, resolutionRange, ifRange, selectedOrganisms, dateRange, qualityFilter, selectedTagFilter]);
 
   // ── Notifications for week switching ──
   const prevWeekIdRef = useRef<string | null>(null);
@@ -3031,6 +3039,32 @@ export default function PdbTracker() {
 
   const totalPages = Math.ceil(sortedEntries.length / PAGE_SIZE);
 
+  // ── Batch sub-target metadata (protein/gene names) for source badges ──
+  const batchSubTargetMeta = useMemo(() => {
+    if (!selectedBatchId) return null;
+    const subs = evalBatchSubTargets[selectedBatchId] || [];
+    const meta: Record<string, { proteinName: string; geneName: string }> = {};
+    subs.forEach((sub: any) => {
+      const ev = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
+      meta[sub.uniprotId] = {
+        proteinName: sub.proteinName || ev?.proteinName || '',
+        geneName: sub.geneName || ev?.geneNames || '',
+      };
+    });
+    return meta;
+  }, [selectedBatchId, evalBatchSubTargets, evaluations, batchFetchedEvals]);
+
+  // ── Sub-target color index map (consistent colors across all rows) ──
+  const subTargetColorMap = useMemo(() => {
+    if (!selectedBatchId) return null;
+    const subs = evalBatchSubTargets[selectedBatchId] || [];
+    const map = new Map<string, number>();
+    subs.forEach((sub: any, idx: number) => {
+      map.set(sub.uniprotId, idx % 5);
+    });
+    return map;
+  }, [selectedBatchId, evalBatchSubTargets]);
+
   // ── Sorted Evaluation Data ──
   const batchUniprotSources = useMemo(() => {
     // Map: pdbId → ordered array of uniprotIds it appears in (for batch case)
@@ -3043,6 +3077,12 @@ export default function PdbTracker() {
         if (!s.pdbId) return;
         if (!map.has(s.pdbId)) map.set(s.pdbId, []);
         const arr = map.get(s.pdbId)!;
+        if (!arr.includes(ev.uniprotId)) arr.push(ev.uniprotId);
+      });
+      (ev.blastResults || []).forEach((b: EvalBlastResult) => {
+        if (!b.pdbId) return;
+        if (!map.has(b.pdbId)) map.set(b.pdbId, []);
+        const arr = map.get(b.pdbId)!;
         if (!arr.includes(ev.uniprotId)) arr.push(ev.uniprotId);
       });
     });
@@ -3101,15 +3141,25 @@ export default function PdbTracker() {
         (row as EvalRow)._firstUniport = firstOccurrenceMap.get(row.pdbId ?? "") || ((row as EvalRow)._sourceUniport ?? "");
         (row as EvalRow)._allSources = batchUniprotSources?.get(row.pdbId ?? "") || [row._sourceUniport ?? ""];
       });
-      // Final deduplicate: same pdbId only once (prefer structure over blast, keep first sorted)
+      // Final deduplicate: same pdbId only once (prefer structure over blast)
+      // When both are same type (both blast), prefer the one with more info (method, resolution, title)
       const finalDeduped = all.reduce((acc: typeof all, row) => {
         if (!row.pdbId) return acc;
-        const existing = acc.find(r => r.pdbId === row.pdbId);
-        if (!existing) { acc.push(row); return acc; }
+        const existingIdx = acc.findIndex(r => r.pdbId === row.pdbId);
+        if (existingIdx === -1) { acc.push(row); return acc; }
         // Prefer structure over blast
-        if (row._type === 'structure' && existing._type === 'blast') {
-          acc = acc.filter(r => r.pdbId !== row.pdbId);
-          acc.push(row);
+        if (row._type === 'structure' && acc[existingIdx]._type === 'blast') {
+          acc.splice(existingIdx, 1, row);
+          return acc;
+        }
+        // If same type (both blast or both structure) and existing has less info, replace with better one
+        if (row._type === acc[existingIdx]._type) {
+          const existing = acc[existingIdx];
+          const existingScore = (existing.method ? 1 : 0) + (existing.resolution != null ? 1 : 0) + (existing.title ? 1 : 0) + (existing.ligand ? 1 : 0);
+          const newScore = (row.method ? 1 : 0) + (row.resolution != null ? 1 : 0) + (row.title ? 1 : 0) + (row.ligand ? 1 : 0);
+          if (newScore > existingScore) {
+            acc.splice(existingIdx, 1, row);
+          }
         }
         return acc;
       }, []);
@@ -3984,29 +4034,22 @@ export default function PdbTracker() {
                       const totalPDB = subs.reduce((sum: number, sub: any) => sum + (sub.pdbCount || 0), 0);
                       const totalBLAST = subs.reduce((sum: number, sub: any) => sum + (sub.blastCount || 0), 0);
                       return (
-                        <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={v => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (v) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
-                          <div
-                            onClick={() => { setSelectedBatchId(batch.batchId); setSelectedEvalId(null); setSelectedEval(null); setSelectedComplexId(null); setExpandedComplexId(null); setPreviewOpen(true); setMobileSidebarOpen(false); setExpandedEvalGroups(new Set([batch.batchId])); }}
-                            className={`w-full text-left p-2 rounded-[8px] border transition-all duration-200 overflow-hidden cursor-pointer ${
-                              isSelected
-                                ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent'
-                                : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540]'
-                            }`}
-                          >
+                        <Collapsible key={batch.batchId} open={isExpanded} onOpenChange={(open) => { setSelectedBatchId(batch.batchId); setSelectedEvalId(null); setSelectedEval(null); setSelectedComplexId(null); setExpandedComplexId(null); setPreviewOpen(true); setMobileSidebarOpen(false); setExpandedEvalGroups(prev => { const next = new Set(prev); if (open) next.add(batch.batchId); else next.delete(batch.batchId); return next; }); }}>
+                          <CollapsibleTrigger asChild>
+                            <div
+                              className={`w-full text-left p-2 rounded-[8px] border transition-all duration-200 cursor-pointer outline-none focus-visible:outline-none focus-visible:ring-0 ${
+                                isSelected
+                                  ? 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] border-l-[3px] border-l-purple-500/70 dark:border-l-purple-400/60'
+                                  : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540]'
+                              }`}
+                            >
                               <div className="flex items-center justify-between gap-1 mb-0.5">
                                 <div className="min-w-0 flex-1 flex items-center gap-1">
                                   <Layers className="h-3 w-3 text-purple-500 flex-shrink-0" />
                                   <span className="text-[11px] font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{batch.title || batch.batchId}</span>
                                   <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{batch.subTargetCount}</span>
                                 </div>
-                                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    onClick={() => { setExpandedEvalGroups(prev => { const next = new Set(prev); if (isExpanded) next.delete(batch.batchId); else next.add(batch.batchId); return next; }); }}
-                                    className="h-4 w-4 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors duration-150"
-                                  >
-                                    <ChevronDown className={`h-2.5 w-2.5 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
-                                  </button>
-                                </div>
+                                <ChevronDown className={`h-2.5 w-2.5 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                               </div>
                               <div className="flex items-center gap-1.5 text-[9px] text-claude-text-muted dark:text-[#6b6560]">
                                 <span>{subs.length} sub-targets</span>
@@ -4015,38 +4058,36 @@ export default function PdbTracker() {
                                 <span>·</span>
                                 <span>{totalBLAST} BLAST</span>
                               </div>
-                            {isExpanded && (
-                              <CollapsibleContent>
-                                <div className="mt-1.5 pt-1.5 space-y-0.5 border-t border-claude-border/50 dark:border-[#3d3832]/50" onClick={(e) => e.stopPropagation()}>
-                                  {subs.map((sub: any) => {
-                                    const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
-                                    const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
-                                    const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
-                                    return (
-                                      <button
-                                        key={sub.uniprotId}
-                                        data-subtarget={sub.uniprotId}
-                                        onClick={(e) => { e.stopPropagation(); console.log('[SUBBTN] onclick firing', sub.uniprotId); window.__lastSubTargetClick = sub.uniprotId; setSelectedBatchId(null); setSelectedEval(null); setSelectedEvalId(sub.uniprotId); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                                        className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
-                                          selectedEvalId === sub.uniprotId
-                                            ? 'bg-claude-accent-light dark:bg-[#3d2a22] border border-claude-accent/30'
-                                            : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
-                                        }`}
-                                      >
-                                        <span className="font-mono text-[9px] font-semibold text-claude-accent">{sub.uniprotId}</span>
-                                        <span className="text-[8px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
-                                        {subScore !== null && (
-                                          <span className="text-[8px] font-mono font-bold" style={{ color: subColor }}>
-                                            {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
-                                          </span>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </CollapsibleContent>
-                            )}
-                          </div>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent>
+                            <div className="px-2 pb-2 pt-1 space-y-0.5">
+                              {subs.map((sub: any) => {
+                                const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
+                                const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
+                                const subColor = subScore !== null ? getScoreColor(subScore) : '#9b9590';
+                                return (
+                                  <button
+                                    key={sub.uniprotId}
+                                    onClick={(e) => { e.stopPropagation(); setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); const cachedEval = batchFetchedEvals[sub.uniprotId] || evaluations.find(e => e.uniprotId === sub.uniprotId); if (cachedEval) { setSelectedEval(cachedEval); } else { setSelectedEval(null); } }}
+                                    className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
+                                        selectedEvalId === sub.uniprotId && selectedBatchId === batch.batchId
+                                          ? 'bg-purple-100/60 dark:bg-purple-900/20 border border-purple-300/30 dark:border-purple-600/25'
+                                          : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
+                                    }`}
+                                  >
+                                    <span className="font-mono text-[9px] font-semibold text-purple-600 dark:text-purple-400">{sub.uniprotId}</span>
+                                    <span className="text-[8px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
+                                    {subScore !== null && (
+                                      <span className="text-[8px] font-mono font-bold" style={{ color: subColor }}>
+                                        {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </CollapsibleContent>
                         </Collapsible>
                       );
                     }
@@ -5010,6 +5051,8 @@ export default function PdbTracker() {
                     selectedBatchId={selectedBatchId}
                     complexEvalData={complexEvalData}
                     batchUniprotSources={batchUniprotSources}
+                    batchSubTargetMeta={batchSubTargetMeta}
+                    subTargetColorMap={subTargetColorMap}
                     currentPage={currentPage}
                     totalEvalPages={totalEvalPages}
                     sortField={sortField}
@@ -5053,7 +5096,7 @@ export default function PdbTracker() {
                           row.title || '',
                           row.releaseDate || '',
                           'ligand' in row ? (row.ligand || '') : '',
-                        ].join('	');
+                        ].join('        ');
                         navigator.clipboard.writeText(data).catch(() => {});
                       }
                     }}
@@ -5068,24 +5111,13 @@ export default function PdbTracker() {
               </AnimatePresence>
             </div>
 
-            {/* Pagination */}
+            {/* Pagination - weekly mode only; eval mode uses EvalPdbTable's built-in pagination */}
             {mode === 'weekly' && sortedEntries.length > PAGE_SIZE && (
               <div className="no-print">
                 <Pagination
                   page={currentPage}
                   totalPages={totalPages}
                   totalItems={sortedEntries.length}
-                  pageSize={PAGE_SIZE}
-                  onPageChange={setCurrentPage}
-                />
-              </div>
-            )}
-            {mode === 'evaluation' && (selectedEval || selectedComplexId || selectedBatchId) && sortedEvalRows.length > PAGE_SIZE && (
-              <div className="no-print">
-                <Pagination
-                  page={currentPage}
-                  totalPages={totalEvalPages}
-                  totalItems={sortedEvalRows.length}
                   pageSize={PAGE_SIZE}
                   onPageChange={setCurrentPage}
                 />
@@ -6218,7 +6250,9 @@ export default function PdbTracker() {
     return (
       <>
         {/* Mode Switcher */}
-        <div ref={tourModeSwitcherRef} className="px-3 border-b border-claude-border dark:border-[#3d3832] flex-shrink-0 h-12 flex items-center">
+        <div ref={tourModeSwitcherRef} className="px-3 border-b border-claude-border dark:border-[#3d3832] flex-shrink-0 h-12 flex items-center relative">
+          {/* Subtle top gradient accent */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-claude-accent/40 to-transparent dark:via-[#d4784f]/30" />
           <div className="flex items-center w-full">
             <div className="flex rounded-lg bg-claude-border-light dark:bg-[#1a1917] p-0.5 flex-1">
               <button
@@ -6591,7 +6625,23 @@ export default function PdbTracker() {
                   setExpandedComplexId(null);
                   setPreviewOpen(true);
                   setMobileSidebarOpen(false);
-                  setExpandedEvalGroups(new Set([id]));
+                  // Expansion is handled by onToggleExpandedBatch via onOpenChange
+                }}
+                onSelectBatchSubTarget={(batchId, uniprotId) => {
+                  setSelectedBatchId(batchId);
+                  setSelectedEvalId(uniprotId);
+                  setSelectedComplexId(null);
+                  setExpandedComplexId(null);
+                  setPreviewOpen(true);
+                  setMobileSidebarOpen(false);
+                  setExpandedEvalGroups(new Set([batchId]));
+                  // Use cached eval data if available to avoid loading flash & stale-fetch bug
+                  const cachedEval = batchFetchedEvals[uniprotId] || evaluations.find(e => e.uniprotId === uniprotId);
+                  if (cachedEval) {
+                    setSelectedEval(cachedEval);
+                  } else {
+                    setSelectedEval(null);
+                  }
                 }}
                 onToggleExpandedBatch={(id, expanded) => {
                   setExpandedEvalGroups(prev => {
@@ -6607,10 +6657,8 @@ export default function PdbTracker() {
 
               <Separator className="my-2" />
 
-<Separator className="my-2" />
-
               {/* Individual Evaluations */}
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted mb-1">Individual Evaluations</div>
+              <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.08em] text-claude-text-muted mb-1"><span className="inline-block w-1.5 h-1.5 rounded-full bg-teal-500/70" />Individual Evaluations</div>
 
               {loadingEvals ? (
                 <div className="space-y-2">
@@ -6654,9 +6702,9 @@ export default function PdbTracker() {
                       <ContextMenuTrigger asChild>
                     <button
                       onClick={() => { setSelectedEvalId(ev.uniprotId); setSelectedBatchId(null); setSelectedComplexId(null); setExpandedComplexId(null); setExpandedEvalGroups(new Set()); setPreviewOpen(true); setMobileSidebarOpen(false); }}
-                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] ${
+                      className={`w-full text-left p-3 rounded-[10px] border transition-all duration-200 claude-hover btn-press active:scale-[0.97] outline-none focus-visible:outline-none focus-visible:ring-0 ${
                         selectedEvalId === ev.uniprotId
-                          ? 'bg-claude-accent-light dark:bg-[#3d2a22] border-claude-accent/30 shadow-sm border-l-[3px] border-l-claude-accent sidebar-active-card animate-border-breathe breathe-glow-active'
+                          ? 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] border-l-[3px] border-l-claude-accent/60'
                           : 'bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832] hover:border-claude-border-light dark:hover:border-[#4a4540] claude-card-shadow'
                       }`}
                     >

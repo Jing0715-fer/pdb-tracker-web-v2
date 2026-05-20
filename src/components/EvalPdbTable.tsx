@@ -18,6 +18,7 @@ import { Loader2, ExternalLink, Eye, Copy, Download, ChevronLeft, ChevronRight }
 import type { Evaluation, EvaluationReport } from './pdb-helpers';
 import { getMethodLabel, getMethodColor, getIfTierStyle, getResolutionColor, formatDate, parseLigands, PAGE_SIZE } from './pdb-helpers';
 import type { EvalPdbStructure, EvalBlastResult, LigandInfo } from './pdb-tracker';
+import { UniprotBadgeList } from './UniprotBadgeList';
 
 // ─── Local Eval Row Types (same as pdb-tracker.tsx) ─────────────────────────
 
@@ -71,6 +72,8 @@ export interface EvalPdbTableProps {
   openEvalReport: (uniprotId: string, title: string) => void;
   batchUniprotSources: Map<string, string[]> | null;
   rowAllSources?: string[];
+  batchSubTargetMeta: Record<string, { proteinName: string; geneName: string }> | null;
+  subTargetColorMap?: Map<string, number> | null;
 }
 
 // ─── Shared Tooltip Content Components ─────────────────────────────────────
@@ -164,6 +167,8 @@ export function EvalPdbTable({
   ligandCache,
   fetchLigandInfo,
   batchUniprotSources,
+  batchSubTargetMeta,
+  subTargetColorMap,
 }: EvalPdbTableProps) {
   const totalItems = sortedEvalRows.length;
 
@@ -175,7 +180,7 @@ export function EvalPdbTable({
             {[
               { field: 'pdbId', label: 'PDB ID', w: 'w-[90px]' },
               { field: '_type', label: 'Type', w: 'w-[70px]' },
-              ...(((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) ? [{ field: '_source', label: 'Source', w: 'w-[80px]' }] : []),
+              ...(((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) ? [{ field: '_source', label: 'Source', w: selectedBatchId ? 'w-[130px]' : 'w-[80px]' }] : []),
               { field: 'method', label: 'Method', w: 'w-[90px]' },
               { field: 'resolution', label: 'Resolution', w: 'w-[80px]' },
               { field: 'journalIf', label: 'IF', w: 'w-[55px]' },
@@ -258,6 +263,7 @@ export function EvalPdbTable({
                                     : sharedCount === 3
                                     ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40'
                                     : 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40';
+                                  const allSources = (row as EvalRow)._allSources || [];
                                   return (
                                     <Tooltip>
                                       <TooltipTrigger asChild>
@@ -265,7 +271,23 @@ export function EvalPdbTable({
                                           <GitMerge className="h-2 w-2" />×{sharedCount}
                                         </span>
                                       </TooltipTrigger>
-                                      <TooltipContent side="right" className="text-[10px]">Shared by {sharedCount} sub-targets</TooltipContent>
+                                      <TooltipContent side="right" className="p-2 text-[10px] max-w-[280px]">
+                                        <div className="font-semibold text-claude-text mb-1">Shared by {sharedCount} sub-targets:</div>
+                                        <div className="space-y-0.5">
+                                          {allSources.map((src) => {
+                                            const meta = batchSubTargetMeta?.[src];
+                                            return (
+                                              <div key={src} className="flex items-start gap-1">
+                                                <span className="text-claude-text-muted">•</span>
+                                                <span>
+                                                  <span className="font-mono font-semibold">{src}</span>
+                                                  {meta?.proteinName && <span className="text-claude-text-secondary"> ({meta.proteinName})</span>}
+                                                </span>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      </TooltipContent>
                                     </Tooltip>
                                   );
                                 })()
@@ -300,34 +322,16 @@ export function EvalPdbTable({
                     )}
                     {/* Source UniProt: batch shows multi-source badges; complex shows single source */}
                     {((selectedComplexId && !selectedEval) || (selectedBatchId && !selectedEval)) && (
-                      <td className="px-3 py-2">
+                      <td className={`px-3 py-2 ${selectedBatchId && (row._allSources?.length ?? 0) > 1 ? 'bg-teal-50/30 dark:bg-teal-900/8' : ''}`}>
                         {selectedBatchId && !selectedEval && row._allSources ? (
-                          <div className="flex flex-wrap gap-1">
-                            {row._allSources.length <= 1 ? (
-                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">{row._allSources[0] || row._sourceUniport || '—'}</span>
-                            ) : row._allSources.map((uni, si) => {
-                              const colors = [
-                                'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400 border-teal-200 dark:border-teal-800/40',
-                                'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800/40',
-                                'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800/40',
-                                'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800/40',
-                                'bg-sky-100 dark:bg-sky-900/30 text-sky-700 dark:text-sky-400 border-sky-200 dark:border-sky-800/40',
-                              ];
-                              const color = colors[si % colors.length];
-                              return (
-                                <Tooltip key={`batch-src-${si}-${uni}`}>
-                                  <TooltipTrigger asChild>
-                                    <span className={`inline-flex px-1.5 py-0 rounded text-[9px] font-medium font-mono border ${color}`}>
-                                      {uni}
-                                    </span>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="top" className="text-[10px]">
-                                    From: {uni}
-                                  </TooltipContent>
-                                </Tooltip>
-                              );
-                            })}
-                          </div>
+                          <UniprotBadgeList
+                            uniprotIds={row._allSources}
+                            colorMap={subTargetColorMap ?? null}
+                            metaMap={batchSubTargetMeta ?? null}
+                            isShared={(row._allSources?.length ?? 0) > 1}
+                            size="md"
+                            maxVisible={3}
+                          />
                         ) : (
                           <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-medium bg-claude-mid-bg/50 text-claude-mid font-mono cursor-default">
                             {row._sourceUniport || '—'}
