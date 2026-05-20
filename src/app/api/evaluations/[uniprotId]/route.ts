@@ -43,13 +43,22 @@ export async function GET(
 
     // Fetch BLAST results with pubmed metadata
     const blastResults = await db.$queryRaw`
-      SELECT b.*, a.title AS pubmedTitle, a.authors AS pubmedAuthors, a.abstract AS pubmedAbstract
+      SELECT b.*, a.title AS pubmedTitle, a.authors AS pubmedAuthors, a.abstract AS pubmedAbstractJoined,
+             b.pubmed_abstract AS pubmedAbstract
       FROM evaluation_blast_results b
       LEFT JOIN pubmed_articles a ON b.pubmed_id = a.pubmed_id
       WHERE b.uniprot_id = ${uniprotId}
       ORDER BY b.identity DESC
     `;
-    evaluation.blastResults = (blastResults as any[]).map(toCamelCase);
+    evaluation.blastResults = (blastResults as any[]).map((b: any) => {
+      const row = toCamelCase(b);
+      // Prefer blast result's own pubmed_abstract over empty joined abstract
+      row.pubmedAbstract = b.pubmed_abstract || b.pubmedAbstract || null;
+      row.pubmedTitle = b.pubmed_title || b.pubmedTitle || null;
+      row.pubmedAuthors = b.pubmed_authors || b.pubmedAuthors || null;
+      delete row.pubmedAbstractJoined;
+      return row;
+    });
 
     // Count
     evaluation._count = {
