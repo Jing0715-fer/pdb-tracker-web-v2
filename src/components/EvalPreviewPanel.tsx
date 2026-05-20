@@ -379,6 +379,7 @@ export function EvalPreviewPanel({
                       setDetailPanelOpen(true);
                       setPreviewTab('summary');
                     } else if (blast) {
+                      setSelectedEntry(null);
                       setSelectedEvalStructure({ ...blast, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
                       setDetailPanelOpen(true);
                       setPreviewTab('summary');

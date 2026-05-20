@@ -2494,6 +2494,20 @@ export default function PdbTracker() {
     }
   }, [selectedEntry]);
 
+  // ── Sync selectedPdbId with selectedEvalStructure (BLAST entries from LiteratureSection) ──
+  useEffect(() => {
+    if (selectedEvalStructure) {
+      setSelectedPdbId(selectedEvalStructure.pdbId ?? '');
+      setDetailPanelOpen(true);
+      setPreviewTab('summary');
+      // Reset entity/ligand selection states
+      setSelectedEntity(null);
+      setSelectedLigand(null);
+      setSoloEntity(null);
+      setSoloLigand(null);
+    }
+  }, [selectedEvalStructure]);
+
   // ── Fetch entities when selectedPdbId changes ──
   useEffect(() => {
     if (!selectedPdbId) return;
@@ -5424,18 +5438,41 @@ export default function PdbTracker() {
 
       {/* ═══════════ ROW DETAIL PANEL (Responsive) ═══════════ */}
       <AnimatePresence>
-        {detailPanelOpen && selectedEntry && (() => {
+        {detailPanelOpen && (selectedEntry || selectedEvalStructure) && (() => {
+          // Build effective entry: prefer selectedEntry, fall back to selectedEvalStructure
+          const effectiveEntry = selectedEntry ?? (selectedEvalStructure ? {
+            pdbId: selectedEvalStructure.pdbId ?? '',
+            title: selectedEvalStructure.title || '',
+            method: selectedEvalStructure.method || '',
+            resolution: selectedEvalStructure.resolution ?? null,
+            ifTier: '',
+            ligands: selectedEvalStructure.ligand || '',
+            date: selectedEvalStructure.releaseDate || '',
+            authors: selectedEvalStructure.pubmedAuthors || '',
+            releaseDate: '',
+            classification: '',
+            organisms: null,
+            journal: selectedEvalStructure.journal || '',
+            journalIf: selectedEvalStructure.journalIf ?? null,
+            pubmedId: selectedEvalStructure.pubmedId || null,
+            pubmedTitle: selectedEvalStructure.pubmedTitle || null,
+            pubmedAbstract: selectedEvalStructure.pubmedAbstract || null,
+            isCryoem: (selectedEvalStructure.method || '').toLowerCase().includes('electron'),
+            isXray: (selectedEvalStructure.method || '').toLowerCase().includes('x-ray'),
+          } : null);
+          if (!effectiveEntry) return null;
           // Helper: navigate to prev/next entry in the current table
-          const currentEntryIndex = paginatedEntries.findIndex(e => e.pdbId === selectedEntry.pdbId);
+          const currentEntryIndex = paginatedEntries.findIndex(e => e.pdbId === effectiveEntry.pdbId);
           const navigateToEntry = (direction: 'prev' | 'next') => {
             const nextIdx = direction === 'prev'
               ? Math.max(0, currentEntryIndex - 1)
               : Math.min(paginatedEntries.length - 1, currentEntryIndex + 1);
             const nextEntry = paginatedEntries[nextIdx];
-            if (nextEntry && nextEntry.pdbId !== selectedEntry.pdbId) {
+            if (nextEntry && nextEntry.pdbId !== effectiveEntry.pdbId) {
               setDetailSlideDirection(direction === 'prev' ? 'right' : 'left');
               setTimeout(() => {
                 setSelectedEntry(nextEntry);
+                setSelectedEvalStructure(null);
                 setDetailSlideDirection(null);
               }, 150);
               if (focusedRowIndex !== null) setFocusedRowIndex(nextIdx);
@@ -5443,7 +5480,7 @@ export default function PdbTracker() {
           };
 
           // Quality score for header
-          const qs = computeQualityScore(selectedEntry);
+          const qs = computeQualityScore(effectiveEntry);
           const circumference = 2 * Math.PI * 28;
 
           // ── Shared detail content renderer ──
@@ -5622,7 +5659,7 @@ export default function PdbTracker() {
                   {/* Assembly + Polymers + Ligands + Organism */}
                   <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
                     {(() => {
-                      const ligands = parseLigands(selectedEntry.ligands);
+                      const ligands = parseLigands(effectiveEntry.ligands);
                       return (
                         <div className="grid grid-cols-3 gap-2">
                           <div>
@@ -5631,7 +5668,7 @@ export default function PdbTracker() {
                           </div>
                           <div>
                             <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Polymers</div>
-                            <div className="text-[11px] font-medium text-claude-text">{selectedEntry.isCryoem ? 'Cryo-EM' : selectedEntry.isXray ? 'X-Ray' : '—'}</div>
+                            <div className="text-[11px] font-medium text-claude-text">{effectiveEntry.isCryoem ? 'Cryo-EM' : effectiveEntry.isXray ? 'X-Ray' : '—'}</div>
                           </div>
                           <div>
                             <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Ligands</div>
@@ -5640,10 +5677,10 @@ export default function PdbTracker() {
                         </div>
                       );
                     })()}
-                    {selectedEntry.organisms && (
+                    {effectiveEntry.organisms && (
                       <div className="mt-1.5">
                         <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Organism</div>
-                        <div className="text-[10px] text-claude-text italic truncate">{selectedEntry.organisms.split('|')[0]?.trim() || '—'}</div>
+                        <div className="text-[10px] text-claude-text italic truncate">{effectiveEntry.organisms.split('|')[0]?.trim() || '—'}</div>
                       </div>
                     )}
 
@@ -5653,41 +5690,41 @@ export default function PdbTracker() {
                         <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                           <div className="h-full rounded-full transition-all duration-500"
                             style={{
-                              width: `${Math.max(5, Math.min(100, (1 - ((selectedEntry.resolution ?? 3.5) - 0.5) / 4.5) * 100))}%`,
-                              backgroundColor: (selectedEntry.resolution ?? 4) <= 2.0 ? '#16a34a' : (selectedEntry.resolution ?? 4) <= 3.5 ? '#c9872e' : '#dc2626',
+                              width: `${Math.max(5, Math.min(100, (1 - ((effectiveEntry.resolution ?? 3.5) - 0.5) / 4.5) * 100))}%`,
+                              backgroundColor: (effectiveEntry.resolution ?? 4) <= 2.0 ? '#16a34a' : (effectiveEntry.resolution ?? 4) <= 3.5 ? '#c9872e' : '#dc2626',
                             }}
                           />
                         </div>
-                        <span className="text-[9px] text-claude-text-muted">{(selectedEntry.resolution ?? 4) <= 1.5 ? 'Excellent' : (selectedEntry.resolution ?? 4) <= 2.0 ? 'High' : (selectedEntry.resolution ?? 4) <= 3.0 ? 'Med' : (selectedEntry.resolution ?? 4) <= 3.5 ? 'Low' : 'VLow'}</span>
+                        <span className="text-[9px] text-claude-text-muted">{(effectiveEntry.resolution ?? 4) <= 1.5 ? 'Excellent' : (effectiveEntry.resolution ?? 4) <= 2.0 ? 'High' : (effectiveEntry.resolution ?? 4) <= 3.0 ? 'Med' : (effectiveEntry.resolution ?? 4) <= 3.5 ? 'Low' : 'VLow'}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Journal + IF */}
-                  {selectedEntry.journal && (
+                  {effectiveEntry.journal && (
                     <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
                       <div className="flex items-start justify-between gap-1">
                         <div className="min-w-0 flex-1">
                           <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-0.5">Journal</div>
-                          <div className="text-[10px] text-claude-text-secondary leading-snug truncate">{selectedEntry.journal}</div>
+                          <div className="text-[10px] text-claude-text-secondary leading-snug truncate">{effectiveEntry.journal}</div>
                         </div>
-                        {selectedEntry.journalIf != null && (
-                          <span className={`flex-shrink-0 text-[9px] px-1 py-0.5 rounded font-medium ${getIfTierStyle(selectedEntry.ifTier).bg} ${getIfTierStyle(selectedEntry.ifTier).text}`}>
-                            IF {safeNum(selectedEntry.journalIf, 1)}
+                        {effectiveEntry.journalIf != null && (
+                          <span className={`flex-shrink-0 text-[9px] px-1 py-0.5 rounded font-medium ${getIfTierStyle(effectiveEntry.ifTier).bg} ${getIfTierStyle(effectiveEntry.ifTier).text}`}>
+                            IF {safeNum(effectiveEntry.journalIf, 1)}
                           </span>
                         )}
                       </div>
-                      {selectedEntry.authors && (
-                        <div className="mt-1 text-[9px] text-claude-text-muted truncate">{selectedEntry.authors.replace(/\|/g, ', ')}</div>
+                      {effectiveEntry.authors && (
+                        <div className="mt-1 text-[9px] text-claude-text-muted truncate">{effectiveEntry.authors.replace(/\|/g, ', ')}</div>
                       )}
                     </div>
                   )}
 
                   {/* Abstract */}
-                  {selectedEntry.pubmedAbstract && (
+                  {effectiveEntry.pubmedAbstract && (
                     <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
                       <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1">Abstract</div>
-                      <p className="text-[10px] text-claude-text-secondary leading-relaxed line-clamp-4">{selectedEntry.pubmedAbstract}</p>
+                      <p className="text-[10px] text-claude-text-secondary leading-relaxed line-clamp-4">{effectiveEntry.pubmedAbstract}</p>
                     </div>
                   )}
 
@@ -5696,11 +5733,11 @@ export default function PdbTracker() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Released</div>
-                        <div className="text-[10px] text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
+                        <div className="text-[10px] text-claude-text">{formatDate(effectiveEntry.releaseDate)}</div>
                       </div>
                       <div>
                         <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Week</div>
-                        <div className="text-[10px] font-mono text-claude-text-secondary">{selectedEntry.weekId}</div>
+                        <div className="text-[10px] font-mono text-claude-text-secondary">{effectiveEntry.weekId}</div>
                       </div>
                     </div>
                   </div>
@@ -5709,11 +5746,11 @@ export default function PdbTracker() {
                 {/* Right column */}
                 <div className="space-y-2">
                   {/* Ligands Detail */}
-                  {parseLigands(selectedEntry.ligands).length > 0 && (
+                  {parseLigands(effectiveEntry.ligands).length > 0 && (
                     <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
-                      <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands ({parseLigands(selectedEntry.ligands).length})</div>
+                      <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1.5">Ligands ({parseLigands(effectiveEntry.ligands).length})</div>
                       <div className="space-y-1 max-h-36 overflow-y-auto custom-scrollbar">
-                        {parseLigands(selectedEntry.ligands).map((lig, i) => (
+                        {parseLigands(effectiveEntry.ligands).map((lig, i) => (
                           <HoverCard key={`detail-lig-${i}-${lig}`} openDelay={200} closeDelay={100}>
                             <HoverCardTrigger asChild>
                               <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-claude-border-light/50 dark:bg-[#2b2926] hover:bg-claude-accent/10 cursor-pointer transition-colors">
@@ -5743,7 +5780,7 @@ export default function PdbTracker() {
                   <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
                     <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1.5">Score Breakdown</div>
                     {(() => {
-                      const qs = computeQualityScore(selectedEntry);
+                      const qs = computeQualityScore(effectiveEntry);
                       return (
                         <div className="space-y-1">
                           <div className="flex items-center gap-1.5">
@@ -5774,16 +5811,16 @@ export default function PdbTracker() {
 
                   {/* Links */}
                   <div className="flex flex-wrap gap-1">
-                    <a href={`https://www.rcsb.org/structure/${selectedEntry.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
+                    <a href={`https://www.rcsb.org/structure/${effectiveEntry.pdbId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent hover:bg-claude-accent/20 transition-all external-link-hover">
                       <ExternalLink className="h-2.5 w-2.5 ext-arrow" />RCSB
                     </a>
-                    {selectedEntry.doi && (
-                      <a href={selectedEntry.doi.startsWith('http') ? selectedEntry.doi : `https://doi.org/${selectedEntry.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 transition-all external-link-hover">
+                    {effectiveEntry.doi && (
+                      <a href={effectiveEntry.doi.startsWith('http') ? effectiveEntry.doi : `https://doi.org/${effectiveEntry.doi}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-xray-bg text-claude-xray hover:bg-claude-xray/20 transition-all external-link-hover">
                         <ExternalLink className="h-2.5 w-2.5 ext-arrow" />DOI
                       </a>
                     )}
-                    {selectedEntry.pubmedId && (
-                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${selectedEntry.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all external-link-hover">
+                    {effectiveEntry.pubmedId && (
+                      <a href={`https://pubmed.ncbi.nlm.nih.gov/${effectiveEntry.pubmedId}/`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-semibold bg-claude-cryoem-bg text-claude-cryoem hover:bg-claude-cryoem/20 transition-all external-link-hover">
                         <ExternalLink className="h-2.5 w-2.5 ext-arrow" />PubMed
                       </a>
                     )}
@@ -5801,16 +5838,16 @@ export default function PdbTracker() {
                   <textarea
                     rows={2}
                     placeholder="Add your notes..."
-                    defaultValue={entryNotes[selectedEntry.pdbId] || ''}
+                    defaultValue={entryNotes[effectiveEntry.pdbId] || ''}
                     onBlur={(e) => {
                       const note = e.target.value;
-                      if (note !== (entryNotes[selectedEntry.pdbId] || '')) {
-                        updateNote(selectedEntry.pdbId, note);
+                      if (note !== (entryNotes[effectiveEntry.pdbId] || '')) {
+                        updateNote(effectiveEntry.pdbId, note);
                       }
                     }}
                     className="w-full px-3 py-1.5 text-[11px] rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] dark:text-[#e8e4dd] focus:outline-none focus:ring-2 focus:ring-claude-accent/40 focus:border-claude-accent/40 placeholder:text-claude-text-muted/60 resize-none transition-colors duration-150"
                   />
-                  {noteSavedIndicator === selectedEntry.pdbId && (
+                  {noteSavedIndicator === effectiveEntry.pdbId && (
                     <motion.span initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute bottom-1.5 right-2 text-[9px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-1.5 py-0.5 rounded">
                       ✓ Saved
                     </motion.span>
@@ -5824,17 +5861,17 @@ export default function PdbTracker() {
                   <h3 className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider">AI Summary</h3>
                   <Sparkles className="h-3 w-3 text-claude-accent" />
                 </div>
-                {aiSummaries[selectedEntry.pdbId] ? (
+                {aiSummaries[effectiveEntry.pdbId] ? (
                   <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-2.5">
-                    <p className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">{aiSummaries[selectedEntry.pdbId]}</p>
+                    <p className="text-[11px] text-claude-text-secondary dark:text-[#9b9590] leading-relaxed">{aiSummaries[effectiveEntry.pdbId]}</p>
                     <div className="flex items-center justify-between mt-2">
                       <span className="text-[9px] text-claude-text-muted/60 italic">AI-generated</span>
-                      <button onClick={() => generateAiSummary(selectedEntry)} className="inline-flex items-center gap-1 text-[9px] text-claude-text-muted hover:text-claude-accent transition-colors">
+                      <button onClick={() => generateAiSummary(effectiveEntry)} className="inline-flex items-center gap-1 text-[9px] text-claude-text-muted hover:text-claude-accent transition-colors">
                         <RefreshCw className="h-3 w-3" />Regenerate
                       </button>
                     </div>
                   </div>
-                ) : aiSummaryLoading === selectedEntry.pdbId ? (
+                ) : aiSummaryLoading === effectiveEntry.pdbId ? (
                   <div className="rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#242220] p-2.5">
                     <div className="space-y-2">
                       <div className="shimmer-skeleton h-2.5 w-full rounded" />
@@ -5849,12 +5886,12 @@ export default function PdbTracker() {
                       <span className="text-[9px] font-medium text-red-600 dark:text-red-400">Error</span>
                     </div>
                     <p className="text-[9px] text-red-500/70 dark:text-red-400/70 mb-2">{aiSummaryError}</p>
-                    <button onClick={() => generateAiSummary(selectedEntry)} className="inline-flex items-center gap-1 text-[9px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors">
+                    <button onClick={() => generateAiSummary(effectiveEntry)} className="inline-flex items-center gap-1 text-[9px] text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors">
                       <RefreshCw className="h-3 w-3" />Try again
                     </button>
                   </div>
                 ) : (
-                  <button onClick={() => generateAiSummary(selectedEntry)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-claude-accent/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-[#1a1917]/60 dark:hover:bg-claude-accent/5 text-[11px] text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent transition-all duration-200">
+                  <button onClick={() => generateAiSummary(effectiveEntry)} className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-claude-border hover:border-claude-accent/40 dark:border-[#4a4540] dark:hover:border-claude-accent/40 bg-claude-border-light/20 hover:bg-claude-accent/5 dark:bg-[#1a1917]/60 dark:hover:bg-claude-accent/5 text-[11px] text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent transition-all duration-200">
                     <Sparkles className="h-3 w-3" />Generate AI Summary
                   </button>
                 )}
@@ -5875,7 +5912,7 @@ export default function PdbTracker() {
                 onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }}
               >
                 <motion.div
-                  key={`mobile-bottom-sheet-${selectedEntry.pdbId}`}
+                  key={`mobile-bottom-sheet-${effectiveEntry.pdbId}`}
                   initial={{ y: '100%' }}
                   animate={{ y: `${(1 - bottomSheetSnap) * 100}%` }}
                   exit={{ y: '100%' }}
@@ -5928,11 +5965,11 @@ export default function PdbTracker() {
                   <div className="flex-shrink-0 px-4 pb-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <span className="font-mono text-base font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>
-                          {getMethodLabel(selectedEntry.method)}
+                        <span className="font-mono text-base font-bold text-claude-accent">{effectiveEntry.pdbId}</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(effectiveEntry.method).bg} ${getMethodColor(effectiveEntry.method).text}`}>
+                          {getMethodLabel(effectiveEntry.method)}
                         </span>
-                        {entryNotes[selectedEntry.pdbId] && (
+                        {entryNotes[effectiveEntry.pdbId] && (
                           <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                         )}
                       </div>
@@ -5941,7 +5978,7 @@ export default function PdbTracker() {
                       </Button>
                     </div>
                     {(() => {
-                      const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
+                      const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(effectiveEntry.pdbId));
                       return entryTags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {entryTags.map((tag, i) => (
@@ -5955,7 +5992,7 @@ export default function PdbTracker() {
                   {/* Detail Content with horizontal slide transition */}
                   <ScrollArea className="flex-1 preview-scroll min-h-0">
                     <motion.div
-                      key={selectedEntry.pdbId}
+                      key={effectiveEntry.pdbId}
                       initial={{ x: detailSlideDirection === 'left' ? 60 : detailSlideDirection === 'right' ? -60 : 0, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       transition={{ duration: 0.15 }}
@@ -5982,7 +6019,7 @@ export default function PdbTracker() {
               />
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-8 pointer-events-none">
               <motion.div
-                key={`desktop-detail-panel-${selectedEntry.pdbId}`}
+                key={`desktop-detail-panel-${effectiveEntry.pdbId}`}
                 initial={{ opacity: 0, scale: 0.97, y: 12 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.97, y: 12 }}
@@ -5994,13 +6031,13 @@ export default function PdbTracker() {
                 <div className="flex-shrink-0 p-3 border-b border-claude-border dark:border-[#3d3832] relative z-10 bg-claude-surface dark:bg-[#242220]">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <span className="font-mono text-sm font-bold text-claude-accent">{selectedEntry.pdbId}</span>
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(selectedEntry.method).bg} ${getMethodColor(selectedEntry.method).text}`}>{getMethodLabel(selectedEntry.method)}</span>
-                      {selectedEntry.resolution != null && <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(selectedEntry.resolution)}`}>{safeNum(selectedEntry.resolution, 2)}Å</span>}
-                      {entryNotes[selectedEntry.pdbId] && (
+                      <span className="font-mono text-sm font-bold text-claude-accent">{effectiveEntry.pdbId}</span>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-medium ${getMethodColor(effectiveEntry.method).bg} ${getMethodColor(effectiveEntry.method).text}`}>{getMethodLabel(effectiveEntry.method)}</span>
+                      {effectiveEntry.resolution != null && <span className={`text-[10px] font-mono font-semibold ${getResolutionColor(effectiveEntry.resolution)}`}>{safeNum(effectiveEntry.resolution, 2)}Å</span>}
+                      {entryNotes[effectiveEntry.pdbId] && (
                         <StickyNote className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400 flex-shrink-0" />
                       )}
-                      {selectedEntry.title && <span className="text-[11px] text-claude-text-muted truncate ml-2 flex-1">{selectedEntry.title}</span>}
+                      {effectiveEntry.title && <span className="text-[11px] text-claude-text-muted truncate ml-2 flex-1">{effectiveEntry.title}</span>}
                     </div>
                     <div className="relative flex-shrink-0">
                       <svg width="44" height="44" viewBox="0 0 60 60">
@@ -6008,7 +6045,7 @@ export default function PdbTracker() {
                         <circle cx="30" cy="30" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference - (qs.total / 100) * circumference} transform="rotate(-90 30 30)" className="transition-all duration-700" />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-xs font-bold font-mono" style={{ color: computeQualityScore(selectedEntry).color }}>{computeQualityScore(selectedEntry).total}</span>
+                        <span className="text-xs font-bold font-mono" style={{ color: computeQualityScore(effectiveEntry).color }}>{computeQualityScore(selectedEntry).total}</span>
                       </div>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
@@ -6016,7 +6053,7 @@ export default function PdbTracker() {
                     </Button>
                   </div>
                   {(() => {
-                    const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(selectedEntry.pdbId));
+                    const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(effectiveEntry.pdbId));
                     return entryTags.length > 0 ? (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {entryTags.map((tag, i) => (
@@ -6030,7 +6067,7 @@ export default function PdbTracker() {
                 {/* Detail Content */}
                 <div className="flex-1 min-h-0 overflow-y-auto preview-scroll custom-scrollbar">
                   <motion.div
-                    key={selectedEntry.pdbId}
+                    key={effectiveEntry.pdbId}
                     initial={{ x: detailSlideDirection === 'left' ? 30 : detailSlideDirection === 'right' ? -30 : 0, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     transition={{ duration: 0.15 }}
