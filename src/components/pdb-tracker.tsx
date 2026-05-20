@@ -5978,7 +5978,7 @@ export default function PdbTracker() {
                       </Button>
                     </div>
                     {(() => {
-                      const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(effectiveEntry.pdbId));
+                      const entryTags = generateTags(effectiveEntry, diffMode && diffResult.newIds.has(effectiveEntry.pdbId));
                       return entryTags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {entryTags.map((tag, i) => (
@@ -6045,7 +6045,7 @@ export default function PdbTracker() {
                         <circle cx="30" cy="30" r="28" fill="none" stroke={qs.color} strokeWidth="5" strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={circumference - (qs.total / 100) * circumference} transform="rotate(-90 30 30)" className="transition-all duration-700" />
                       </svg>
                       <div className="absolute inset-0 flex flex-col items-center justify-center">
-                        <span className="text-xs font-bold font-mono" style={{ color: computeQualityScore(effectiveEntry).color }}>{computeQualityScore(selectedEntry).total}</span>
+                        <span className="text-xs font-bold font-mono" style={{ color: computeQualityScore(effectiveEntry).color }}>{computeQualityScore(effectiveEntry).total}</span>
                       </div>
                     </div>
                     <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEntry(null); }} className="h-8 w-8 p-0 text-claude-text-muted hover:text-claude-text flex-shrink-0 rounded-md hover:bg-claude-border-light dark:hover:bg-[#3d3832]">
@@ -6053,7 +6053,7 @@ export default function PdbTracker() {
                     </Button>
                   </div>
                   {(() => {
-                    const entryTags = generateTags(selectedEntry, diffMode && diffResult.newIds.has(effectiveEntry.pdbId));
+                    const entryTags = generateTags(effectiveEntry, diffMode && diffResult.newIds.has(effectiveEntry.pdbId));
                     return entryTags.length > 0 ? (
                       <div className="flex flex-wrap gap-1 mt-2">
                         {entryTags.map((tag, i) => (
