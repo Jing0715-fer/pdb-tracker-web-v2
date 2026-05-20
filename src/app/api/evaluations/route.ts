@@ -165,6 +165,10 @@ export async function GET(request: NextRequest) {
           ifTier: b.if_tier,
           ligand: b.ligand,
           title: b.title,
+          pubmedId: b.pubmed_id || null,
+          pubmedTitle: b.pubmed_title || null,
+          pubmedAuthors: b.pubmed_authors || null,
+          pubmedAbstract: b.pubmed_abstract || null,
         })),
       };
     });

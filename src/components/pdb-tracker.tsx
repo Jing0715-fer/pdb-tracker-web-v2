@@ -504,6 +504,7 @@ interface PdbEntry {
   organisms: string | null;
   ligands: string | null;
   pubmedId: string | null;
+  pubmedAbstract: string | null;
   fetchDate: string;
   weekId: string;
   isCryoem: number;
@@ -5069,7 +5070,7 @@ export default function PdbTracker() {
                         setDetailPanelOpen(true);
                       } else if (blastResult) {
                         setSelectedEvalStructure({ ...blastResult, isBlast: true } as unknown as EvalPdbStructure & { isBlast: boolean });
-                        setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: '', releaseDate: '', classification: '', _type: 'weekly' } as unknown as PdbEntry);
+                        setSelectedEntry({ pdbId: blastResult.pdbId, title: blastResult.title || '', method: blastResult.method || '', resolution: blastResult.resolution ?? null, ifTier: blastResult.ifTier || '', ligands: blastResult.ligand || '', date: blastResult.releaseDate || '', authors: blastResult.pubmedAuthors || '', releaseDate: '', classification: '', journal: blastResult.journal || '', journalIf: blastResult.journalIf ?? null, pubmedId: blastResult.pubmedId || null, pubmedTitle: blastResult.pubmedTitle || null, pubmedAbstract: blastResult.pubmedAbstract || null, _type: 'weekly' } as unknown as PdbEntry);
                         setDetailPanelOpen(true);
                       }
                     }}
@@ -5679,6 +5680,14 @@ export default function PdbTracker() {
                       {selectedEntry.authors && (
                         <div className="mt-1 text-[9px] text-claude-text-muted truncate">{selectedEntry.authors.replace(/\|/g, ', ')}</div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Abstract */}
+                  {selectedEntry.pubmedAbstract && (
+                    <div className="p-2.5 rounded-lg bg-claude-border-light/30 dark:bg-[#1a1917]/60">
+                      <div className="text-[8px] text-claude-text-muted uppercase tracking-wider mb-1">Abstract</div>
+                      <p className="text-[10px] text-claude-text-secondary leading-relaxed line-clamp-4">{selectedEntry.pubmedAbstract}</p>
                     </div>
                   )}
 
